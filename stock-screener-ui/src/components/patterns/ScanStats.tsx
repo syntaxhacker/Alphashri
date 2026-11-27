@@ -127,29 +127,31 @@ export function ScanStats(props: ScanStatsProps) {
               >
                 <Show when={cell.key === "bull_bear" && props.onSelect} fallback={cell.value}>
                   <>
-                    <span
-                      role="button"
+                    <button
+                      type="button"
                       data-testid="patterns-stat-bullish"
-                      className="hover:underline"
+                      aria-label={`Filter to bullish patterns (${num(props.summary?.bullish)})`}
+                      className="hover:underline focus-visible:outline-2 focus-visible:outline-fin-primary"
                       onClick={(event) => {
                         event.stopPropagation();
                         props.onSelect?.("bullish");
                       }}
                     >
                       {num(props.summary?.bullish)}
-                    </span>
+                    </button>
                     {" / "}
-                    <span
-                      role="button"
+                    <button
+                      type="button"
                       data-testid="patterns-stat-bearish"
-                      className="hover:underline"
+                      aria-label={`Filter to bearish patterns (${num(props.summary?.bearish)})`}
+                      className="hover:underline focus-visible:outline-2 focus-visible:outline-fin-primary"
                       onClick={(event) => {
                         event.stopPropagation();
                         props.onSelect?.("bearish");
                       }}
                     >
                       {num(props.summary?.bearish)}
-                    </span>
+                    </button>
                   </>
                 </Show>
               </Text>

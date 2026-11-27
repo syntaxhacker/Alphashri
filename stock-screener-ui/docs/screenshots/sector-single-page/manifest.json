@@ -1,53 +1,146 @@
 {
   "feature": "sector-single-page",
   "route": "/sector",
-  "head": "bafeaac6e4126a9f76a364aed650e62efb5d427f",
+  "head": "001c24d9062a0f5f0c13ec6a8a09a120d310faf6",
   "viewports": [
     1600,
     390
   ],
   "sha256": {
-    "overview-1600.png": "5474f84ffef3e1f72f37638fb0e4529f40efc0ad814a8a55c9ea6a2c7a369bdc",
-    "rotation-1600.png": "90f1f84c1fd9ebae11f11f8fb4d5b2100dc0632a2cfcb092e93866322ffd5d58",
-    "correlation-1600.png": "fdaee9725bd94297381c8052cb514680da794941a004baa934e42c4310fe0ce1",
-    "history-1600.png": "bdb6971470ab253056bc074c0620d45641cbf4469ee64b97b36763f8fb605787",
-    "overview-390.png": "bb8214e248ebd0d7c9f9ffbfc0341f0347c6e80a61a56e3d70ac060194ab48b4",
-    "rotation-390.png": "f265b0a17d6bd6ee3fed49f5f5b57645e375846c632afe8cb9b080f303acdd99",
-    "correlation-390.png": "8c56aa4954086dd64cc770d24353924a965b9ce378e95abf77649d57e9dc911d",
-    "history-390.png": "77d0c6a6d70f936ee51983f28d96828e29280371a40a5b37b1953139665cbfff"
+    "overview-loading-1600.png": "dfdd7e7e9f92c97701ca9a7659a7331b465b1970eb230127de4e41e54e2aeb98",
+    "overview-error-1600.png": "c80047faab2ccde1bd5b3b361153fe045fba2166b936ddb063bb5d7326ddb477",
+    "overview-empty-1600.png": "81ae5313e9e00f700ad6f4c10b3525f3a2b7b023cbf63aca2ff64202e93821f4",
+    "rotation-loading-1600.png": "dd95944b21349412e6ec40e5b0b89f6c489968c61ba5f7867acf97493d7caa67",
+    "rotation-error-1600.png": "e17ec169198a680deeb7fed34b3c5fa54a5775cd7c28b3cacbae1b4012eb631a",
+    "rotation-empty-1600.png": "4554c89576f7459ab66359e7168be80da13fc109a4c39a0e46465acac613ddc5",
+    "correlation-loading-1600.png": "2c058146e55b9ae5843518838427cd6adb7031880753ac6d60398579ca4ecc9b",
+    "correlation-error-1600.png": "3a354a60a7f080f5f9163bb9fdc8e9d01daaf0920e2c989b2bbdb0dca21bde11",
+    "correlation-empty-1600.png": "6abb72b4a5ff431da09555b5e300db122e3015d44dcc8f8e6952d50920b32481",
+    "history-loading-1600.png": "b4c7796daed1b71f528a36035543ca1bb4e94479f45da23575dd1b2f6ac941b5",
+    "history-error-1600.png": "f95c33e6b640bfa99c47471d3f81306415c604594469900d59e4b29356cd151f",
+    "history-empty-1600.png": "10ad5a2aad1b96a1b6619c46a8bc52c353facb3a8a0e7b489c6285e8ab3daf1e",
+    "overview-loading-390.png": "6de7a715392e8d00416678eba188d0ff16fa23d6e339994045a10e8a5d11fa6b",
+    "overview-error-390.png": "4424835c930f9bb5eaf1a1e67407f1df453edcea78e97dc2045499821b2ed37e",
+    "overview-empty-390.png": "11af88ecc25ee7354adaa887a2bd5fed4478732582c9b767d5e6e347f60d7200",
+    "rotation-loading-390.png": "e853db3b29dd5883f43c0f50ced6ec892b24d560c582189ebc09c6dc874571af",
+    "rotation-error-390.png": "799ba50bf0927cfec1a5aecd8c7b13ee89d3f2cbf919211c85c5a458fb120191",
+    "rotation-empty-390.png": "1245a5a9a6c29959b1a4fa451ed29f51b13a9bee0f85c590b122958f7bce3e46",
+    "correlation-loading-390.png": "2ea6ac56d167723571e92d7f5e50119a1b5ef0ec2fd344656ef010577c669f94",
+    "correlation-error-390.png": "ab8fc876d51b91c781c8fdfbf6ed9645fadd919c82850ddfaaa38cd27d83ca12",
+    "correlation-empty-390.png": "842eb23968d1193bd8f0d27d2f3b20b7f440479c4d56a44f06926eac8a3e65d7",
+    "history-loading-390.png": "2630fe60049106d33ad7a74e4cea9ea620286a1c79e8cfc7c9beb76190190a36",
+    "history-error-390.png": "b3ec6dfec0cacd64437c4120d720fbc9f56952bfa30b3403afd2c5b16567aac2",
+    "history-empty-390.png": "672ef7aabebd2117209c98f92e4eccf049e7cfcde6ee8c15f3cdf52c1430ecab"
   },
   "states": [
     {
-      "id": "overview-loaded",
+      "id": "overview-loading",
       "files": {
-        "390": "overview-390.png",
-        "1600": "overview-1600.png"
+        "390": "overview-loading-390.png",
+        "1600": "overview-loading-1600.png"
       },
-      "covers": "Overview at the top of /sector: summary strip, MOVE table and alerts."
+      "covers": "Overview while /api/sector is delayed: loading panel replaces the heatmap and summary strip.",
+      "mock": true
     },
     {
-      "id": "rotation-loaded",
+      "id": "overview-error",
       "files": {
-        "390": "rotation-390.png",
-        "1600": "rotation-1600.png"
+        "390": "overview-error-390.png",
+        "1600": "overview-error-1600.png"
       },
-      "covers": "Rotation section after anchor navigation: regime, board and matrix."
+      "covers": "Overview when /api/sector returns 500: error panel with Retry.",
+      "mock": true
     },
     {
-      "id": "correlation-loaded",
+      "id": "overview-empty",
       "files": {
-        "390": "correlation-390.png",
-        "1600": "correlation-1600.png"
+        "390": "overview-empty-390.png",
+        "1600": "overview-empty-1600.png"
       },
-      "covers": "Correlation section after anchor navigation: heatmap and relative strength."
+      "covers": "Overview when /api/sector returns an empty sector list: no-data panel.",
+      "mock": true
     },
     {
-      "id": "history-loaded",
+      "id": "rotation-loading",
       "files": {
-        "390": "history-390.png",
-        "1600": "history-1600.png"
+        "390": "rotation-loading-390.png",
+        "1600": "rotation-loading-1600.png"
       },
-      "covers": "History section after anchor navigation: lazy chunk mounted with overview data."
+      "covers": "Rotation while /api/rotation/overview is delayed: loading panel.",
+      "mock": true
+    },
+    {
+      "id": "rotation-error",
+      "files": {
+        "390": "rotation-error-390.png",
+        "1600": "rotation-error-1600.png"
+      },
+      "covers": "Rotation when /api/rotation/overview returns 500: error alert with Retry.",
+      "mock": true
+    },
+    {
+      "id": "rotation-empty",
+      "files": {
+        "390": "rotation-empty-390.png",
+        "1600": "rotation-empty-1600.png"
+      },
+      "covers": "Rotation when /api/rotation/overview returns no rows: empty panel.",
+      "mock": true
+    },
+    {
+      "id": "correlation-loading",
+      "files": {
+        "390": "correlation-loading-390.png",
+        "1600": "correlation-loading-1600.png"
+      },
+      "covers": "Correlation while /api/sector/correlation is delayed: loading panel.",
+      "mock": true
+    },
+    {
+      "id": "correlation-error",
+      "files": {
+        "390": "correlation-error-390.png",
+        "1600": "correlation-error-1600.png"
+      },
+      "covers": "Correlation when /api/sector/correlation returns 500: error panel with Retry.",
+      "mock": true
+    },
+    {
+      "id": "correlation-empty",
+      "files": {
+        "390": "correlation-empty-390.png",
+        "1600": "correlation-empty-1600.png"
+      },
+      "covers": "Correlation when /api/sector/correlation returns empty names: no-data panel.",
+      "mock": true
+    },
+    {
+      "id": "history-loading",
+      "files": {
+        "390": "history-loading-390.png",
+        "1600": "history-loading-1600.png"
+      },
+      "covers": "History while /api/sector/history is delayed: loading panel.",
+      "mock": true
+    },
+    {
+      "id": "history-error",
+      "files": {
+        "390": "history-error-390.png",
+        "1600": "history-error-1600.png"
+      },
+      "covers": "History when /api/sector/history returns 500: error panel with Retry and Details.",
+      "mock": true
+    },
+    {
+      "id": "history-empty",
+      "files": {
+        "390": "history-empty-390.png",
+        "1600": "history-empty-1600.png"
+      },
+      "covers": "History when /api/sector/history returns an empty payload: no-history panel.",
+      "mock": true
     }
-  ]
+  ],
+  "source": "route-mocks"
 }

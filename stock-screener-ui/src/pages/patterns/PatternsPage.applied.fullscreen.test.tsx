@@ -39,7 +39,7 @@ describe("PatternsPage fullscreen chart", () => {
     expect(fetchSymbolChart).toHaveBeenCalledWith(
       "IRCON",
       "1h",
-      expect.objectContaining({ computeTrendlines: true }),
+      expect.objectContaining({ detectPatterns: false }),
     );
   });
 
@@ -70,14 +70,12 @@ describe("PatternsPage fullscreen chart", () => {
       timeframe: "1h",
       candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
       hits: [],
-      trend_lines: [],
     });
     fetchSymbolChart.mockResolvedValueOnce({
       symbol: "IRCON",
       timeframe: "1h",
       candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
       overlays: [{ pattern_id: "rising_wedge", pattern_name: "Rising Wedge", trendlines: [] }],
-      trend_lines: [],
       // Live detection returns hits stamped with the requested frame.
       hits: [{ ...oldConfident, timeframe: "1h" }, { ...newWeak, timeframe: "1h" }],
     });
@@ -87,7 +85,6 @@ describe("PatternsPage fullscreen chart", () => {
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", {
         detectPatterns: true,
-        computeTrendlines: true,
       }),
     );
     await waitFor(() =>
@@ -120,14 +117,12 @@ describe("PatternsPage fullscreen chart", () => {
       timeframe: "1h",
       candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
       hits: [],
-      trend_lines: [],
     });
     fetchSymbolChart.mockResolvedValueOnce({
       symbol: "IRCON",
       timeframe: "1h",
       candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
       overlays: [],
-      trend_lines: [],
       hits: [],
     });
 
@@ -136,7 +131,6 @@ describe("PatternsPage fullscreen chart", () => {
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", {
         detectPatterns: true,
-        computeTrendlines: true,
       }),
     );
     await waitFor(() =>

@@ -13,12 +13,19 @@ vi.mock("@/ui", async (importOriginal) => {
 });
 
 // Mock modules using vi.hoisted to avoid top-level variable issues
-const { mockUseNewsList, mockUseNewsSourceGroups, mockFetchArticle } = vi.hoisted(() => {
-  const mockUseNewsList = vi.fn();
-  const mockUseNewsSourceGroups = vi.fn();
-  const mockFetchArticle = vi.fn();
-  return { mockUseNewsList, mockUseNewsSourceGroups, mockFetchArticle };
-});
+const { mockUseNewsList, mockUseNewsSourceGroups, mockFetchArticle, nav, articleProps } =
+  vi.hoisted(() => {
+    const mockUseNewsList = vi.fn();
+    const mockUseNewsSourceGroups = vi.fn();
+    const mockFetchArticle = vi.fn();
+    return {
+      mockUseNewsList,
+      mockUseNewsSourceGroups,
+      mockFetchArticle,
+      nav: { navigate: vi.fn() },
+      articleProps: { current: null as any },
+    };
+  });
 
 vi.mock("../components/news/useNewsList", () => ({
   useNewsList: () => mockUseNewsList(),
@@ -36,7 +43,7 @@ vi.mock("../api/news", () => ({
 }));
 
 vi.mock("@solidjs/router", () => ({
-  useNavigate: vi.fn(() => vi.fn()),
+  useNavigate: () => nav.navigate,
 }));
 
 vi.mock("../components/news/NewsList", () => ({
@@ -63,11 +70,14 @@ vi.mock("../components/news/NewsList", () => ({
 }));
 
 vi.mock("../components/news/ArticleDetail", () => ({
-  ArticleDetail: ({ selectedArticle }: any) => (
-    <div data-testid="article-detail-region">
-      {selectedArticle ? `Article: ${selectedArticle.title}` : "No article selected"}
-    </div>
-  ),
+  ArticleDetail: (props: any) => {
+    articleProps.current = props;
+    return (
+      <div data-testid="article-detail-region">
+        {props.selectedArticle ? `Article: ${props.selectedArticle.title}` : "No article selected"}
+      </div>
+    );
+  },
 }));
 
 describe("NewsPage", () => {
@@ -193,5 +203,36 @@ describe("NewsPage", () => {
     await waitFor(() => {
       expect(mockFetchArticle).toHaveBeenCalledWith("https://example.com/article1");
     });
+  });
+
+  it("drops the marketing subtitle but keeps the story and source counts", () => {
+    render(() => <NewsPage />);
+
+    const header = screen.getByTestId("news-workspace-header");
+    expect(header).toHaveTextContent("NEWS");
+    expect(header).toHaveTextContent("Stories");
+    expect(header).toHaveTextContent("Sources");
+    expect(header).not.toHaveTextContent("Market intelligence");
+    expect(header).not.toHaveTextContent("Headlines, catalysts");
+  });
+
+  it("sends an Indian symbol through the shared chart href", () => {
+    render(() => <NewsPage />);
+
+    articleProps.current.onSymbolClick({
+      trading_symbol: "RELIANCE",
+      instrument_key: "NSE_EQ|INE002A01018",
+    });
+    expect(nav.navigate).toHaveBeenCalledWith("/chart/RELIANCE");
+  });
+
+  it("sends a US symbol to the chart route with the market parameter", () => {
+    render(() => <NewsPage />);
+
+    articleProps.current.onSymbolClick({
+      trading_symbol: "AAPL",
+      instrument_key: "NASDAQ|AAPL",
+    });
+    expect(nav.navigate).toHaveBeenCalledWith("/chart/AAPL?market=usa");
   });
 });

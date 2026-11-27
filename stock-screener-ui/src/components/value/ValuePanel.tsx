@@ -1,9 +1,10 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { IconDownload, IconRefresh } from "../common/Icons";
+import { IconDownload, IconRefresh, IconSparkles } from "../common/Icons";
 import {
   ActionIcon,
   Alert,
+  Badge,
   Box,
   Button,
   Divider,
@@ -14,8 +15,11 @@ import {
   TabsList,
   Text,
   ToolbarRow,
+  useDisclosure,
 } from "@/ui";
 import { CompactPanel } from "../common/compact";
+import { PresetGallery } from "../market/presets/PresetGallery";
+import type { MarketFilterState } from "../market/marketFilters";
 import { useValueScanSolid } from "./useValueScanSolid";
 import {
   VALUE_MARKETS,
@@ -53,12 +57,44 @@ interface ValuePanelProps {
    * the row click. The standalone tab omits it and needs no dock provider.
    */
   onOpenSymbol?: (symbol: string) => void;
+  /**
+   * Market-view presets opened from this panel's gallery. The host owns the
+   * market filter state; without a host the gallery still browses them.
+   */
+  onApplyMarketPreset?: (patch: Partial<MarketFilterState>) => void;
 }
 
-const PRESET_OPTIONS = Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
-  value,
-  label: meta.label,
-}));
+const PRESET_OPTIONS = [
+  { value: "", label: "No preset" },
+  ...Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
+    value,
+    label: meta.label,
+  })),
+];
+
+const VALUE_WARNING_LABELS: Record<string, string> = {
+  cache_unavailable: "Price cache unavailable — live scan",
+  scoring_engine_unavailable: "Scoring engine unavailable — ranks may be incomplete",
+};
+
+function formatValueAsOf(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return `${new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  }).format(parsed)} IST`;
+}
+
+function humanizeValueWarning(warning: string): string {
+  if (VALUE_WARNING_LABELS[warning]) return VALUE_WARNING_LABELS[warning];
+  return warning.replace(/_/g, " ");
+}
 
 export function ValuePanel(props: ValuePanelProps) {
   const navigate = useNavigate();
@@ -82,6 +118,15 @@ export function ValuePanel(props: ValuePanelProps) {
   const patch = (p: Partial<ValueFilters>): void => {
     setFilters((f) => ({ ...f, ...p }));
   };
+  const [galleryOpened, gallery] = useDisclosure(false);
+
+  const patchValueBounds = (bounds: Record<string, number | null>): void => {
+    patch(bounds as Partial<ValueFilters>);
+  };
+  const valueBounds = () =>
+    filters() as unknown as Record<string, number | null | undefined>;
+  const valueCurrency = () => (filters().market === "usa" ? "USD" : "INR");
+  const valueUniverse = () => (filters().market === "usa" ? "us" : "all_equity");
 
   const canOpenInHost = (exchange: string | undefined): boolean =>
     props.embedded === true &&
@@ -174,20 +219,35 @@ export function ValuePanel(props: ValuePanelProps) {
               </Tabs>
             </Show>
             <Select
-              placeholder="Preset"
               aria-label="Value preset"
               data={PRESET_OPTIONS}
               value={filters().preset ?? ""}
-              onChange={(v) => patch({ preset: v ?? undefined })}
+              onChange={(v) => patch({ preset: v || undefined })}
               w={150}
               size="sm"
               data-testid="value-preset-select"
             />
+            <Button
+              size="sm"
+              variant="outline"
+              aria-haspopup="dialog"
+              aria-expanded={galleryOpened()}
+              onClick={gallery.open}
+              data-testid="value-preset-gallery"
+            >
+              <IconSparkles size={12} />
+              Presets
+            </Button>
           </ToolbarRow>
-          <ToolbarRow gap={8}>
+          <ToolbarRow gap={8} data-testid="value-header-secondary">
+            <Show when={filters().preset}>
+              <Badge size="xs" color="primary" variant="light" data-testid="value-preset-current">
+                {VALUE_PRESETS[filters().preset ?? ""]?.label ?? filters().preset}
+              </Badge>
+            </Show>
             <Show when={lastUpdated()}>
               <Text size="xs" c="dimmed" data-testid="value-as-of">
-                {`as of ${lastUpdated()}`}
+                {`as of ${formatValueAsOf(lastUpdated())}`}
               </Text>
             </Show>
             <ActionIcon
@@ -244,7 +304,7 @@ export function ValuePanel(props: ValuePanelProps) {
             </Text>
           </Box>
         </Show>
-        <Show when={!showEmpty()}>
+        <Show when={!showEmpty() && !(showError() && rows().length === 0)}>
           <ValueTable
             rows={rows()}
             loading={isLoading()}
@@ -278,7 +338,7 @@ export function ValuePanel(props: ValuePanelProps) {
           <ToolbarRow gap={8}>
             <Show when={warnings().length > 0}>
               <Text size="xs" c="dimmed" data-testid="value-warnings">
-                {warnings().join(" · ")}
+                {warnings().map(humanizeValueWarning).join(" · ")}
               </Text>
             </Show>
             <ActionIcon
@@ -293,6 +353,22 @@ export function ValuePanel(props: ValuePanelProps) {
           </ToolbarRow>
         </ToolbarRow>
       </Box>
+      <PresetGallery
+        opened={galleryOpened()}
+        onClose={gallery.close}
+        mode="value"
+        focus="value"
+        universe={valueUniverse()}
+        currency={valueCurrency()}
+        showMovers={typeof props.onApplyMarketPreset === "function"}
+        onMarketPreset={props.onApplyMarketPreset}
+        valueBounds={{ values: valueBounds, onChange: patchValueBounds }}
+        valuePresets={{
+          selected: filters().preset,
+          presets: VALUE_PRESETS,
+          onSelect: (id) => patch({ preset: id }),
+        }}
+      />
       <ValueDetailDrawer row={selected()} onClose={() => setSelected(null)} />
     </CompactPanel>
   );

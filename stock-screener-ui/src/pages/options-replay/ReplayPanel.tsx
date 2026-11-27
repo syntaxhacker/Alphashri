@@ -602,15 +602,15 @@ export function ReplayPanel(props: ReplayPanelProps) {
                 data-testid="replay-empty"
                 title={missingFrames() ? "No replay frames" : "No replay to show"}
                 description={missingFrames()
-                  ? "The structure is loaded, but the replay returned no priced frames. Frames are built only from market data inside the selected session — try another expiry or re-run the scan."
-                  : "Open a structure in the Options Dock, then choose Replay this structure to backdate its payoff and commit it to your paper book."}
+                  ? "No priced frames in this session."
+                  : "Open a structure in the Options Dock to see its payoff path here."}
                 action={
                   <Button
                     size="sm"
                     variant="filled"
                     className={buttonMotion()}
                     data-testid="replay-open-dock"
-                    onClick={() => navigate("/screener")}
+                    onClick={() => navigate("/options")}
                   >
                     Open Options Dock
                   </Button>
@@ -618,7 +618,7 @@ export function ReplayPanel(props: ReplayPanelProps) {
               />
               <Show when={missingFrames()}>
                 <Text size="xs" c="warning" data-testid="replay-missing-frames" className="shrink-0 text-center">
-                  No frames were returned for this structure — no payoff path can be drawn until priced frames exist.
+                  No frames were returned — try another expiry or re-run the scan.
                 </Text>
               </Show>
             </div>

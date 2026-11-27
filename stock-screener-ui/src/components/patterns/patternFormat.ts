@@ -21,7 +21,11 @@ export function formatOneDecimal(value: number | null | undefined): string {
 
 export function formatSignedPct1(value: number | null | undefined): string {
   if (!isFiniteNumber(value)) return "—";
-  return `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(1)}%`;
+  const magnitude = Math.abs(value).toFixed(1);
+  // Below display precision a move rounds to zero; a signed "−0.0%" invents a
+  // direction the number cannot support.
+  if (magnitude === "0.0") return "0.0%";
+  return `${value >= 0 ? "+" : "−"}${magnitude}%`;
 }
 
 export function hitLastPrice(

@@ -29,19 +29,4 @@ describe("PatternsPage actions and toggles", () => {
     fireEvent.click(screen.getByTestId("patterns-scan-again"));
     expect(props.scan).toHaveBeenCalledTimes(1);
   });
-
-  test("TLS/TLR toggle reflects state and calls setComputeTrendlines", async () => {
-    const props = makeProps({ computeTrendlines: true });
-    r(() => <PatternsPage {...props} />);
-    expect(screen.getByText("TLS/TLR")).toBeInTheDocument();
-    const toggle = screen.getByTestId("patterns-compute-trendlines");
-    expect(toggle).toBeChecked();
-    fireEvent.click(toggle);
-    expect(props.setComputeTrendlines).toHaveBeenCalledWith(false);
-  });
-
-  test("TLS/TLR toggle renders unchecked when computation is off", () => {
-    r(() => <PatternsPage {...makeProps({ computeTrendlines: false })} />);
-    expect(screen.getByTestId("patterns-compute-trendlines")).not.toBeChecked();
-  });
 });

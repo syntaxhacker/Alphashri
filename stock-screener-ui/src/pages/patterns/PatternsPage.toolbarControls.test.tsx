@@ -9,15 +9,13 @@ describe("PatternsPage toolbar layout", () => {
   beforeEach(resetToolbarHarness);
   afterEach(() => cleanup());
 
-  test("toolbar shows timeframe, lookback, filter-results and TLS/TLR controls", () => {
+  test("toolbar shows timeframe, lookback and filter-results controls", () => {
     r(() => <PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-timeframe-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-lookback-select")).toBeInTheDocument();
     // Native input carries the testid (see TextInput htmlInput slot).
     expect(screen.getByTestId("patterns-results-search")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Search results…")).toBeInTheDocument();
-    expect(screen.getByText("TLS/TLR")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-compute-trendlines")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters");
   });
 });

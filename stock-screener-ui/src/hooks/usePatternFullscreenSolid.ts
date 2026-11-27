@@ -14,7 +14,6 @@ import type {
   PatternHitDTO,
   PatternOverlay,
   SRZone,
-  TrendLine,
 } from "@/types/chartPatterns";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
 import { fetchQuotes } from "@/api/marketScreener";
@@ -28,7 +27,7 @@ export type SymbolChartPayload = Awaited<ReturnType<typeof fetchSymbolChart>>;
 const SYMBOL_CHART_CACHE_MS = 60_000;
 
 /**
- * Cache identity for one symbol/timeframe phase. Lookback and trendline options
+ * Cache identity for one symbol/timeframe phase. Lookback and replay options
  * change the response, so they belong in the key: a reload that drops or
  * changes them must not reuse a payload fetched with different options.
  */
@@ -38,18 +37,12 @@ export function fullscreenChartCacheKey(
   phase: "l" | "p",
   options: {
     lookbackBars?: number | null;
-    computeTrendlines?: boolean;
     asOf?: string | null;
     fromDate?: string | null;
   },
 ): string {
   const lookback = options.lookbackBars ?? "d";
-  const trendlines = options.computeTrendlines == null
-    ? "d"
-    : options.computeTrendlines
-      ? "t"
-      : "f";
-  return `${symbol}|${tf}|${phase}|${lookback}|${trendlines}|${options.asOf ?? ""}|${options.fromDate ?? ""}`;
+  return `${symbol}|${tf}|${phase}|${lookback}|${options.asOf ?? ""}|${options.fromDate ?? ""}`;
 }
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -111,7 +104,6 @@ export interface FullscreenChartState {
   timeframe: string;
   candles: ChartCandle[];
   overlays: PatternOverlay[];
-  trendLines: TrendLine[];
   /** Indicator series carried by the chart payload (null = absent). */
   indicators: ChartIndicators | null;
   /** Historical reaction zones carried by the chart payload. */
@@ -143,7 +135,6 @@ export interface FullscreenChartState {
 export interface UsePatternFullscreenArgs {
   timeframe: string;
   lookbackBars?: number | null;
-  computeTrendlines?: boolean;
   scopeKey?: string | null;
   resolutionKey?: string | null;
 }
@@ -184,7 +175,6 @@ const indicatorsFitCandles = (
 export function usePatternFullscreen({
   timeframe: defaultTimeframe,
   lookbackBars = null,
-  computeTrendlines = true,
   scopeKey = null,
   resolutionKey = null,
 }: UsePatternFullscreenArgs) {
@@ -265,7 +255,6 @@ export function usePatternFullscreen({
       timeframe: hit.timeframe,
       candles: hit.candles ?? [],
       overlays: [],
-      trendLines: hit.trend_lines ?? [],
       indicators: null,
       srZones: [],
       loading: true,
@@ -283,7 +272,6 @@ export function usePatternFullscreen({
     const chartPromise = fetchSymbolChart(hit.symbol, hit.timeframe, {
       detectPatterns: !stored,
       ...(lookbackBars != null ? { lookbackBars } : {}),
-      computeTrendlines,
     });
 
     void Promise.all([fullHit, chartPromise])
@@ -303,7 +291,6 @@ export function usePatternFullscreen({
                 hits: [resolved],
                 candles: chart.candles?.length ? chart.candles : prev.candles,
                 overlays: [],
-                trendLines: chart.trend_lines ?? resolved.trend_lines ?? prev.trendLines,
                 ...chartIndicators(chart),
                 loading: false,
               }
@@ -371,7 +358,6 @@ export function usePatternFullscreen({
             hits,
             candles: chart.candles ?? [],
             overlays: [],
-            trendLines: chart.trend_lines ?? [],
             ...chartIndicators(chart),
             loading: false,
           }
@@ -400,7 +386,6 @@ export function usePatternFullscreen({
     detectPatterns: boolean,
     extra: {
       lookbackBars?: number | null;
-      computeTrendlines?: boolean;
       asOf?: string | null;
       fromDate?: string | null;
       refresh?: boolean;
@@ -415,9 +400,6 @@ export function usePatternFullscreen({
       ...(extra.fromDate ? { fromDate: extra.fromDate } : {}),
       ...(extra.refresh ? { refresh: true } : {}),
     };
-    if (extra.computeTrendlines != null) {
-      baseOpts.computeTrendlines = extra.computeTrendlines;
-    }
 
     const applyCandles = (chart: SymbolChartPayload) => {
       if (chartRequestToken !== token) return;
@@ -431,7 +413,6 @@ export function usePatternFullscreen({
               hits: retainHitsForTimeframe(prev.hits, tf),
               candles: chart.candles ?? [],
               overlays: [],
-              trendLines: chart.trend_lines ?? [],
               ...chartIndicators(chart),
               loading: false,
             }
@@ -484,7 +465,6 @@ export function usePatternFullscreen({
             : resolveHit(hits),
           hits,
           candles,
-          trendLines: chart.trend_lines ?? [],
           indicators,
           srZones: chart.sr_zones ?? [],
           patternsLoading: false,
@@ -612,7 +592,6 @@ export function usePatternFullscreen({
       timeframe: tf,
       candles: [],
       overlays: [],
-      trendLines: [],
       indicators: null,
       srZones: [],
       loading: true,
@@ -632,7 +611,6 @@ export function usePatternFullscreen({
 
     void runTwoPhase(symbol, tf, token, detectPatterns, {
       lookbackBars,
-      computeTrendlines,
       asOf: replay?.asOf ?? undefined,
       fromDate: replay?.fromDate ?? undefined,
       refresh,
@@ -700,7 +678,6 @@ export function usePatternFullscreen({
             hits: keptHits,
             candles: [],
             overlays: [],
-            trendLines: [],
             indicators: null,
             srZones: [],
             loading: true,
@@ -717,7 +694,6 @@ export function usePatternFullscreen({
     );
     void runTwoPhase(symbol, tf, token, current.detectPatterns !== false, {
       lookbackBars,
-      computeTrendlines,
       asOf,
       fromDate,
     });

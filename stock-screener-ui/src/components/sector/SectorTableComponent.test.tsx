@@ -91,6 +91,18 @@ describe("SectorTable rendering", () => {
     expect(screen.getByText("Neutral")).toBeInTheDocument();
   });
 
+  it("normalizes a backend-supplied -0.0% top mover", () => {
+    render(() => (
+      <SectorTable
+        sectors={[{ ...mockSectors[0], top_movers: "TCS(-0.0%) INFY(+1.2%)" }]}
+      />
+    ));
+    expect(screen.getByTestId("sector-top-mover-TCS")).toBeInTheDocument();
+    expect(screen.queryByText("(-0.0%)")).not.toBeInTheDocument();
+    expect(screen.getByText("(0.0%)")).toBeInTheDocument();
+    expect(screen.getByText("(+1.2%)")).toBeInTheDocument();
+  });
+
   it("renders each top mover as a focusable symbol button", () => {
     render(() => <SectorTable sectors={mockSectors} />);
     expect(screen.getByTestId("sector-top-mover-TCS").tagName).toBe("BUTTON");
@@ -124,6 +136,13 @@ describe("SectorTable rendering", () => {
     render(() => <SectorTable sectors={mockSectors} />);
     const deltas = screen.getAllByTestId("sector-move-delta");
     expect(deltas.map((node) => node.textContent)).toEqual(["Δ +2.50%", "Δ -1.00%"]);
+  });
+
+  it("rounds a tiny negative change to 0.00% instead of -0.00%", () => {
+    render(() => <SectorTable sectors={[{ ...mockSectors[0], avg_change: -0.001 }]} />);
+    expect(screen.getAllByText("0.00%").length).toBeGreaterThan(0);
+    expect(screen.queryByText("-0.00%")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sector-move-delta")).toHaveTextContent("Δ 0.00%");
   });
 
   it("renders A/D ratio with positive sector green color and negative red", () => {

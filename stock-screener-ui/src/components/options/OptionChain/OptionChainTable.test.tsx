@@ -296,7 +296,7 @@ describe("OptionChainTable", () => {
       ];
       render(() => <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
-      expect(screen.getByText("LB")).toBeInTheDocument();
+      expect(within(screen.getByTestId("options-chain-table-scrollarea")).getByText("LB")).toBeInTheDocument();
     });
   });
 

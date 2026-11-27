@@ -53,12 +53,6 @@ describe("buildAppliedFilterChips", () => {
     expect(bullish?.nextValue).toEqual(["bearish"]);
   });
 
-  test("omits the trendlines chip when the view is both", () => {
-    expect(
-      buildAppliedFilterChips(makeFilters({ trendlines: "both", min_avg_volume_10d: null }), PATTERNS),
-    ).toEqual([]);
-  });
-
   test("builds family / status chips with readable labels and drop-one nextValue", () => {
     const chips = buildAppliedFilterChips(
       makeFilters({
@@ -265,38 +259,6 @@ describe("AppliedFilters", () => {
       />);
     fireEvent.click(screen.getByTestId("patterns-applied-clear-all"));
     expect(resetFilters).toHaveBeenCalledTimes(1);
-  });
-
-  test("clicking the trendlines chip resets the view to both", () => {
-    const setFilter = vi.fn();
-    render(() =>       <AppliedFilters
-        filters={makeFilters({ trendlines: "none" })}
-        patterns={PATTERNS}
-        setFilter={setFilter}
-        resetFilters={vi.fn()}
-      />);
-    expect(screen.getByText("Trendlines: Hidden")).toBeInTheDocument();
-    const chip = screen.getByTestId("patterns-applied-filter-trendlines");
-    fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
-    expect(setFilter).toHaveBeenCalledWith("trendlines", "both");
-  });
-
-  test("shows the TLS/TLR trendline labels", () => {
-    render(() =>       <AppliedFilters
-        filters={makeFilters({ trendlines: "support" })}
-        patterns={PATTERNS}
-        setFilter={vi.fn()}
-        resetFilters={vi.fn()}
-      />);
-    expect(screen.getByText("Trendlines: TLS only")).toBeInTheDocument();
-    cleanup();
-    render(() =>       <AppliedFilters
-        filters={makeFilters({ trendlines: "resistance" })}
-        patterns={PATTERNS}
-        setFilter={vi.fn()}
-        resetFilters={vi.fn()}
-      />);
-    expect(screen.getByText("Trendlines: TLR only")).toBeInTheDocument();
   });
 
   test("shows one chip per active filter across all groups (within the visible cap)", () => {

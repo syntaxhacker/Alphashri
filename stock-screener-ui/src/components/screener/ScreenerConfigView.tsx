@@ -22,7 +22,6 @@ import { fetchWithAuth } from "@/state/auth";
 import type { ScreenerOption, ProfileFilter } from "../../types";
 import type { ColumnDef } from "./columns";
 import { ScreenerTable } from "./ScreenerTable";
-import { SelectionBar } from "./SelectionBar";
 import { createScreener, updateScreener, deleteScreener } from "../../api/screeners";
 import { loadScreeners } from "../../api/index";
 import { approachingStocksOf, buildScreenerPreviewUrl } from "@/api/screenerQuery";
@@ -84,6 +83,7 @@ interface Props {
   screenerOptions: ScreenerOption[];
   activeScreener: string;
   onScreenerChange: (id: string) => void;
+  onSymbolClick?: (symbol: string) => void;
 }
 
 interface ScreenerForm {
@@ -108,6 +108,73 @@ const EMPTY_FORM: ScreenerForm = {
 };
 
 type FilterEntry = { key: string; default: unknown };
+
+// User-facing names for the built-in screener filter keys. The API returns a
+// `{key: default}` dict without labels, so raw keys would leak into the badge
+// row. Keep these aligned with `screener_models.py`.
+const FILTER_LABELS: Record<string, string> = {
+  direction: "Direction",
+  lookback_minutes: "Lookback",
+  max_52w_gap: "52W gap",
+  max_pe: "Max P/E",
+  max_rsi: "RSI",
+  min_atr_pct: "ATR %",
+  min_cap_b: "Market cap (B)",
+  min_gap_pct: "Gap %",
+  min_impact: "Impact",
+  min_interest_score: "Interest",
+  min_move_pct: "Move %",
+  min_roe: "ROE %",
+  min_rsi: "RSI",
+  min_stoch_k: "Stoch K",
+  min_surge_pct: "Surge %",
+  min_turnover_cr: "Turnover (Cr)",
+  min_vol_surge: "Vol surge",
+  min_volume_m: "Volume (M)",
+  rsi_range: "RSI",
+  score_range: "Score",
+  trend: "Trend",
+  wick_pct_range: "Wick %",
+};
+
+// Select filters cannot be represented by the dict's scalar default alone.
+// Keep their allowed values so Edit renders a select, not a number stepper.
+const FILTER_META: Record<string, Pick<ProfileFilter, "type" | "options">> = {
+  direction: { type: "select", options: ["both", "bullish", "bearish"] },
+  trend: { type: "select", options: ["all", "bullish", "bearish", "strong_trend"] },
+};
+
+function humanizeFilterKey(key: string): string {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\b52w\b/gi, "52W")
+    .replace(/\brsi\b/gi, "RSI")
+    .replace(/\broe\b/gi, "ROE")
+    .replace(/\bpe\b/gi, "P/E")
+    .replace(/\batr\b/gi, "ATR")
+    .replace(/\bpct\b/gi, "%")
+    .replace(/\bcr\b/gi, "Cr");
+}
+
+function labelForFilterKey(key: string, filters?: unknown): string {
+  if (Array.isArray(filters)) {
+    const hit = filters.find(
+      (f) =>
+        f &&
+        typeof f === "object" &&
+        ((f as { key?: string }).key === key ||
+          (typeof (f as { key?: string }).key === "string" &&
+            key.startsWith(`${(f as { key: string }).key}_`))),
+    ) as { label?: string } | undefined;
+    if (hit?.label) return hit.label;
+  }
+  // Range pairs are split into `<base>_min` / `<base>_max`.
+  const range = /^(.*)_(min|max)$/.exec(key);
+  const base = range?.[1] ?? key;
+  const label = FILTER_LABELS[key] ?? FILTER_LABELS[base];
+  if (label) return range ? `${label} ${range[2] === "min" ? "≥" : "≤"}` : label;
+  return humanizeFilterKey(key);
+}
 
 /**
  * The screener payload's `filters` is not type-guaranteed at runtime: the
@@ -317,7 +384,18 @@ export function ScreenerConfigView(props: Props) {
       description: screener.description || "",
       indicators: screener.indicators || [],
       columns: screener.columns || [],
-      filters: screener.filters || [],
+      filters: Array.isArray(screener.filters)
+        ? screener.filters
+        : normalizeScreenerFilters(screener.filters).map((entry) => {
+            const meta = FILTER_META[entry.key];
+            return {
+              key: entry.key,
+              label: labelForFilterKey(entry.key, screener.filters),
+              type: meta?.type ?? ("number" as const),
+              options: meta?.options,
+              default: entry.default as number | string,
+            };
+          }),
       defaultSortColumn: screener.default_sort?.column || "score",
       defaultSortDirection: screener.default_sort?.direction || "desc",
     });
@@ -390,21 +468,16 @@ export function ScreenerConfigView(props: Props) {
     return <></>;
   };
 
-  const activeFilterBadges = (): Record<string, any> => {
-    const active = activeOption();
-    if (!active) return {};
-    if (Array.isArray(active.filters)) {
-      const obj: Record<string, any> = {};
-      active.filters.forEach((f: any) => {
-        if (f.key && f.default !== undefined) obj[f.key] = f.default;
-      });
-      return obj;
-    }
-    if (active.filters && typeof active.filters === "object") {
-      return active.filters as Record<string, any>;
-    }
-    return {};
-  };
+  const activeFilterBadges = createMemo(() =>
+    filterArr().filter(
+      (entry) =>
+        entry.default !== undefined &&
+        entry.default !== null &&
+        String(entry.default).trim() !== "",
+    ),
+  );
+
+  const filterLabel = (key: string): string => labelForFilterKey(key, activeOption()?.filters);
 
   const formOpen = () => createModalOpen() || editModalOpen();
 
@@ -523,10 +596,10 @@ export function ScreenerConfigView(props: Props) {
                   <Badge size="xs" color="default" variant="light" data-testid="screener-name-badge">
                     {active().label}
                   </Badge>
-                  <For each={Object.entries(activeFilterBadges())}>
-                    {([key, value]) => (
+                  <For each={activeFilterBadges()}>
+                    {(entry) => (
                       <Badge size="xs" color="default" variant="light">
-                        {key.replace(/_/g, " ")}: {String(value)}
+                        {filterLabel(entry.key)}: {String(entry.default)}
                       </Badge>
                     )}
                   </For>
@@ -633,22 +706,13 @@ export function ScreenerConfigView(props: Props) {
                 stocks={previewStocks()}
                 columns={columnDefs()}
                 touchedSymbols={touchedSymbols()}
-                onSymbolClick={() => {
-                  /* No-op for config preview - could open detail modal in future */
-                }}
-                onSymbolHover={() => {
-                  /* No-op for config preview */
-                }}
+                onSymbolClick={(symbol) => props.onSymbolClick?.(symbol)}
+                onSymbolHover={() => {}}
                 testId="preview-table"
               />
             </Match>
           </Switch>
         </Box>
-        <SelectionBar
-          onCompare={() => {
-            /* no-op for config preview */
-          }}
-        />
       </Paper>
     </Box>
   );

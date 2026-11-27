@@ -19,6 +19,8 @@ const PERCENT = 100;
 export interface RelativeStrengthTrailProps extends RelativeStrengthInput {
   /** Set false when the host panel already renders the title and method note. */
   showHeader?: boolean;
+  /** Set false when the host panel already renders the RRG method note. */
+  showFooter?: boolean;
 }
 
 export interface RsTrailPoint {
@@ -288,11 +290,21 @@ export function RelativeStrengthTrail(props: RelativeStrengthTrailProps) {
         <EChart
           option={option()}
           data-testid="history-rs-trail-chart"
-          style={{ height: `${CHART_HEIGHT}px`, width: "100%" }}
+          style={{
+            height: `${CHART_HEIGHT}px`,
+            flex: "none",
+            width: "100%",
+            "min-height": "0px",
+          }}
         />
-        <span data-testid="history-rs-trail-quadrants" class="text-ui-micro text-fin-text-muted">
-          {"RS > 100 = outperform · momentum > 0 = improving · descriptive, not JdK RRG"}
-        </span>
+        <Show when={props.showFooter !== false}>
+          <span
+            data-testid="history-rs-trail-quadrants"
+            class="text-ui-micro text-fin-text-muted"
+          >
+            {"RS > 100 = outperform · momentum > 0 = improving · descriptive, not JdK RRG"}
+          </span>
+        </Show>
       </Show>
     </div>
   );

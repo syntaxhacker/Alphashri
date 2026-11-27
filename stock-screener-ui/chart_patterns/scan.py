@@ -20,7 +20,7 @@ from typing import Optional
 
 import pandas as pd
 
-from chart_patterns import candles, config, jobs as jobs_mod, parallel, store
+from chart_patterns import candles, jobs as jobs_mod, parallel, store
 
 try:
     from chart_patterns import tv_prefilter as tv_prefilter_mod
@@ -38,11 +38,6 @@ except Exception:  # pragma: no cover - integration env always has it
     universes_mod = None
 
 try:
-    from chart_patterns import trendlines as trendlines_mod
-except Exception:  # pragma: no cover - a broken trendlines module must not break scans
-    trendlines_mod = None
-
-try:
     from trading import calendar as _calendar_mod
     from trading import utils as _market_mod
     from trading.timezone import IST as _IST
@@ -55,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
 # Auto process fan-out threshold: resolved symbol counts at/above this use a
-# process pool for the GIL-bound detect+trendlines work when spawn is
+# process pool for the GIL-bound detection work when spawn is
 # available and nothing forced the mode. Below it threads win -- spawn startup
 # (re-importing pandas/numpy per worker) would dominate a small scan. Override
 # with ``PATTERN_SCAN_PROCESS_THRESHOLD``.
@@ -81,40 +76,24 @@ SCAN_FRESH_SECONDS = int(os.environ.get("PATTERN_SCAN_FRESH_SEC", "300"))
 # Detector/data signature version for the freshness short-circuit. Bump when
 # any detector changes so a non-forced scan recomputes once instead of
 # silently reusing hits from the previous detector version.
-SCAN_DETECTOR_VERSION = 5
+SCAN_DETECTOR_VERSION = 6
 # Columns hashed for the frame-interior digest. Fixed order keeps the digest
 # deterministic; tail stats alone can't detect a historical correction/backfill
 # that leaves the last bar untouched.
 _FRAME_INTERIOR_COLS = ("close", "high", "low", "volume")
 
 
-def _trendline_sig() -> str:
-    """Fail-soft trendline settings signature (the detector key's variable part)."""
-    try:
-        return config.trendline_signature()
-    except Exception:
-        return "unknown"
-
-
-def _detector_signature(
-    data_through: Optional[str] = None, tl_sig: Optional[str] = None
-) -> str:
+def _detector_signature(data_through: Optional[str] = None) -> str:
     """Cheap detector/data signature for the freshness key.
 
-    ``v{version}|tl:{trendline settings}`` identifies the detector build; the
-    trailing ``|data:{date}`` (the job's ``data_through``, when known) records
-    which session's data produced the hits. The reuse gate compares the
-    detector part — a detector change (or a job from before signatures
-    existed) forces a recompute. Intra-session data freshness stays bounded
-    by the ``_is_fresh`` TTL/session check, not by this string.
-
-    ``tl_sig`` lets a caller that already needed the settings signature reuse
-    it instead of rebuilding the same string (the scan hot path stamps every
-    hit with it). The result is byte-identical to computing it here.
+    ``v{version}`` identifies the detector build; the trailing ``|data:{date}``
+    (the job's ``data_through``, when known) records which session's data
+    produced the hits. The reuse gate compares the detector part — a detector
+    change (or a job from before signatures existed) forces a recompute.
+    Intra-session data freshness stays bounded by the ``_is_fresh`` TTL/session
+    check, not by this string.
     """
-    if tl_sig is None:
-        tl_sig = _trendline_sig()
-    base = f"v{SCAN_DETECTOR_VERSION}|tl:{tl_sig}"
+    base = f"v{SCAN_DETECTOR_VERSION}"
     if data_through:
         return f"{base}|data:{data_through}"
     return base
@@ -149,7 +128,7 @@ def _frame_signature(df, last_date: Optional[str] = None) -> Optional[str]:
     The tail stats catch a new/latest bar; the interior digest catches a
     historical correction or backfill that leaves the last bar untouched.
     Two frames with the same signature produce the same detection result, so
-    detection + trendlines can be skipped.
+    detection can be skipped.
 
     ``last_date`` lets the caller reuse the session date it already computed
     for ``data_through``; a lookback slice never changes the last bar, so the
@@ -181,29 +160,25 @@ def _frame_signature(df, last_date: Optional[str] = None) -> Optional[str]:
 
 def _source_sig(
     df, timeframe: str, lookback_bars: Optional[int] = None,
-    compute_trendlines: bool = True, detector_sig: Optional[str] = None,
-    last_date: Optional[str] = None,
+    detector_sig: Optional[str] = None, last_date: Optional[str] = None,
 ) -> Optional[str]:
     """Per-symbol source signature: frame + detector build + detection params.
 
     Stored with each hit (in ``payload_json``) and compared on the next scan to
     decide whether a symbol can be reused without re-detecting. Includes the
     detector signature so a detector change forces recompute, and the params
-    that alter the detection input (``lookback_bars``, ``compute_trendlines``).
-    Universe/timeframe are enforced by the store query scope, not the hash.
+    that alter the detection input (``lookback_bars``). Universe/timeframe are
+    enforced by the store query scope, not the hash.
 
     ``detector_sig`` / ``last_date`` are optional precomputed values from the
-    caller; direct callers keep the original four-argument contract.
+    caller; direct callers keep the original three-argument contract.
     """
     frame_sig = _frame_signature(df, last_date=last_date)
     if not frame_sig:
         return None
     if detector_sig is None:
         detector_sig = _detector_signature()
-    payload = (
-        f"{frame_sig}|{detector_sig}|{lookback_bars}|"
-        f"{bool(compute_trendlines)}|{timeframe}"
-    )
+    payload = f"{frame_sig}|{detector_sig}|{lookback_bars}|{timeframe}"
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
 
 
@@ -406,18 +381,16 @@ def _is_cancelled(job_id: str) -> bool:
 
 
 def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
-                   lookback_bars=None, compute_trendlines: bool = True,
-                   as_of_date=None, from_date=None,
+                   lookback_bars=None, as_of_date=None, from_date=None,
                    include_partial_today: Optional[bool] = None,
                    prev_hit: Optional[dict] = None,
                    partial_bar: Optional[pd.DataFrame] = None,
-                   signature: Optional[tuple[str, str]] = None) -> dict:
+                   signature: Optional[str] = None) -> dict:
     """Fetch + detect one symbol. Never raises; returns a status dict.
 
-    ``signature`` is the job's precomputed ``(detector_sig, tl_sig)`` pair. It
-    is job-invariant, so passing it lets a worker skip rebuilding both strings
-    (once for the source key, once for the stored ``trend_lines_sig``). Direct
-    callers that omit it keep the original per-call lookups.
+    ``signature`` is the job's precomputed detector signature. It is
+    job-invariant, so passing it lets a worker skip rebuilding the string for
+    the source key. Direct callers that omit it keep the per-call lookup.
 
     With ``as_of_date`` set the fetch window ends on that date (its time
     portion truncates the frame via :func:`candles.truncate_frame_to` so
@@ -505,19 +478,15 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
 
     # Source-signature reuse: if the frame that produced the previous hit for
     # this symbol is byte-identical (same last date/bar/close/length) and the
-    # detector build + detection params match, skip detection + trendlines and
+    # detector build + detection params match, skip detection and
     # return the stored hit instead. A missing or legacy signature falls
     # through to a normal detect.
     # The detector build signature is constant for the whole job: ``run_job``
     # computes it once and passes it down. ``data_through`` already carries the
     # frame's session date, so reuse it for the frame digest too.
-    if signature is None:
-        detector_sig = _detector_signature()
-        tl_sig = config.trendline_signature()
-    else:
-        detector_sig, tl_sig = signature
+    detector_sig = signature if signature is not None else _detector_signature()
     source_sig = _source_sig(
-        df, timeframe, lookback_bars, compute_trendlines,
+        df, timeframe, lookback_bars,
         detector_sig=detector_sig, last_date=data_through,
     )
     if prev_hit and source_sig:
@@ -539,26 +508,6 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     except Exception:
         return {"status": "failed", "data_through": data_through, "from_cache": from_cache}
 
-    # Scan-time trendlines: computed once per symbol so read-time results can
-    # reuse the stored lines instead of re-running the detector per item.
-    # The window signature proves which trailing window those lines were fitted
-    # to, so a read can tell whether they still describe the frame a card draws
-    # (the detector settings alone cannot).
-    scan_trend_lines: list = []
-    trend_lines_window: Optional[str] = None
-    if compute_trendlines and hits and trendlines_mod is not None:
-        try:
-            _tl_res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
-            if isinstance(_tl_res, dict):
-                scan_trend_lines = [
-                    v for v in (_tl_res.get("support"), _tl_res.get("resistance")) if v
-                ]
-                trend_lines_window = trendlines_mod.window_signature(df, lookback_bars)
-        except Exception:
-            scan_trend_lines = []
-            trend_lines_window = None
-
-    trend_sig = tl_sig if (compute_trendlines and hits) else None
     enriched = []
     for hit in hits:
         try:
@@ -577,11 +526,6 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         record["symbol"] = symbol
         record["name"] = name
         record.setdefault("timeframe", timeframe)
-        record["trend_lines"] = list(scan_trend_lines)
-        if compute_trendlines:
-            record["trend_lines_sig"] = trend_sig
-            if trend_lines_window:
-                record["trend_lines_window"] = trend_lines_window
         record["source_sig"] = source_sig
         enriched.append(record)
 
@@ -654,21 +598,15 @@ def run_job(job_id: str) -> None:
     min_rel_volume = params.get("min_rel_volume")
     min_volume_m = params.get("min_volume_m")
     min_avg_volume_10d = params.get("min_avg_volume_10d")
-    compute_trendlines = params.get("compute_trendlines", True)
-    if compute_trendlines is None:
-        compute_trendlines = True
-    compute_trendlines = bool(compute_trendlines)
     as_of_date = params.get("as_of_date")
     from_date = params.get("from_date")
     is_replay = as_of_date is not None or from_date is not None
     include_partial_today = params.get("include_partial_today", None)
 
-    # Detector settings are job-invariant. Compute both strings once here and
-    # share them with every worker and with the terminal job state instead of
-    # rebuilding them in each symbol and in each state update.
-    _tl_sig = _trendline_sig()
-    _det_sig = _detector_signature(tl_sig=_tl_sig)
-    _job_signature = (_det_sig, _tl_sig)
+    # The detector signature is job-invariant. Compute it once here and share
+    # it with every worker and with the terminal job state instead of
+    # rebuilding it in each symbol and in each state update.
+    _det_sig = _detector_signature()
 
     try:
         if raw_symbols:
@@ -764,7 +702,7 @@ def run_job(job_id: str) -> None:
             return
 
     # Symbol-level reuse: load the previous completed job's hits for this
-    # universe/timeframe so unchanged symbols skip detection + trendlines.
+    # universe/timeframe so unchanged symbols skip detection.
     # Never reuse when force/replay is set or when the symbol set differs.
     prev_by_symbol: dict[str, dict] = {}
     if not force and not is_replay:
@@ -859,7 +797,7 @@ def run_job(job_id: str) -> None:
 
     # Executor selection: spawn processes -> threads -> sequential.
     # All DB/Redis/mirror writes stay in the parent; workers only fetch +
-    # detect + trendlines and return a status dict.
+    # detect and return a status dict.
     use_processes = _use_processes_for(total, params)
     proc_workers = min(max(1, SYMBOL_WORKERS), parallel.max_workers())
 
@@ -883,9 +821,9 @@ def run_job(job_id: str) -> None:
     def _submit(symbol: str):
         return functools.partial(
             _process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
-            compute_trendlines, as_of_date, from_date, include_partial_today,
+            as_of_date, from_date, include_partial_today,
             prev_by_symbol.get(symbol), partial_bars.get(symbol),
-            signature=_job_signature,
+            signature=_det_sig,
         )
 
     def _consume(symbol: str, result: dict) -> None:
@@ -1079,7 +1017,7 @@ def run_job(job_id: str) -> None:
                 params={**params, "reused": reused, "provenance": _done_provenance},
             )
             return
-        _done_det_sig = _detector_signature(max_date, tl_sig=_tl_sig)
+        _done_det_sig = _detector_signature(max_date)
         _done_state: dict = {
             "status": "completed", "done": done, "failed": failed,
             "skipped": skipped, "no_hits": no_hits, "reused": reused,

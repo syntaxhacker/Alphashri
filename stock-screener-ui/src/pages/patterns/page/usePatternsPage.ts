@@ -49,8 +49,6 @@ export function usePatternsPage(props: PatternsPageProps) {
   const setFilter = props.setFilter;
   const resetFilters = props.resetFilters;
   const applyFilters = props.applyFilters;
-  const computeTrendlines = () => props.computeTrendlines;
-  const setComputeTrendlines = props.setComputeTrendlines;
   const customUniverse = () => props.customUniverse;
   const selectSymbols = props.selectSymbols;
   const job = () => props.job;
@@ -67,9 +65,6 @@ export function usePatternsPage(props: PatternsPageProps) {
   const forceRefresh = props.forceRefresh;
   const scanReplay = props.scanReplay;
   const replayAsOf = () => props.replayAsOf ?? null;
-  const effectiveTrendlinesView = createMemo(() =>
-    computeTrendlines() ? (filters().trendlines ?? "both") : "none",
-  );
   const {
     fullscreen,
     openFromCard,
@@ -84,12 +79,11 @@ export function usePatternsPage(props: PatternsPageProps) {
   } = usePatternFullscreen({
     timeframe: timeframe(),
     lookbackBars: lookbackBars(),
-    computeTrendlines: computeTrendlines(),
     // Universe/timeframe/chart-option identity only — filter edits (search,
-    // direction…) must not close the open chart. Changing the lookback or
-    // trendline options produces a different payload, so it is a scope change.
+    // direction…) must not close the open chart. Changing the lookback produces
+    // a different payload, so it is a scope change.
     scopeKey: () =>
-      `${universe()}|${timeframe()}|${lookbackBars() ?? "d"}|${computeTrendlines() ? "t" : "f"}`,
+      `${universe()}|${timeframe()}|${lookbackBars() ?? "d"}`,
     // Exactly one re-resolution per completed scan: the timestamp changes
     // once when the job finishes, not once per rendered item.
     resolutionKey: () => summary()?.last_scan_at ?? job()?.finished_at ?? null,
@@ -139,8 +133,6 @@ export function usePatternsPage(props: PatternsPageProps) {
     onSelectHit: selectFullscreenHit,
     candles: fullscreen()?.candles ?? [],
     overlays: [],
-    trendLines: fullscreen()?.trendLines ?? [],
-    trendlinesView: effectiveTrendlinesView(),
     indicators: fullscreen()?.indicators ?? null,
     srZones: fullscreen()?.srZones ?? [],
     timeframe: fullscreen()?.timeframe,
@@ -475,8 +467,6 @@ export function usePatternsPage(props: PatternsPageProps) {
     filters,
     setFilter,
     resetFilters,
-    computeTrendlines,
-    setComputeTrendlines,
     customUniverse,
     selectSymbols,
     job,
@@ -493,7 +483,6 @@ export function usePatternsPage(props: PatternsPageProps) {
     forceRefresh,
     scanReplay,
     replayAsOf,
-    effectiveTrendlinesView,
     filtersOpen,
     setFiltersOpen,
     view,

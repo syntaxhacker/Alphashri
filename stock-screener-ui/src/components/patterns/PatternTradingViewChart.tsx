@@ -23,8 +23,6 @@ import type {
   ChartIndicators,
   PatternHitDTO,
   SRZone,
-  TrendLine,
-  TrendlinesView,
 } from "@/types/chartPatterns";
 import {
   buildPatternTVData,
@@ -46,8 +44,6 @@ export interface PatternTradingViewChartProps {
   hit: PatternHitDTO | null;
   candles: ChartCandle[];
   overlays?: TVSiblingOverlay[];
-  trendLines?: TrendLine[];
-  trendlinesView?: TrendlinesView;
   historyHits?: PatternHitDTO[];
   hiddenNames?: ReadonlySet<string>;
   /**
@@ -179,6 +175,12 @@ export const ZONE_LABEL_HEIGHT = 14;
 export const COMPACT_CHART_WIDTH = 640;
 /** Charts narrower than this use the compact (touch-count-free) label. */
 export const ZONE_LABEL_COMPACT_WIDTH = COMPACT_CHART_WIDTH;
+/** Price-scale margins as a fraction of the pane height. */
+export const PRICE_SCALE_TOP_MARGIN = 0.08;
+export const PRICE_SCALE_TOP_MARGIN_COMPACT = 0.14;
+export const PRICE_SCALE_BOTTOM_MARGIN = 0.08;
+/** Axis font at the 12px type floor; half of it is the smallest safe tick inset. */
+export const PRICE_AXIS_FONT_HEIGHT_PX = 12;
 /** Time-axis padding (px) at each edge so first/last tick labels stay whole. */
 export const TIME_AXIS_EDGE_PADDING_PX = 18;
 /** Bars reserved after the newest bar (kept in sync with createChart). */
@@ -195,6 +197,32 @@ export function isCompactChartWidth(width: number | null | undefined): boolean {
   return (
     typeof width === "number" && Number.isFinite(width) && width > 0 && width < COMPACT_CHART_WIDTH
   );
+}
+
+/** Compact charts need extra headroom so the top price tick clears the header. */
+export function priceScaleTopMargin(width: number | null | undefined): number {
+  return isCompactChartWidth(width) ? PRICE_SCALE_TOP_MARGIN_COMPACT : PRICE_SCALE_TOP_MARGIN;
+}
+
+/** Lowest tick centre lightweight-charts may draw without clipping its label. */
+export function topmostVisiblePriceTickY(
+  height: number,
+  entireTextOnly: boolean,
+  fontHeight: number = PRICE_AXIS_FONT_HEIGHT_PX,
+): number {
+  if (!Number.isFinite(height) || height <= 0) return Number.NaN;
+  return entireTextOnly ? fontHeight / 2 : 0;
+}
+
+/** True when a tick at `y` is drawn wholly inside a `height`-px price pane. */
+export function isPriceTickInsideViewport(
+  y: number,
+  height: number,
+  fontHeight: number = PRICE_AXIS_FONT_HEIGHT_PX,
+): boolean {
+  if (!Number.isFinite(y) || !Number.isFinite(height) || height <= 0) return false;
+  const inset = fontHeight / 2;
+  return y >= inset && y <= height - 1 - inset;
 }
 
 export interface ZoneLabelCandidate {
@@ -578,7 +606,6 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
   };
   const crosshairFormatter = (time: Time) => tvTimeFormatter(time, timeZoneRef);
 
-  const trendlinesView = () => props.trendlinesView ?? "both";
   const data = createMemo<BuildPatternTVDataResult>(() => {
     const prebuilt = props.data;
     if (prebuilt) return prebuilt;
@@ -586,8 +613,6 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       candles: props.candles,
       hit: props.hit,
       overlays: props.overlays,
-      trendLines: props.trendLines,
-      trendlinesView: trendlinesView(),
       historyHits: props.historyHits,
       indicators: props.indicators,
       srZones: props.srZones,
@@ -642,9 +667,13 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       localization: { locale: localeRef, timeFormatter: crosshairFormatter },
       rightPriceScale: {
         borderColor: palette.BORDER,
-        // Keep the top and bottom axis ticks fully inside the pane; without
-        // this the price-scale edge label is clipped by the card border.
-        scaleMargins: { top: 0.08, bottom: 0.08 },
+        // Compact charts get extra headroom so the top tick clears the header;
+        // any corner tick that still cannot fit is dropped, never clipped.
+        scaleMargins: {
+          top: priceScaleTopMargin(containerEl.clientWidth),
+          bottom: PRICE_SCALE_BOTTOM_MARGIN,
+        },
+        entireTextOnly: true,
       },
       crosshair: { mode: 1 },
       handleScroll: true,
@@ -686,12 +715,23 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       zonesPrimitive = zonePrimitive;
     }
 
+    let appliedTopMargin = priceScaleTopMargin(containerEl.clientWidth);
     const ro = new ResizeObserver(() => {
       if (containerEl && chart) {
+        const width = containerEl.clientWidth;
         chart.applyOptions({
-          width: containerEl.clientWidth,
+          width,
           height: containerEl.clientHeight || initialHeight,
         });
+        const top = priceScaleTopMargin(width);
+        if (top !== appliedTopMargin) {
+          appliedTopMargin = top;
+          chart.applyOptions({
+            rightPriceScale: {
+              scaleMargins: { top, bottom: PRICE_SCALE_BOTTOM_MARGIN },
+            },
+          });
+        }
       }
       overlayGeometryDirty = true;
       scheduleOverlayDraw();
@@ -949,7 +989,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     zonesPrimitive?.setZones(data().zones.filter((zone) => !hiddenRef.has(zone.legendName)));
   };
 
-  // Paint candles, volume, levels, boundary/TLS-TLR lines, indicators and zones.
+  // Paint candles, volume, levels, boundary lines, indicators and zones.
   createEffect(() => {
     const d = data();
     const candle = candleSeries;

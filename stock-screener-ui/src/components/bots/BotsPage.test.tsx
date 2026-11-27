@@ -185,6 +185,19 @@ describe("BotsPage", () => {
     expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
   });
 
+  it("exposes a single bots-tabs id/testid (no duplicate wrapper)", () => {
+    const { container } = renderWithProviders(() => <BotsPage />);
+    expect(container.querySelectorAll('[data-testid="bots-tabs"]')).toHaveLength(1);
+    expect(container.querySelectorAll('#bots-tabs')).toHaveLength(1);
+    expect(screen.getByTestId("bots-tabs")).toBeInTheDocument();
+  });
+
+  it("keeps the header to the page title and controls — no generic subtitle", () => {
+    renderWithProviders(() => <BotsPage />);
+    const header = screen.getByTestId("bots-view").firstElementChild as HTMLElement;
+    expect(header.textContent).not.toMatch(/Manage bot configurations/i);
+  });
+
   it("renders loading state with InlineLoader", () => {
     const state = baseState();
     state.loading.list = true;

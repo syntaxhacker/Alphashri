@@ -16,8 +16,6 @@ import type {
   PatternHitDTO,
   PatternOverlay,
   SRZone,
-  TrendLine,
-  TrendlinesView,
 } from "@/types/chartPatterns";
 import { buildPatternTVData, type TVMarker } from "./patternTVData";
 import { selectLastN } from "./selectLastN";
@@ -169,12 +167,6 @@ export interface PatternChartBodyProps {
    * active pattern is drawn (no dashed siblings).
    */
   overlays?: PatternOverlay[];
-  /**
-   * Standalone support/resistance lines from the symbol-chart payload. Falls
-   * back to the hit's own `trend_lines` when absent/empty.
-   */
-  trendLines?: TrendLine[];
-  trendlinesView?: TrendlinesView;
   /** Active timeframe; gates intraday-only studies (VWAP). */
   timeframe?: string | null;
   /** Indicator series from the symbol-chart payload (null/absent = no rows). */
@@ -486,8 +478,6 @@ function FullscreenTV(props: {
   hit: PatternHitDTO | null;
   candles: ChartCandle[];
   overlays?: PatternOverlay[];
-  trendLines?: TrendLine[];
-  trendlinesView?: TrendlinesView;
   historyHits?: PatternHitDTO[];
   chartError?: string | null;
   chartNote?: string | null;
@@ -498,7 +488,6 @@ function FullscreenTV(props: {
   indicators?: ChartIndicators | null;
   srZones?: SRZone[];
 }) {
-  const trendlinesView = () => props.trendlinesView ?? "both";
   // Built exactly once per (candles, hit, overlays, indicators) change; the
   // legend and the chart receive the same object so timezone/session parsing
   // can never drift between them.
@@ -507,8 +496,6 @@ function FullscreenTV(props: {
       candles: props.candles,
       hit: props.hit,
       overlays: props.overlays,
-      trendLines: props.trendLines,
-      trendlinesView: trendlinesView(),
       historyHits: props.historyHits,
       indicators: props.indicators,
       srZones: props.srZones,
@@ -724,8 +711,6 @@ function FullscreenTV(props: {
           hit={props.hit}
           candles={props.candles}
           overlays={props.overlays}
-          trendLines={props.trendLines}
-          trendlinesView={trendlinesView()}
           historyHits={props.historyHits}
           data={data()}
           timeframe={props.timeframe ?? undefined}
@@ -842,8 +827,6 @@ export function PatternChartBody(props: PatternChartBodyProps) {
             hit={props.hit}
             candles={props.candles}
             overlays={props.overlays}
-            trendLines={props.trendLines}
-            trendlinesView={props.trendlinesView}
             historyHits={historyHits()}
             chartError={props.chartError}
             chartNote={props.chartNote}

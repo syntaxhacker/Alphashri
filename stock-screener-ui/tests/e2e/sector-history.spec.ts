@@ -160,6 +160,24 @@ test.describe("Sector History", () => {
     );
   });
 
+  test("keeps the last risk row above the 1600×1000 evidence viewport edge", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await mockHistory(page, fulfillFixture);
+    await page.goto("/sector?tab=history");
+    await expect(page.getByTestId("sector-history-risk-table")).toBeVisible();
+
+    // Mirror the evidence capture: scroll the risk panel to the bottom, then
+    // prove the lowest row ends inside the viewport with room to spare.
+    await page
+      .getByTestId("sector-history-risk-panel")
+      .evaluate((node) => node.scrollIntoView({ block: "end", inline: "nearest" }));
+    const lastRow = page.getByTestId(/^sector-history-risk-row-/).last();
+    await expect(lastRow).toBeVisible();
+    const box = await lastRow.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y + box!.height).toBeLessThan(990);
+  });
+
   test("refetches with market and years params and updates rendered data", async ({ page }) => {
     const requests = await mockHistory(page, fulfillFixture);
     await page.goto("/sector?tab=history");

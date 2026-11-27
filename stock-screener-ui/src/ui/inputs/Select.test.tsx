@@ -4,6 +4,8 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Select } from "./Select";
+import { ToolbarRow } from "../layout/ToolbarRow";
+import { CompactPanel } from "../../components/common/compact";
 import type { UISelectProps } from "../types";
 
 afterEach(cleanup);
@@ -283,6 +285,28 @@ describe("Select — grouped options", () => {
  * itself to move `el.value`.
  */
 describe("Select — controlled value follows the signal", () => {
+  test("initial controlled value selects a non-first option", () => {
+    render(() => <Select data={["", "a", "b"]} value="b" data-testid="initial-value" />);
+    const select = screen
+      .getByTestId("initial-value")
+      .querySelector("select") as HTMLSelectElement;
+    expect(select.value).toBe("b");
+    expect(select.selectedOptions[0]?.textContent).toBe("b");
+  });
+
+  test("nested-in-row controlled value follows the signal", async () => {
+    const [value, setValue] = createSignal("");
+    render(() => (
+      <CompactPanel>
+        <ToolbarRow>
+          <Select data={["", "a", "b"]} value={value()} data-testid="nested-value" />
+        </ToolbarRow>
+      </CompactPanel>
+    ));
+    const select = screen.getByTestId("nested-value").querySelector("select") as HTMLSelectElement;
+    setValue("b");
+    await waitFor(() => expect(select.value).toBe("b"));
+  });
   const native = (testId: string) =>
     screen.getByTestId(testId).querySelector("select") as HTMLSelectElement;
 

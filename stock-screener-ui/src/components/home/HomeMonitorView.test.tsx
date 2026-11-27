@@ -174,8 +174,9 @@ describe("HomeMonitorView", () => {
     store.loading = true;
     render(() => <HomeMonitorView />);
 
-    expect(screen.getByTestId("monitor-auto-loading")).toHaveTextContent("Loading sector pulse");
-    expect(screen.getByTestId("session-plan-loading")).toHaveTextContent("Loading session plan");
+    expect(screen.getByTestId("monitor-auto-loading")).toHaveTextContent("LOADING…");
+    expect(screen.getByTestId("session-plan-loading")).toHaveTextContent("LOADING…");
+    expect(screen.queryByText(/Loading sector pulse/i)).not.toBeInTheDocument();
   });
 
   it("(error) a dead catalyst source shows an explicit retry, not a blank grid", () => {
@@ -197,7 +198,7 @@ describe("HomeMonitorView", () => {
     store.data = snapshot({ sector: null });
     render(() => <HomeMonitorView />);
 
-    expect(screen.getByTestId("monitor-auto-empty")).toHaveTextContent("no sector pulse");
+    expect(screen.getByTestId("monitor-auto-empty")).toHaveTextContent("NO SECTOR DATA");
     for (const id of ["demand", "relative-strength", "breadth"]) {
       expect(screen.getByTestId(`session-check-${id}`)).toHaveAttribute("data-status", "pending");
       expect(screen.getByTestId(`session-check-${id}-value`)).toHaveTextContent("—");
@@ -213,5 +214,51 @@ describe("HomeMonitorView", () => {
       "CATALYST RADAR panel is not registered",
     );
     expect(screen.queryByTestId("catalyst.radar-panel")).not.toBeInTheDocument();
+  });
+
+  it("(empty copy) empty regions are one terse line, not explanatory prose", () => {
+    stubWidth(1600);
+    render(() => <HomeMonitorView />);
+
+    expect(screen.getByTestId("monitor-leaders-empty")).toHaveTextContent("NO LEADERS");
+    expect(screen.getByTestId("monitor-news-empty")).toHaveTextContent("NO HEADLINES");
+    expect(screen.queryByText(/No confirmed leaders yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No catalyst headlines yet/i)).not.toBeInTheDocument();
+  });
+
+  it("(empty copy) a snapshot that never arrived is one line", () => {
+    stubWidth(1600);
+    store.data = null;
+    render(() => <HomeMonitorView />);
+
+    expect(screen.getByTestId("session-plan-empty")).toHaveTextContent("NO SNAPSHOT");
+    expect(screen.queryByText(/Waiting for the first catalyst snapshot/i)).not.toBeInTheDocument();
+  });
+
+  it("(format) sub-centi moves never print -0.00%", () => {
+    stubWidth(1600);
+    store.data = snapshot({
+      sector: { ...snapshot().sector!, change_pct: -0.001, relative_strength_pct: -0.002 },
+      rows: [
+        {
+          symbol: "TINY",
+          name: "Tiny",
+          move_pct: -0.004,
+          rel_volume: 1.6,
+          kind: "positioning",
+          state: "confirmed",
+          headline: "Tiny move",
+          source: "wire",
+          source_url: null,
+          first_seen: "2026-11-19T11:00:00+05:30",
+        },
+      ] as never,
+    });
+    render(() => <HomeMonitorView />);
+
+    expect(screen.getByTestId("monitor-auto-change")).not.toHaveTextContent("-0.00%");
+    expect(screen.getByTestId("monitor-auto-change")).toHaveTextContent("0.00%");
+    expect(screen.getByTestId("session-check-demand-value")).not.toHaveTextContent("-0.00%");
+    expect(screen.getByTestId("monitor-leader-TINY")).not.toHaveTextContent("-0.00%");
   });
 });

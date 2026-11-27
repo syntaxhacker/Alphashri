@@ -50,7 +50,7 @@ const DEFAULT_RESULTS_LIMIT = 200;
 /**
  * A combo whose last completed scan is older than this (or that has never been
  * scanned) is considered stale and gets an automatic background refresh, even
- * when it currently has hits. Keeps stored payloads (trendlines/pivots) fresh.
+ * when it currently has hits. Keeps stored payloads (pivots) fresh.
  */
 export const STALE_SCAN_MINUTES = 30;
 
@@ -83,7 +83,6 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   from_date: null,
   to_date: null,
   sort: "confidence",
-  trendlines: "both",
 };
 
 export interface ChartPatternsState {
@@ -98,8 +97,6 @@ export interface ChartPatternsState {
   /** Lookback window in bars (null = Auto / server default). */
   lookbackBars: number | null;
   filters: PatternFilters;
-  /** Skip server-side trendline computation + hide standalone lines (default true = compute). */
-  computeTrendlines: boolean;
   job: JobDTO | null;
   scanning: boolean;
   queuePosition: number | null;
@@ -135,7 +132,6 @@ function createInitialState(): ChartPatternsState {
     universe: "",
     lookbackBars: null,
     filters: { ...DEFAULT_PATTERN_FILTERS },
-    computeTrendlines: true,
     job: null,
     scanning: false,
     queuePosition: null,
@@ -381,18 +377,6 @@ export function setFilter<K extends keyof PatternFilters>(
   void loadSummary();
 }
 
-/**
- * Toggle server-side trendline computation. Reloads results/summary with the
- * new flag; no forced re-scan is needed (the flag is view/compute-level, and
- * the next explicit scan picks it up via `triggerScan`).
- */
-export function setComputeTrendlines(value: boolean): void {
-  if (value === state.computeTrendlines) return;
-  patchFilterAction({ computeTrendlines: value, error: null });
-  void loadResults({ offset: 0 });
-  void loadSummary();
-}
-
 /** Clear all filters back to defaults and reload results/summary. */
 export function resetFilters(): void {
   patchFilterAction({ filters: { ...DEFAULT_PATTERN_FILTERS }, error: null });
@@ -472,7 +456,6 @@ function baseQuery(): PatternsQuery {
     // Card candle window: the cards fetch the active Lookback so mini-charts
     // span it (omitted when Auto so the server default applies).
     lookback_bars: state.lookbackBars ?? undefined,
-    compute_trendlines: state.computeTrendlines,
   };
 }
 
@@ -801,8 +784,7 @@ function isScanStale(): boolean {
 /**
  * True when any result-narrowing filter is active. An empty result set under a
  * restrictive filter is filter-caused, not a missing scan — so it must never
- * trigger an automatic scan. (`sort` is ordering-only, not restrictive;
- * `trendlines` is a client-only view filter, never restrictive.)
+ * trigger an automatic scan. (`sort` is ordering-only, not restrictive.)
  */
 export function hasRestrictiveFilter(filters: PatternFilters): boolean {
   return (
@@ -837,8 +819,8 @@ export function hasRestrictiveFilter(filters: PatternFilters): boolean {
 /**
  * Auto-submit a scan for the active universe+timeframe when its last completed
  * scan is missing/stale — including when hits are present but were produced by
- * an older detector (those payloads lack trendlines/pivots). Skips while a scan
- * is already in flight and at most once per combination this session.
+ * an older detector (those payloads lack pivots). Skips while a scan is already
+ * in flight and at most once per combination this session.
  * Only universe/timeframe transitions call this; filter-only changes never do.
  */
 function maybeAutoScan(): void {
@@ -967,7 +949,6 @@ export async function triggerScan(
       ...(refresh ? { refresh: true } : {}),
       symbols,
       ...(lookback != null ? { lookback_bars: lookback } : {}),
-      compute_trendlines: state.computeTrendlines,
       // Scan-time volume pre-filters (only sent when set; never null).
       ...(state.filters.min_rel_volume != null
         ? { min_rel_volume: state.filters.min_rel_volume }
@@ -1182,15 +1163,11 @@ export async function loadSymbolDetail(symbol: string, timeframe?: string): Prom
   const tf = timeframe ?? state.timeframe;
   patch({ selectedSymbol: symbol, detail: null, detailChart: null, error: null });
   startLoading();
+  const chartOpts = state.lookbackBars != null ? { lookbackBars: state.lookbackBars } : {};
   try {
     const [detail, chart] = await Promise.all([
       fetchSymbolDetail(symbol, tf),
-      // Forward the TLS/TLR opt-out: with computation off the chart endpoint
-      // skips the detector and returns empty `trend_lines`.
-      fetchSymbolChart(symbol, tf, {
-        ...(state.lookbackBars != null ? { lookbackBars: state.lookbackBars } : {}),
-        computeTrendlines: state.computeTrendlines,
-      }),
+      fetchSymbolChart(symbol, tf, chartOpts),
     ]);
     if (state.selectedSymbol !== symbol) return;
     patch({ detail, detailChart: chart, error: null });

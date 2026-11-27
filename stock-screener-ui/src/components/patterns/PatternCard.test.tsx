@@ -13,9 +13,7 @@ import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternCard } from "./PatternCard";
 
 vi.mock("./PatternMiniChart", () => ({
-  PatternMiniChart: ({ trendlinesView }: { trendlinesView?: string }) => (
-    <div data-testid="mini-stub" data-trendlines-view={trendlinesView ?? "both"} />
-  ),
+  PatternMiniChart: () => <div data-testid="mini-stub" />,
 }));
 
 const HIT: PatternHitDTO = {
@@ -351,19 +349,6 @@ describe("PatternCard missing coverage", () => {
     expect(
       view.getByTestId("patterns-card-base-IRCON-falling_wedge"),
     ).not.toHaveTextContent("·");
-  });
-
-  test("forwards the default trendlinesView to the mini chart", () => {
-    render(() => <PatternCard hit={HIT} />);
-    expect(screen.getByTestId("mini-stub")).toHaveAttribute("data-trendlines-view", "both");
-  });
-
-  test("forwards a custom trendlinesView to the mini chart", () => {
-    render(() => <PatternCard hit={HIT} trendlinesView="resistance" />);
-    expect(screen.getByTestId("mini-stub")).toHaveAttribute(
-      "data-trendlines-view",
-      "resistance",
-    );
   });
 
   test("renders the 52W gap stat when to_52w_high is present", () => {

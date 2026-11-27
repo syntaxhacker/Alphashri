@@ -13,6 +13,8 @@ export interface SectorHeatmapControlProps {
   sectorOptions?: { value: string; label: string }[];
   onSectorFilterChange?: (sector: string | null) => void;
   loading?: boolean;
+  /** Sector-option fetch failed; the selector stays usable but says so. */
+  error?: string | null;
 }
 
 const VIEW_OPTIONS = [
@@ -28,7 +30,10 @@ export function SectorHeatmapControls(props: SectorHeatmapControlProps) {
   const sectorFilterValue = () => props.sectorFilter ?? "";
 
   return (
-    <Box data-testid="sector-heatmap-context" className="flex shrink-0 items-center gap-2">
+    <Box
+      data-testid="sector-heatmap-context"
+      className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1"
+    >
       <CompactToggle
         testId="sector-heatmap-view-toggle"
         label="Heatmap layer"
@@ -60,8 +65,43 @@ export function SectorHeatmapControls(props: SectorHeatmapControlProps) {
           data-testid="sector-heatmap-sector-filter"
           aria-label="Heatmap sector filter"
         />
+        <Show when={props.loading}>
+          <span
+            data-testid="sector-heatmap-sector-filter-loading"
+            role="status"
+            class="inline-flex items-center gap-1 whitespace-nowrap text-ui-micro text-fin-text-muted"
+          >
+            <Loader size="xs" />
+            Sectors…
+          </span>
+        </Show>
+        <Show when={!props.loading && props.error}>
+          <span
+            data-testid="sector-heatmap-sector-filter-error"
+            role="alert"
+            title={props.error ?? ""}
+            class="whitespace-nowrap text-ui-micro text-fin-text-muted"
+          >
+            Sectors unavailable
+          </span>
+        </Show>
+        <Show
+          when={
+            !props.loading &&
+            !props.error &&
+            (props.sectorOptions ?? []).length === 0
+          }
+        >
+          <span
+            data-testid="sector-heatmap-sector-filter-empty"
+            role="status"
+            class="whitespace-nowrap text-ui-micro text-fin-text-muted"
+          >
+            No sectors yet
+          </span>
+        </Show>
       </Show>
-      <Show when={props.loading}>
+      <Show when={props.loading && props.viewMode !== "stock"}>
         <Loader size="xs" />
       </Show>
     </Box>

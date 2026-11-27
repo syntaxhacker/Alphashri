@@ -604,6 +604,28 @@ export function deepValuePresetActive(filters: MarketFilterState): boolean {
   );
 }
 
+/** Gate labels for the gallery, derived from the preset so a retune cannot lie. */
+export const DEEP_VALUE_PRESET_CHIPS: readonly MarketFilterChip[] = [
+  {
+    key: "pePctMax",
+    label: `P/E cheapest ${Math.round(DEEP_VALUE_PRESET.pePctMax! * 100)}%`,
+  },
+  {
+    key: "roePctMin",
+    label: `ROE top ${Math.round((1 - DEEP_VALUE_PRESET.roePctMin!) * 100)}%`,
+  },
+  {
+    key: "dePctMax",
+    label: `D/E least leveraged ${Math.round(DEEP_VALUE_PRESET.dePctMax! * 100)}%`,
+  },
+  { key: "sector", label: "Inside each row's own sector" },
+];
+
+/** The exact patch that undoes the Deep Value bundle, in one write. */
+export function clearDeepValuePresetPatch(): Partial<MarketFilterState> {
+  return { pePctMax: null, roePctMin: null, dePctMax: null };
+}
+
 /**
  * A descriptor is filters + sort: applying one click must be able to replace
  * the current ordering as well as the bounds (Most Active / Top Turnover are
@@ -625,6 +647,15 @@ export interface MoverPreset {
  * micro-caps. Every mover preset therefore carries this floor.
  */
 export const MOVER_MIN_MCAP_CR = 500;
+
+/**
+ * The shared mover floor in the active universe's unit. Ten cards repeated it
+ * as a chip (and printed "Cr" on a US session); the gallery states it once.
+ */
+export function moverFloorLabel(universe: MarketUniverse = "all_equity"): string {
+  const descriptor = marketUniverseDescriptor(universe);
+  return `${descriptor.currencySymbol}${MOVER_MIN_MCAP_CR}${descriptor.capUnit}`;
+}
 
 /**
  * Mirrors of the ten panels in api/screener_api/dashboard.py plus the two
@@ -759,6 +790,34 @@ export function activeMoverPreset(filters: MarketFilterState): MoverPreset | nul
     if (filters.sort === preset.sort && patchActive(filters, preset.filters)) return preset;
   }
   return null;
+}
+
+/**
+ * What a mover preset will actually change, as removable-chip labels. Sort is
+ * included because a mover is a fresh screen, not just a set of bounds; the
+ * preset's own chip is omitted — the card already identifies itself.
+ */
+export function moverPresetChips(
+  preset: MoverPreset,
+  universe: MarketUniverse = "all_equity",
+): MarketFilterChip[] {
+  const state: MarketFilterState = { ...defaultMarketFilters(universe), ...preset.filters, sort: preset.sort };
+  // Every mover carries the same floor; the gallery states it once for the
+  // whole section instead of repeating an identical chip on twelve cards.
+  const chips = buildMarketFilterChips(state, universe).filter(
+    (chip) => !chip.key.startsWith("mover:") && chip.key !== "mcap",
+  );
+  const sortLabel = MARKET_SORT_OPTIONS.find((option) => option.value === preset.sort)?.label;
+  if (sortLabel) chips.push({ key: "sort", label: `Sort ${sortLabel}` });
+  return chips;
+}
+
+/** The exact patch that undoes a mover preset's bounds and its ordering. */
+export function clearMoverPresetPatch(preset: MoverPreset): Partial<MarketFilterState> {
+  const bounds = Object.fromEntries(
+    Object.keys(preset.filters).map((key) => [key, null]),
+  ) as Partial<MarketFilterState>;
+  return { ...bounds, sort: DEFAULT_MARKET_SORT };
 }
 
 /**

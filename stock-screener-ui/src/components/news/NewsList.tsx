@@ -1,5 +1,5 @@
 import { createMemo, Show, For } from "solid-js";
-import { IconBolt, IconRefresh } from "../common/Icons";
+import { IconRefresh } from "../common/Icons";
 import { ActionIcon, Box, Skeleton, Select, Stack, Text, ToolbarRow, Tooltip } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NewsItem } from "./news-types";
@@ -73,26 +73,6 @@ export function NewsList(props: NewsListProps) {
                 <Text size="sm" fw={700} style={{ "line-height": 1.2 }}>
                   Market feed
                 </Text>
-                <Box
-                  className="flex items-center gap-2 rounded-fin"
-                  style={{
-                    display: "flex",
-                    "align-items": "center",
-                    gap: "4px",
-                    color: palette.POSITIVE,
-                    "padding-left": "6px",
-                    "padding-right": "6px",
-                    "padding-top": "2px",
-                    "padding-bottom": "2px",
-                    "border-radius": "8px",
-                    "background-color": palette.SURFACE_ALT,
-                  }}
-                >
-                  <IconBolt size={12} aria-hidden="true" />
-                  <Text size="xs" fw={700} style={{ "line-height": 1 }}>
-                    Live
-                  </Text>
-                </Box>
               </Box>
               <Text
                 size="xs"
@@ -182,8 +162,8 @@ export function NewsList(props: NewsListProps) {
       >
         <Stack className="gap-2" style={{ padding: "12px" }} data-testid="news-loader">
           <For each={[0, 1, 2, 3]}>{() => <Skeleton h={64} className="rounded" />}</For>
-          <Text size="sm" c="dimmed">
-            Loading market headlines…
+          <Text size="xs" c="dimmed">
+            LOADING…
           </Text>
         </Stack>
       </Show>

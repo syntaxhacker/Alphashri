@@ -97,7 +97,7 @@ function BotsPageTabs(props: {
   };
   const state = useBotsState();
   return (
-    <ToolbarRow gap={8} wrap={false} id="bots-tabs" data-testid="bots-tabs" style={{ flex: "0 0 auto", height: "32px", padding: "0 16px", "align-items": "flex-end", "border-bottom": "1px solid var(--color-fin-border)" }}>
+    <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: "32px", padding: "0 16px", "align-items": "flex-end", "border-bottom": "1px solid var(--color-fin-border)" }}>
       <Tabs
         value={props.currentView}
         onChange={(v) => v && props.onViewChange(v as BotsView)}
@@ -400,9 +400,6 @@ export function BotsPage() {
     <Box className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg" data-testid="bots-view">
       <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: `${palette.FIN_HEADER_H}px`, padding: `0 ${palette.FIN_OUTER_PAD}px`, "border-bottom": "1px solid var(--color-fin-border)" }}>
         <Text size="lg" fw={600}>Bots</Text>
-        <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
-          Manage bot configurations, live status, and execution controls.
-        </Text>
         <Box className="ml-auto flex items-center gap-2">
           <Button
             variant="filled"

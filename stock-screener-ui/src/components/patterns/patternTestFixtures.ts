@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import type { ChartCandle, PatternHitDTO, TrendLine } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
 import { buildPatternChartOption } from "./patternChartOption";
 
 export const IST_CANDLES: ChartCandle[] = [
@@ -15,21 +15,6 @@ export const UTC_CANDLES: ChartCandle[] = [
   { t: "2026-05-06T18:30:00+00:00", o: 105, h: 107, l: 101, c: 102, v: 900 },
   { t: "2026-05-07T18:30:00+00:00", o: 102, h: 108, l: 100, c: 107, v: 1200 },
 ];
-
-export function makeTrendLine(overrides: Partial<TrendLine> = {}): TrendLine {
-  return {
-    kind: "support",
-    start_date: "2026-04-01",
-    start_price: 99,
-    end_date: "2026-04-05",
-    end_price: 103,
-    slope: 1,
-    touches: 3,
-    span_bars: 5,
-    violations: 0,
-    ...overrides,
-  };
-}
 
 export function makeIRCONHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
   return {
@@ -55,7 +40,6 @@ export function makeIRCONHit(overrides: Partial<PatternHitDTO> = {}): PatternHit
     bars_ago: 2,
     volume_confirmed: true,
     trendlines: [],
-    trend_lines: [],
     pivots: [],
     notes: "",
     ...overrides,

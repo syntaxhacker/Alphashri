@@ -21,7 +21,6 @@ export type ResultsViewModel = Pick<
   | "setMatrixOrder"
   | "setListOrder"
   | "filteredLatest"
-  | "effectiveTrendlinesView"
   | "requestSymbolPreview"
   | "endSymbolPreview"
   | "openSymbolPinned"
@@ -94,7 +93,6 @@ export function ResultsView(props: { model: ResultsViewModel }) {
               onSelect={m.openChartHit}
               onExpand={m.openFromCard}
               onShowMembers={m.changeMembers}
-              trendlinesView={m.effectiveTrendlinesView()}
               activeHit={m.fullscreen()?.hit ?? null}
               onSymbolPreview={m.requestSymbolPreview}
               onSymbolPreviewEnd={m.endSymbolPreview}

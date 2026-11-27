@@ -15,6 +15,13 @@ import { resolveTodayCount, acknowledgeFromResponse } from "./surgeAlertCount";
 
 const PAGE_SIZE = 10;
 
+/** Derive the sign from the value so a tiny negative never reads "-0.0%". */
+export function formatSurgeMove(value: number): string {
+  const rounded = Number(value.toFixed(1));
+  const magnitude = Math.abs(rounded).toFixed(1);
+  return `${rounded > 0 ? "+" : rounded < 0 ? "-" : ""}${magnitude}%`;
+}
+
 export function mergeSurgeEvents(previous: PriceSurgeEvent[], next: PriceSurgeEvent[]): PriceSurgeEvent[] {
   return Array.from(
     new Map([...previous, ...next].map((event) => [event.id, event] as const)).values(),
@@ -150,7 +157,6 @@ function SurgeCard(props: { event: PriceSurgeEvent }) {
   const dock = useSymbolDock();
   const isUp = () => props.event.direction === "up";
   const color = () => (isUp() ? "success" : "error");
-  const sign = () => (isUp() ? "+" : "");
   const openSymbol = () => dock.open(props.event.symbol);
 
   return (
@@ -176,7 +182,7 @@ function SurgeCard(props: { event: PriceSurgeEvent }) {
           >
             <Text size="sm" fw={600}>{displaySymbol(props.event.symbol)}</Text>
           </button>
-          <Text size="sm" c={color()} fw={600}>{sign()}{props.event.move_pct.toFixed(1)}%</Text>
+          <Text size="sm" c={color()} fw={600}>{formatSurgeMove(props.event.move_pct)}</Text>
         </Group>
         <Badge size="xs" variant="light" color="secondary">{props.event.screen_label}</Badge>
       </Group>

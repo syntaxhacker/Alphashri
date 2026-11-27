@@ -256,16 +256,14 @@ describe("PatternFullscreenView", () => {
         onClose={vi.fn()}
         hit={{
           ...HIT,
-          trend_lines: [
-            { kind: "support", start_date: t, start_price: 98, end_date: t, end_price: 100, slope: 0, touches: 3, span_bars: 1, violations: 0 },
-          ],
+          trendlines: [[{ t, price: 100 }, { t: "2026-09-26T15:00:00+05:30", price: 112 }]],
         }}
         candles={candles}
       />);
 
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-legend")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-chart-legend-item-TLS")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-chart-legend-item-Falling Wedge")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-chart-legend-item-Breakout")).toBeNull();
     expect(screen.queryByTestId("patterns-chart-legend-item-Target")).toBeNull();
     expect(screen.queryByTestId("patterns-chart-legend-item-Stop")).toBeNull();
@@ -281,17 +279,15 @@ describe("PatternFullscreenView", () => {
         onClose={vi.fn()}
         hit={{
           ...HIT,
-          trend_lines: [
-            { kind: "support", start_date: t, start_price: 98, end_date: t, end_price: 100, slope: 0, touches: 3, span_bars: 1, violations: 0 },
-          ],
+          trendlines: [[{ t, price: 100 }, { t: "2026-09-26T15:00:00+05:30", price: 112 }]],
         }}
         candles={candles}
       />);
 
-    const item = screen.getByTestId("patterns-chart-legend-item-TLS");
+    const item = screen.getByTestId("patterns-chart-legend-item-Falling Wedge");
     expect(item).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(item);
-    expect(screen.getByTestId("patterns-chart-legend-item-TLS")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("patterns-chart-legend-item-Falling Wedge")).toHaveAttribute("aria-pressed", "false");
 
     expect(screen.queryByTestId("patterns-chart-legend-item-Target")).toBeNull();
     expect(screen.queryByTestId("patterns-chart-legend-item-Pivots")).toBeNull();

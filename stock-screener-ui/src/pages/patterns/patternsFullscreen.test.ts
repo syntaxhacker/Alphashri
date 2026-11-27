@@ -40,7 +40,6 @@ const chartPayload = (hits: PatternHitDTO[] = []): ChartPayload => ({
   timeframe: "1D",
   candles: [{ t: "2026-11-13", o: 100, h: 100, l: 100, c: 100, v: 1 }],
   overlays: [],
-  trend_lines: [],
   hits,
   stale: false,
 });

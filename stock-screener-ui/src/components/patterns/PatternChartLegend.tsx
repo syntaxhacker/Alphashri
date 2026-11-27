@@ -105,9 +105,8 @@ function EntryButton(props: {
 /**
  * Compact HTML legend mirroring what's drawn on the TradingView pattern chart:
  * one swatch + label per pattern name (boundary segments share a name, so they
- * collapse to a single entry) plus `TLS`/`TLR` when standalone support or
- * resistance segments are present. Entries are clickable to show/hide that
- * series on the chart (lightweight-charts has no built-in legend toggle).
+ * collapse to a single entry). Entries are clickable to show/hide that series
+ * on the chart (lightweight-charts has no built-in legend toggle).
  * Renders nothing when there are no lines.
  */
 export function PatternChartLegend(props: PatternChartLegendProps) {

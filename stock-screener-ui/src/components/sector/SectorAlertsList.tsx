@@ -1,7 +1,7 @@
 import { For, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import type { SectorAlert } from "./sectorUtils";
-import { formatPercentage } from "../../utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage } from "./sectorUtils";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 
 export interface SectorAlertsListProps {
@@ -17,9 +17,16 @@ export function SectorAlertsList(props: SectorAlertsListProps) {
     <Show
       when={alerts().length > 0}
       fallback={
-        <Box className="flex items-center justify-center p-2">
-          <Text size="xs" c="dimmed" ta="center" py={1}>
-            Waiting for major movements...
+        <Box
+          data-testid="sector-alerts-empty"
+          role="status"
+          className="flex flex-col items-center justify-center gap-0.5 p-2"
+        >
+          <Text size="xs" c="dimmed" ta="center">
+            No new 0.30% sector moves this poll.
+          </Text>
+          <Text className="text-ui-micro text-fin-text-muted">
+            Alerts compare consecutive refreshes.
           </Text>
         </Box>
       }

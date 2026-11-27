@@ -10,7 +10,6 @@ import {
   MenuTarget,
   SegmentedControl,
   Select,
-  Switch,
   Text,
   ToolbarRow,
   Tooltip,
@@ -45,8 +44,6 @@ export interface ResultsToolbarProps {
   setLookbackBars: (value: number | null) => void;
   scanReplay?: (args: ReplayScanArgs) => void;
   replayAsOf: () => string | null;
-  computeTrendlines: () => boolean;
-  setComputeTrendlines: (value: boolean) => void;
   view: () => ViewMode;
   changeView: (view: ViewMode) => void;
   universe: () => string;
@@ -122,17 +119,6 @@ export function ResultsToolbar(props: ResultsToolbarProps) {
           {`as of ${formatAsOfLabel(props.replayAsOf() ?? "")}`}
         </Text>
       ) : null}
-      <Tooltip label="Draw standalone support / resistance lines (TLS = support, TLR = resistance)">
-        <Box className="inline-flex">
-          <Switch
-            label="TLS/TLR"
-            size="sm"
-            checked={props.computeTrendlines()}
-            onChange={(checked) => props.setComputeTrendlines(checked)}
-            data-testid="patterns-compute-trendlines"
-          />
-        </Box>
-      </Tooltip>
     </Box>
   );
 

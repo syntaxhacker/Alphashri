@@ -4,10 +4,10 @@
  *
  * `mapTrendlines` / `mapTimeSegment` (in `trendlineMapping`) re-parse the whole
  * candle time axis and linearly scan it for every trendline point they resolve.
- * A full chart build with sibling overlays calls them once per pattern group,
- * once per pivot, and once per standalone line — with ~700 daily candles that
- * repeated full-axis work dominates the build (measured ~21 ms, mostly
- * `Date.parse` + linear nearest scans).
+ * A full chart build with sibling overlays calls them once per pattern group
+ * and once per pivot — with ~700 daily candles that repeated full-axis work
+ * dominates the build (measured ~21 ms, mostly `Date.parse` + linear nearest
+ * scans).
  *
  * This module parses the axis once and answers exact/day/nearest lookups in
  * O(1)/O(log n) afterwards. The lookup semantics are byte-identical to
@@ -16,10 +16,8 @@
  * duplicate time axes — see `axisIndex.test.ts`, which diffs this module
  * against the originals.
  */
-import type { TrendLine, Trendline } from "@/types/chartPatterns";
-import { NEGATIVE, POSITIVE } from "@/ui/palette";
+import type { Trendline } from "@/types/chartPatterns";
 import { parseEngineTimestamp, type AxisPoint } from "./trendlineMapping";
-import type { StandaloneLineResult } from "./standaloneLines";
 
 /** Parsed view of a candle time axis, built once per chart build. */
 export interface AxisIndex {
@@ -28,7 +26,6 @@ export interface AxisIndex {
   nearestIndex(target: number): number | undefined;
   mapTrendlines(trendlines: Trendline[] | undefined): AxisPoint[][];
   mapTimeSegment(startT: string, startP: number, endT: string, endP: number): AxisPoint[];
-  mapStandaloneLine(line: TrendLine): StandaloneLineResult | null;
 }
 
 function lowerBound(vals: number[], v: number): number {
@@ -158,14 +155,5 @@ export function createAxisIndex(times: string[]): AxisIndex {
     ];
   };
 
-  const mapStandaloneLine = (line: TrendLine): StandaloneLineResult | null => {
-    if (!line) return null;
-    const name: "TLS" | "TLR" = line.kind === "support" ? "TLS" : "TLR";
-    const color = line.kind === "support" ? POSITIVE : NEGATIVE;
-    const points = mapTimeSegment(line.start_date, line.start_price, line.end_date, line.end_price);
-    if (!points || points.length === 0) return null;
-    return { name, color, points, line };
-  };
-
-  return { length, resolveIndex, nearestIndex, mapTrendlines, mapTimeSegment, mapStandaloneLine };
+  return { length, resolveIndex, nearestIndex, mapTrendlines, mapTimeSegment };
 }

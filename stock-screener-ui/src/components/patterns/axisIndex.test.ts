@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { TrendLine, Trendline } from "@/types/chartPatterns";
+import type { Trendline } from "@/types/chartPatterns";
 import { createAxisIndex } from "./axisIndex";
 import { mapTimeSegment, mapTrendlines } from "./trendlineMapping";
-import { mapStandaloneLine } from "./standaloneLines";
 
 /**
- * The axis index is a performance rewrite of `trendlineMapping` /
- * `standaloneLines` lookups: output must stay byte-identical, so these tests
- * differential-test the fast paths against the originals across sorted,
- * shuffled, duplicated and partially-unparseable time axes.
+ * The axis index is a performance rewrite of `trendlineMapping` lookups:
+ * output must stay byte-identical, so these tests differential-test the fast
+ * paths against the originals across sorted, shuffled, duplicated and
+ * partially-unparseable time axes.
  */
 
 const CANDLES_ISO = [
@@ -96,36 +95,6 @@ describe("axisIndex.mapTimeSegment matches mapTimeSegment", () => {
       expect(axis.mapTimeSegment(startT, startP, endT, endP), caseName).toEqual(
         mapTimeSegment(startT, startP, endT, endP, times),
       );
-    }
-  });
-});
-
-function trendLine(overrides: Partial<TrendLine> = {}): TrendLine {
-  return {
-    kind: "support",
-    start_date: "2026-05-04",
-    start_price: 100,
-    end_date: "2026-05-08",
-    end_price: 110,
-    slope: 1,
-    touches: 3,
-    span_bars: 5,
-    violations: 0,
-    ...overrides,
-  };
-}
-
-describe("axisIndex.mapStandaloneLine matches mapStandaloneLine", () => {
-  it.each(AXES)("axis %s", (_name, times) => {
-    const axis = createAxisIndex(times);
-    const lines: TrendLine[] = [
-      trendLine(),
-      trendLine({ kind: "resistance", start_price: 120, end_price: 130 }),
-      trendLine({ start_date: "2025-01-01", end_date: "2025-01-10" }),
-      trendLine({ start_date: "2026-05-06", start_price: 105, end_date: "2026-05-06", end_price: 105 }),
-    ];
-    for (const line of lines) {
-      expect(axis.mapStandaloneLine(line)).toEqual(mapStandaloneLine(line, times));
     }
   });
 });

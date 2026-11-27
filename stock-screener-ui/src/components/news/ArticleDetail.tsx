@@ -16,7 +16,6 @@ import {
   typeSize,
 } from "@/ui";
 import {
-  IconArrowUpRight,
   IconBulb,
   IconChartLine,
   IconChevronDown,
@@ -97,8 +96,7 @@ export function ArticleDetail(props: ArticleDetailProps) {
                   <IconNews size={26} stroke={1.4} />
                 </Box>
               }
-              title="Your reading desk is ready"
-              description="Select a headline to open the full story, catalysts, and AI-assisted market brief."
+              title="Select a headline"
               data-testid="article-empty"
             />
           </Box>
@@ -202,47 +200,12 @@ export function ArticleDetail(props: ArticleDetailProps) {
 
                       <Show when={content()?.analysis_status === "failed"}>
                         <Alert color="warning" variant="filled">
-                          This article is queued for analysis and will be updated shortly.
+                          ANALYSIS UNAVAILABLE
                         </Alert>
                       </Show>
 
-                      <Show when={content()?.analysis_status === "none"}>
-                        <Box className="flex items-center gap-4">
-                          <Skeleton w={18} h={18} circle />
-                          <Text size="sm" c="dimmed">
-                            Analysis will be available once processed.
-                          </Text>
-                        </Box>
-                      </Show>
-
                       <Show when={content()?.sentiment || content()?.impact_score !== undefined}>
-                        <Box
-                          className="flex items-center flex-wrap"
-                          style={{
-                            display: "flex",
-                            "align-items": "center",
-                            "flex-wrap": "wrap",
-                            "padding-top": "4px",
-                            "padding-bottom": "4px",
-                            "padding-left": "4px",
-                            "padding-right": "4px",
-                          }}
-                        >
-                          <Box
-                            className="flex items-center gap-2"
-                            style={{
-                              color: palette.TEXT_MUTED,
-                              display: "flex",
-                              "align-items": "center",
-                              gap: "4px",
-                            }}
-                          >
-                            <IconBulb size={14} aria-hidden="true" />
-                            <Text size="xs" fw={700}>
-                              Signal snapshot
-                            </Text>
-                          </Box>
-                          <Box style={{ flex: 1 }} />
+                        <Box className="flex items-center justify-end gap-2" style={{ "min-height": "24px" }}>
                           <Show when={content()?.sentiment}>
                             {(sentiment) => <SentimentBadge sentiment={sentiment()} />}
                           </Show>
@@ -472,14 +435,7 @@ export function ArticleDetail(props: ArticleDetailProps) {
                       "background-color": palette.SURFACE,
                     }}
                   >
-                    <Show
-                      when={props.articleError && props.onRetryArticle}
-                      fallback={
-                        <Text size="xs" c="dimmed">
-                          {hasLlmSummary() ? "AI-assisted summary" : "Source article"}
-                        </Text>
-                      }
-                    >
+                    <Show when={props.articleError && props.onRetryArticle}>
                       <Button
                         size="sm"
                         onClick={() => props.onRetryArticle?.()}
@@ -488,26 +444,21 @@ export function ArticleDetail(props: ArticleDetailProps) {
                         Retry
                       </Button>
                     </Show>
-                    <Show
-                      when={selected().sourceUrl}
-                      fallback={
-                        <Button size="sm" rightSection={<IconArrowUpRight size={14} />} disabled>
-                          No source link
-                        </Button>
-                      }
-                    >
-                      <Anchor
-                        href={selected().sourceUrl!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        size="sm"
-                        fw={600}
-                        c="primary"
-                        style={{ display: "inline-flex", "align-items": "center", gap: "4px" }}
-                      >
-                        Open Original
-                        <IconExternalLink size={12} />
-                      </Anchor>
+                    <Show when={selected().sourceUrl}>
+                      <Box className="ml-auto">
+                        <Anchor
+                          href={selected().sourceUrl!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="sm"
+                          fw={600}
+                          c="primary"
+                          style={{ display: "inline-flex", "align-items": "center", gap: "4px" }}
+                        >
+                          Open Original
+                          <IconExternalLink size={12} />
+                        </Anchor>
+                      </Box>
                     </Show>
                   </Box>
                 </>

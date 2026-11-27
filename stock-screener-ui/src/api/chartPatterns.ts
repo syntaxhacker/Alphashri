@@ -115,8 +115,6 @@ export interface ScanRequest {
   symbols?: string[];
   /** Lookback window in bars (omitted/null = server default). */
   lookback_bars?: number | null;
-  /** Skip server-side trendline computation (false = skip; omitted = compute). */
-  compute_trendlines?: boolean;
   /** Minimum relative volume pre-filter (scan-time only; omitted/null = any). */
   min_rel_volume?: number | null;
   /** Minimum watched volume in millions (scan-time only; omitted/null = any). */
@@ -221,8 +219,6 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
     ["to_date", query.to_date],
     // The default sort is implied by the server; only deviations hit the wire.
     ["sort", query.sort && query.sort !== "confidence" ? query.sort : null],
-    // Opt-out flag: only serialized when false (compute is the default).
-    ["compute_trendlines", query.compute_trendlines === false ? "0" : null],
     ["limit", query.limit],
     ["offset", query.offset],
   ]);
@@ -371,8 +367,6 @@ export interface SymbolChartOptions {
    * omitted value keeps the India URL byte-identical.
    */
   market?: ChartMarket;
-  /** Skip server-side trendline computation (false = skip; omitted = compute). */
-  computeTrendlines?: boolean;
   /** Run live pattern detection on this timeframe (`detect_patterns=1`). */
   detectPatterns?: boolean;
   /** Replay cutoff: truncate candles at this timestamp (`as_of_date`). */
@@ -391,7 +385,6 @@ export async function fetchSymbolChart(
   const params = new URLSearchParams({ timeframe });
   const limit = typeof opts === "number" ? opts : opts?.limit;
   const lookbackBars = typeof opts === "number" ? undefined : opts?.lookbackBars;
-  const computeTrendlines = typeof opts === "number" ? undefined : opts?.computeTrendlines;
   const detectPatterns = typeof opts === "number" ? undefined : opts?.detectPatterns;
   const asOf = typeof opts === "number" ? undefined : opts?.asOf;
   const fromDate = typeof opts === "number" ? undefined : opts?.fromDate;
@@ -400,7 +393,6 @@ export async function fetchSymbolChart(
   appendParams(params, [
     ["limit", limit],
     ["lookback_bars", lookbackBars],
-    ["compute_trendlines", computeTrendlines === false ? "0" : null],
     ["detect_patterns", detectPatterns ? "1" : null],
     ["as_of_date", asOf],
     ["from_date", fromDate],

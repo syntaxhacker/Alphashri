@@ -1,5 +1,5 @@
 import { typeSize } from "@/ui";
-import type { ChartCandle, PatternHitDTO, PatternOverlay, Trendline, TrendLine, TrendlinesView } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, PatternOverlay, Trendline } from "@/types/chartPatterns";
 import { PATTERN_SERIES_COLORS } from "@/config/patterns";
 import {
   CHART_MUTED,
@@ -17,7 +17,6 @@ import { createAxisIndex } from "./axisIndex";
 import { formatChartTick, formatChartTimestamp } from "./datetime";
 import { formatChartPrice } from "./chartFormat";
 import type { ChartMarket } from "@/utils/chart/time";
-import { resolveVisibleStandalone } from "./standaloneLines";
 
 export const BOUNDARY_COLORS = PATTERN_BOUNDARY;
 
@@ -90,8 +89,6 @@ export interface PatternChartOptionInput {
   selectedStartDate?: string | null;
   selectedInstanceKey?: string | null;
   compact?: boolean;
-  trendlinesView?: TrendlinesView;
-  standaloneTrendLines?: TrendLine[];
   showZoom?: boolean;
   large?: boolean;
   market?: ChartMarket;
@@ -114,14 +111,12 @@ export function buildPatternChartOption({
   compact = false,
   showZoom = false,
   large = false,
-  trendlinesView = "both",
-  standaloneTrendLines,
   market,
 }: PatternChartOptionInput): Record<string, unknown> {
   const times = candles.map((c) => c.t);
 
-  // Axis parses once per build; every trendline/pivot/standalone lookup below
-  // reuses it instead of re-parsing the candle times per group/line/pivot.
+  // Axis parses once per build; every trendline/pivot lookup below reuses it
+  // instead of re-parsing the candle times per group/line/pivot.
   const axis = createAxisIndex(times);
   const markData: Array<Record<string, unknown>> = [];
   if (!compact && hit) {
@@ -256,46 +251,6 @@ export function buildPatternChartOption({
       });
     });
     if (!legendData.includes(seriesName)) legendData.push(seriesName);
-  });
-
-  const visibleStandalone = resolveVisibleStandalone(standaloneTrendLines, hit, trendlinesView);
-  visibleStandalone.forEach((line) => {
-    const mapped = axis.mapStandaloneLine(line);
-    if (!mapped) return;
-    const { name, color, points } = mapped;
-    const singlePoint = points.length <= 1;
-    series.push({
-      type: "line",
-      name,
-      showSymbol: singlePoint ? true : false,
-      symbol: singlePoint ? "circle" : undefined,
-      symbolSize: singlePoint ? 6 : undefined,
-      connectNulls: true,
-      silent: true,
-      data: pointsToSeriesData(points, times.length),
-      lineStyle: {
-        width: large ? 2 : 1.5,
-        color,
-        type: "solid",
-        opacity: singlePoint ? 0 : 1,
-      },
-      endLabel: !compact
-        ? {
-            show: true,
-            formatter: `${name} · ${line.touches} touches`,
-            color,
-            fontSize: typeSize("micro"),
-            fontWeight: 600,
-            distance: 6,
-            padding: [2, 4],
-            borderRadius: 3,
-            backgroundColor: CHART_OVERLAY,
-          }
-        : undefined,
-      labelLayout: !compact ? { hideOverlap: true } : undefined,
-      z: 4,
-    });
-    if (!compact && !legendData.includes(name)) legendData.push(name);
   });
 
   const pivotMarkers: Array<{ index: number; price: number; kind: "high" | "low" }> = [];

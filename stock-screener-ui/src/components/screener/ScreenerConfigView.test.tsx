@@ -36,6 +36,13 @@ vi.mock("./ScreenerTable", () => ({
           {col.label}
         </span>
       ))}
+      <button
+        type="button"
+        data-testid="preview-symbol-click"
+        onClick={() => props.onSymbolClick("RELIANCE")}
+      >
+        open symbol
+      </button>
     </div>
   ),
 }));
@@ -160,6 +167,37 @@ describe("ScreenerConfigView", () => {
         expect(mockUpdateScreener).toHaveBeenCalled();
       });
       expect(mockLoadScreeners).toHaveBeenCalledWith(false);
+    });
+
+    it("opens dict-shaped select filters as selects, not number inputs", async () => {
+      const options = [
+        {
+          id: "buyer_interest_enhanced",
+          label: "Buyer Interest+",
+          columns: ["symbol", "score"],
+          filters: { direction: "bullish" },
+        },
+      ] as unknown as ScreenerOption[];
+      renderWithProvider(
+        <ScreenerConfigView
+          screenerOptions={options}
+          activeScreener="buyer_interest_enhanced"
+          onScreenerChange={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByTestId("edit-screener-buyer_interest_enhanced"));
+      await waitFor(() => {
+        expect(screen.getByTestId("confirm-create-btn")).toBeInTheDocument();
+      });
+
+      const direction = screen.getByDisplayValue("bullish") as HTMLSelectElement;
+      expect(direction.tagName).toBe("SELECT");
+      expect(Array.from(direction.options).map((option) => option.value)).toEqual([
+        "both",
+        "bullish",
+        "bearish",
+      ]);
+      expect(document.querySelector('input[type="number"][aria-label="Direction"]')).toBeNull();
     });
   });
 
@@ -286,6 +324,36 @@ describe("ScreenerConfigView", () => {
       expect(screen.queryByTestId("preview-loading")).not.toBeInTheDocument();
     });
 
+    it("labels filter badges with the saved filter label, not its backend key", async () => {
+      mockFetchWithAuth.mockReset();
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ approaching: [], touched: [] }),
+      });
+      renderWithProvider(<ScreenerConfigView {...defaultProps} />);
+      await waitFor(() => expect(screen.getByTestId("preview-empty")).toBeInTheDocument());
+
+      expect(screen.getByTestId("screener-filters")).toHaveTextContent("Min RSI: 30");
+      expect(screen.getByTestId("screener-filters")).not.toHaveTextContent("min rsi: 30");
+    });
+
+    it("wires preview rows to the parent symbol handler and drops the no-op compare bar", async () => {
+      const onSymbolClick = vi.fn();
+      mockFetchWithAuth.mockReset();
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ approaching: [{ symbol: "RELIANCE", score: 85 }], touched: [] }),
+      });
+      renderWithProvider(
+        <ScreenerConfigView {...defaultProps} onSymbolClick={onSymbolClick} />,
+      );
+      await waitFor(() => expect(screen.getByTestId("preview-table")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByTestId("preview-symbol-click"));
+      expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
+      expect(screen.queryByTestId("selection-bar-mock")).not.toBeInTheDocument();
+    });
+
   });
 
   // `/api/screeners` returns `filters` as a dict (`{key: default}`), while the
@@ -358,6 +426,21 @@ describe("ScreenerConfigView", () => {
     it("(c2) dict null value is skipped (no key= with empty default)", async () => {
       await renderFilterShape({ rsi_range: null, min_volume_m: 1 });
       expect(lastPreviewFilters()).toEqual([{ key: "min_volume_m", default: 1 }]);
+    });
+
+    it("(c3) dict filters render human labels and never leak raw keys or nulls", async () => {
+      await renderFilterShape({
+        max_52w_gap: 5,
+        min_volume_m: 0,
+        min_turnover_cr: 0.5,
+        rsi_range: null,
+      });
+      expect(screen.getByText("52W gap: 5")).toBeInTheDocument();
+      expect(screen.getByText("Volume (M): 0")).toBeInTheDocument();
+      expect(screen.getByText("Turnover (Cr): 0.5")).toBeInTheDocument();
+      expect(screen.queryByText(/max 52w gap/i)).toBeNull();
+      expect(screen.queryByText(/rsi range: null/i)).toBeNull();
+      expect(screen.queryByText(/null/i)).toBeNull();
     });
 
     it("(d) null / undefined / scalar filters yield [] and never throw", async () => {

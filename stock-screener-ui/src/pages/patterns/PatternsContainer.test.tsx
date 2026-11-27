@@ -44,7 +44,6 @@ vi.mock("@/state/chartPatterns", () => ({
   triggerScan: vi.fn(),
   refresh: vi.fn(),
   forceRefresh: vi.fn(),
-  setComputeTrendlines: vi.fn(),
   DEFAULT_TIMEFRAME: "1D",
   CUSTOM_UNIVERSE: "custom",
   DEFAULT_PATTERN_FILTERS: {
@@ -62,7 +61,6 @@ vi.mock("@/state/chartPatterns", () => ({
     min_base_days: null,
     max_range_pct: null,
     sort: "confidence",
-    trendlines: "both",
     history: 1,
   },
 }));
@@ -156,9 +154,7 @@ function makeState(overrides: Record<string, unknown> = {}) {
       min_base_days: null,
       max_range_pct: null,
       sort: "confidence",
-      trendlines: "both",
     },
-    computeTrendlines: true,
     job: null,
     scanning: false,
     queuePosition: null,
@@ -267,7 +263,6 @@ describe("PatternsContainer", () => {
       "lookbackBars", "setLookbackBars",
       "universe", "setUniverse",
       "filters", "setFilter", "resetFilters", "applyFilters",
-      "computeTrendlines", "setComputeTrendlines",
       "customUniverse", "selectSymbols",
       "job", "scanning", "queuePosition", "summary",
       "results", "total", "streaming", "loading", "error",
@@ -288,7 +283,6 @@ describe("PatternsContainer", () => {
     expect(props.lookbackBars).toBe(vm.lookbackBars);
     expect(props.universe).toBe(vm.universe);
     expect(props.filters).toBe(vm.filters);
-    expect(props.computeTrendlines).toBe(vm.computeTrendlines);
     expect(props.customUniverse).toBe("custom");
     expect(props.job).toBe(vm.job);
     expect(props.scanning).toBe(vm.scanning);
@@ -307,7 +301,6 @@ describe("PatternsContainer", () => {
     expect(typeof props.setFilter).toBe("function");
     expect(typeof props.resetFilters).toBe("function");
     expect(typeof props.applyFilters).toBe("function");
-    expect(typeof props.setComputeTrendlines).toBe("function");
     expect(typeof props.selectSymbols).toBe("function");
     expect(typeof props.scan).toBe("function");
     expect(typeof props.refresh).toBe("function");

@@ -38,6 +38,14 @@ function finite(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+/** A sub-0.005% move rounds to "-0.00%" — show a plain zero instead. */
+function pct(value: number | null | undefined): string {
+  if (value != null && Number.isFinite(value) && Math.abs(value) < 0.005) {
+    return formatPercentage(0, 2, false);
+  }
+  return formatPercentage(value, 2, true);
+}
+
 function countText(value: number | null | undefined): string {
   const n = finite(value);
   return n === null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
@@ -143,7 +151,7 @@ export function buildSessionChecks(data: CatalystToday): SessionCheck[] {
       id: "demand",
       label: "Demand tailwind",
       status: change === null ? "pending" : change > 0 ? "pass" : "fail",
-      value: change === null ? "—" : formatPercentage(change, 2, true),
+      value: change === null ? "—" : pct(change),
     },
     {
       id: "positioning",
@@ -155,7 +163,7 @@ export function buildSessionChecks(data: CatalystToday): SessionCheck[] {
       id: "relative-strength",
       label: "Relative strength",
       status: relative === null ? "pending" : relative > 0 ? "pass" : "fail",
-      value: relative === null ? "—" : formatPercentage(relative, 2, true),
+      value: relative === null ? "—" : pct(relative),
     },
     {
       id: "breadth",
@@ -306,18 +314,15 @@ function SectorPulse(props: { onRetry: () => void }) {
         <Match when={store.error() && !data()}>
           <RegionError
             testId="monitor-auto-error"
-            message={store.error() ?? "Sector pulse unavailable"}
+            message={store.error() ?? "SECTOR UNAVAILABLE"}
             onRetry={props.onRetry}
           />
         </Match>
         <Match when={store.loading() && !data()}>
-          <RegionLoading testId="monitor-auto-loading" label="Loading sector pulse…" />
+          <RegionLoading testId="monitor-auto-loading" label="LOADING…" />
         </Match>
-        <Match when={!data()}>
-          <RegionNote testId="monitor-auto-empty">No sector pulse yet.</RegionNote>
-        </Match>
-        <Match when={!sector()}>
-          <RegionNote testId="monitor-auto-empty">Today's snapshot has no sector pulse.</RegionNote>
+        <Match when={!data() || !sector()}>
+          <RegionNote testId="monitor-auto-empty">NO SECTOR DATA</RegionNote>
         </Match>
         <Match when={true}>
           <Box className="flex min-h-0 flex-col gap-1.5 px-2 py-1.5">
@@ -340,7 +345,7 @@ function SectorPulse(props: { onRetry: () => void }) {
                 }
                 data-testid="monitor-auto-change"
               >
-                {formatPercentage(sector()?.change_pct, 2, true)}
+                {pct(sector()?.change_pct)}
               </Text>
             </Box>
 
@@ -354,7 +359,7 @@ function SectorPulse(props: { onRetry: () => void }) {
                 className="font-mono tabular-nums"
                 data-testid="monitor-auto-rs"
               >
-                {formatPercentage(sector()?.relative_strength_pct, 2, true)}
+                {pct(sector()?.relative_strength_pct)}
               </Text>
             </Box>
 
@@ -422,17 +427,15 @@ function SessionPlan(props: { onRetry: () => void; scope: () => HomeCacheScope }
         <Match when={store.error() && !data()}>
           <RegionError
             testId="session-plan-error"
-            message={store.error() ?? "Session plan unavailable"}
+            message={store.error() ?? "PLAN UNAVAILABLE"}
             onRetry={props.onRetry}
           />
         </Match>
         <Match when={store.loading() && !data()}>
-          <RegionLoading testId="session-plan-loading" label="Loading session plan…" />
+          <RegionLoading testId="session-plan-loading" label="LOADING…" />
         </Match>
         <Match when={!data()}>
-          <RegionNote testId="session-plan-empty">
-            Waiting for the first catalyst snapshot.
-          </RegionNote>
+          <RegionNote testId="session-plan-empty">NO SNAPSHOT</RegionNote>
         </Match>
         <Match when={true}>
           <Box className="flex min-h-0 flex-col divide-y divide-fin-border">
@@ -514,15 +517,15 @@ function SectorLeaders(props: {
         <Match when={store.error() && !store.data()}>
           <RegionError
             testId="monitor-leaders-error"
-            message={store.error() ?? "Leaders unavailable"}
+            message={store.error() ?? "LEADERS UNAVAILABLE"}
             onRetry={props.onRetry}
           />
         </Match>
         <Match when={store.loading() && !store.data()}>
-          <RegionLoading testId="monitor-leaders-loading" label="Loading leaders…" />
+          <RegionLoading testId="monitor-leaders-loading" label="LOADING…" />
         </Match>
         <Match when={rows().length === 0}>
-          <RegionNote testId="monitor-leaders-empty">No confirmed leaders yet.</RegionNote>
+          <RegionNote testId="monitor-leaders-empty">NO LEADERS</RegionNote>
         </Match>
         <Match when={true}>
           <Box className="flex min-h-0 flex-col divide-y divide-fin-border">
@@ -544,7 +547,7 @@ function SectorLeaders(props: {
                     c={changeTone(finite(row.move_pct))}
                     className="shrink-0 font-mono tabular-nums"
                   >
-                    {formatPercentage(row.move_pct, 2, true)}
+                    {pct(row.move_pct)}
                   </Text>
                   <Text
                     size="xs"
@@ -590,15 +593,15 @@ function CatalystNews(props: {
         <Match when={store.error() && !store.data()}>
           <RegionError
             testId="monitor-news-error"
-            message={store.error() ?? "Catalyst news unavailable"}
+            message={store.error() ?? "NEWS UNAVAILABLE"}
             onRetry={props.onRetry}
           />
         </Match>
         <Match when={store.loading() && !store.data()}>
-          <RegionLoading testId="monitor-news-loading" label="Loading catalyst news…" />
+          <RegionLoading testId="monitor-news-loading" label="LOADING…" />
         </Match>
         <Match when={rows().length === 0}>
-          <RegionNote testId="monitor-news-empty">No catalyst headlines yet.</RegionNote>
+          <RegionNote testId="monitor-news-empty">NO HEADLINES</RegionNote>
         </Match>
         <Match when={true}>
           <Box className="flex min-h-0 flex-col divide-y divide-fin-border">

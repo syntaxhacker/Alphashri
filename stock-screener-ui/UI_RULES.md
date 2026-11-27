@@ -172,6 +172,9 @@ Required before regrade: <numbered list of every defect and suggestion; "none" o
 5. The approver records the grade, verifier, approver and screenshot paths.
 
 - **No `git commit`, `git push`, or PR before A+ is recorded.** Record grade, verifier, approver and every screenshot path in the PR body (or commit message).
+- **The PR body must embed the screenshots, not just name local paths.** Use `![alt](https://…)` or `<img src="https://…">` with a URL a reviewer can open (committed raw URL or a GitHub attachment). `.agent-artifacts/...`, `/workspaces/...` and `file://...` do not render.
+- The `PR Screenshot Gate` CI check fails a PR body with no embedded screenshot. For a non-UI change, bypass it with the `skip-screenshot-gate` label or `<!-- screenshot-gate: skip -->` in the body and state why. Do not use the bypass for a UI change.
+
 - Any later UI change — or a user rejection of any chart — voids the A+; re-review at the new HEAD is mandatory even if no code changed.
 - Superseded evidence is removed in the same commit, the PR body/comments name only current files, and the 200/404/folder-match checks pass before push (mechanics in the evidence doc at the top).
 - The main agent must not merge, PR, or call a UI change done at A/B/C/F or with a missing verdict. Green CI never overrides.

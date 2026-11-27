@@ -28,7 +28,7 @@ describe("Switch — track + knob toggle", () => {
   });
 
   it("renders a knob child that is a circle inside the track", () => {
-    render(() => <Switch label="TLS" data-testid="sw" />);
+    render(() => <Switch label="Toggle" data-testid="sw" />);
     const knob = knobOf("sw");
     expect(knob).not.toBeNull();
     const style = knob.getAttribute("style") ?? "";
@@ -37,7 +37,7 @@ describe("Switch — track + knob toggle", () => {
   });
 
   it("translates the knob on toggle instead of re-justifying the track", () => {
-    render(() => <Switch label="TLS" data-testid="sw" />);
+    render(() => <Switch label="Toggle" data-testid="sw" />);
     const off = knobOf("sw").getAttribute("style") ?? "";
     expect(off).toContain("translateX(0px)");
 
@@ -49,11 +49,11 @@ describe("Switch — track + knob toggle", () => {
   });
 
   it("tints the track PRIMARY when on and SURFACE_ALT when off", () => {
-    render(() => <Switch label="TLS" data-testid="sw" defaultChecked />);
+    render(() => <Switch label="Toggle" data-testid="sw" defaultChecked />);
     expect(trackOf("sw").getAttribute("style") ?? "").toContain("var(--color-fin-primary)");
 
     cleanup();
-    render(() => <Switch label="TLS" data-testid="sw" />);
+    render(() => <Switch label="Toggle" data-testid="sw" />);
     const off = trackOf("sw").getAttribute("style") ?? "";
     expect(off).toContain("var(--color-fin-surface-alt)");
     expect(off).not.toContain("var(--color-fin-primary)");
@@ -99,14 +99,14 @@ describe("Switch — track + knob toggle", () => {
   });
 
   it("shows a keyboard focus ring on the track", () => {
-    render(() => <Switch label="TLS" data-testid="sw" />);
+    render(() => <Switch label="Toggle" data-testid="sw" />);
     fireEvent.focus(screen.getByTestId("sw"));
     const style = trackOf("sw").getAttribute("style") ?? "";
     expect(style).toContain("box-shadow: 0 0 0 1px var(--color-fin-primary)");
   });
 
   it("exposes an error message and invalid state on the switch", () => {
-    render(() => <Switch label="TLS" error="Choose a state" data-testid="sw" />);
+    render(() => <Switch label="Toggle" error="Choose a state" data-testid="sw" />);
     const input = screen.getByTestId("sw");
     expect(input).toHaveAttribute("aria-invalid", "true");
     const describedBy = input.getAttribute("aria-describedby");

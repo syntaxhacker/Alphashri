@@ -227,20 +227,6 @@ export function buildAppliedFilterChips(
       nextValue: "confidence",
     });
   }
-  if (filters.trendlines && filters.trendlines !== "both") {
-    chips.push({
-      id: "trendlines",
-      group: "Trendlines",
-      label:
-        filters.trendlines === "support"
-          ? "TLS only"
-          : filters.trendlines === "resistance"
-            ? "TLR only"
-            : "Hidden",
-      key: "trendlines",
-      nextValue: "both",
-    });
-  }
   return chips;
 }
 

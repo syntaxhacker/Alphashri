@@ -20,28 +20,20 @@ export function ChainFooter(props: ChainFooterProps) {
         <Box className="flex items-center gap-[4px]" data-testid="options-legend-itm">
           <Box style={{ width: "10px", height: "10px", "border-radius": "9999px", "background-color": palette.POSITIVE }} />
           <Text size="sm" className="text-fin-text-muted">
-            ITM (In The Money)
+            ITM
           </Text>
         </Box>
         <Box className="flex items-center gap-[4px]" data-testid="options-legend-atm">
           <Box style={{ width: "10px", height: "10px", "border-radius": "9999px", "background-color": palette.WARNING }} />
           <Text size="sm" className="text-fin-text-muted">
-            ATM (At The Money)
+            ATM
           </Text>
         </Box>
         <Box className="flex items-center gap-[8px] flex-wrap" data-testid="options-legend-badges">
-          <Badge size="sm" variant="light" color="success">
-            LB: Long Buildup
-          </Badge>
-          <Badge size="sm" variant="light" color="error">
-            SB: Short Buildup
-          </Badge>
-          <Badge size="sm" variant="light" color="info">
-            SC: Short Covering
-          </Badge>
-          <Badge size="sm" variant="light" color="warning">
-            LU: Long Unwinding
-          </Badge>
+          <Badge size="sm" variant="light" color="success">LB</Badge>
+          <Badge size="sm" variant="light" color="error">SB</Badge>
+          <Badge size="sm" variant="light" color="info">SC</Badge>
+          <Badge size="sm" variant="light" color="warning">LU</Badge>
         </Box>
       </Box>
       <Show when={props.spotPrice}>
