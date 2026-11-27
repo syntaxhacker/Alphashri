@@ -9,6 +9,7 @@ a bond key in an equity path is worse than a missing one.
 from __future__ import annotations
 
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -493,3 +494,77 @@ def test_get_instrument_key_indexes_once_per_list():
     api.instruments = replacement
     assert api.get_instrument_key("AAA") == "KEY/NEW"
     assert replacement.iterations == 1
+
+
+_THREADS = 20
+_MASTER_SIZE = 300_000
+
+
+@pytest.mark.parametrize("resolver", ["get_instrument_key", "resolve_token"])
+def test_cold_index_is_built_once_under_concurrent_lookups(resolver):
+    """A cold master shared by many workers must be indexed exactly once."""
+    instruments = _CountingList(
+        _row(f"SYM{i:05d}", f"NSE_EQ|KEY{i}", "EQ") for i in range(_MASTER_SIZE)
+    )
+    if resolver == "get_instrument_key":
+        api = _api()
+        api.instruments = instruments
+        lookup = lambda i: api.get_instrument_key(f"SYM{i:05d}")
+    else:
+        mapping = UpstoxSymbolMap.__new__(UpstoxSymbolMap)
+        mapping._instruments = instruments
+        lookup = lambda i: mapping.resolve_token(f"SYM{i:05d}")
+
+    barrier = threading.Barrier(_THREADS)
+    results: list = [None] * _THREADS
+    errors: list = []
+
+    def worker(index: int):
+        try:
+            barrier.wait(timeout=10)
+            results[index] = lookup(index)
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(_THREADS)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert not errors
+    assert not any(thread.is_alive() for thread in threads)
+    assert instruments.iterations == 1
+    assert results == [f"NSE_EQ|KEY{i}" for i in range(_THREADS)]
+
+
+class _ExplodingLock:
+    def __enter__(self):
+        raise AssertionError("index lock acquired on a cache hit")
+
+    def __exit__(self, *exc):
+        return False
+
+
+@pytest.mark.parametrize(
+    "resolver,owner,cache_attr",
+    [
+        ("get_instrument_key", UpstoxAPI, "_instrument_index_cache"),
+        ("resolve_token", UpstoxSymbolMap, "_token_index"),
+    ],
+)
+def test_cache_hits_never_acquire_the_index_lock(resolver, owner, cache_attr):
+    rows = [_row("AAA", "KEY/EQ", "EQ")]
+    if resolver == "get_instrument_key":
+        target = _api(*rows)
+        lookup = lambda: target.get_instrument_key("AAA")
+    else:
+        target = _symbol_map(*rows)
+        lookup = lambda: target.resolve_token("AAA")
+
+    assert lookup() == "KEY/EQ"
+    assert getattr(target, cache_attr) is not None
+
+    with patch.object(owner, "_INDEX_LOCK", _ExplodingLock()):
+        for _ in range(5):
+            assert lookup() == "KEY/EQ"
