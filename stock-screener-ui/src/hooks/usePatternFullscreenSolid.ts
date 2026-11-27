@@ -320,6 +320,39 @@ export function usePatternFullscreen({
     }
   };
 
+  /**
+   * A payload that appended bars or arrived stale is a one-shot snapshot. The
+   * 60s cache must not replay it: keep both phases fetching so the next open
+   * (or timeframe return) observes the newer tail instead of a frozen frame.
+   */
+  const cacheFreshnessInvalid = (chart: SymbolChartPayload): boolean =>
+    chart.stale === true ||
+    chart.data_source === "cache+tail-failed" ||
+    (typeof chart.appended === "number" && Number.isFinite(chart.appended) && chart.appended > 0);
+
+  const readCachedSymbolChart = (key: string): SymbolChartPayload | null => {
+    const cached = symbolChartCache.get(key);
+    if (!cached || Date.now() - cached.ts >= SYMBOL_CHART_CACHE_MS) return null;
+    if (cacheFreshnessInvalid(cached.chart)) {
+      symbolChartCache.delete(key);
+      return null;
+    }
+    return cached.chart;
+  };
+
+  const rememberSymbolChart = (
+    symbol: string,
+    tf: string,
+    key: string,
+    chart: SymbolChartPayload,
+  ) => {
+    if (cacheFreshnessInvalid(chart)) {
+      invalidateSymbolChartCache(symbol, tf);
+      return;
+    }
+    symbolChartCache.set(key, { chart, ts: Date.now() });
+  };
+
   /** The endpoint answers 200 with `error`/`note` when it has no candles. */
   const chartProblem = (chart: SymbolChartPayload) => ({
     chartError: chart.error ?? null,
@@ -489,15 +522,15 @@ export function usePatternFullscreen({
           : prev,
       );
       const key = fullscreenChartCacheKey(symbol, tf, "p", extra);
-      const cached = symbolChartCache.get(key);
-      if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
-        applyPatterns(cached.chart);
+      const cached = readCachedSymbolChart(key);
+      if (cached) {
+        applyPatterns(cached);
         return;
       }
       try {
         const chart = await fetchSymbolChart(symbol, tf, { detectPatterns: true, ...baseOpts });
         if (chartRequestToken !== token) return;
-        symbolChartCache.set(key, { chart, ts: Date.now() });
+        rememberSymbolChart(symbol, tf, key, chart);
         applyPatterns(chart);
       } catch {
         applyPatternsError();
@@ -512,13 +545,13 @@ export function usePatternFullscreen({
 
     const phase1 = async () => {
       const key = fullscreenChartCacheKey(symbol, tf, "l", extra);
-      const cached = symbolChartCache.get(key);
-      if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
-        applyCandles(cached.chart);
-        if (forceLive || (cached.chart.hits ?? []).length === 0) {
+      const cached = readCachedSymbolChart(key);
+      if (cached) {
+        applyCandles(cached);
+        if (forceLive || (cached.hits ?? []).length === 0) {
           await phase2();
         } else {
-          applyPatterns(cached.chart);
+          applyPatterns(cached);
         }
         return;
       }
@@ -528,7 +561,7 @@ export function usePatternFullscreen({
           ...baseOpts,
         });
         if (chartRequestToken !== token) return;
-        symbolChartCache.set(key, { chart, ts: Date.now() });
+        rememberSymbolChart(symbol, tf, key, chart);
         applyCandles(chart);
         if (forceLive || (chart.hits ?? []).length === 0) {
           await phase2();

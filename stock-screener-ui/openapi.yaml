@@ -4161,15 +4161,51 @@ components:
 
         OpenAPI contract without re-encoding the candle-heavy payload.'
       properties:
+        appended:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Bars appended by the live tail merge (0 when none).
+          title: Appended
         as_of:
           anyOf:
           - type: string
           - type: 'null'
           title: As Of
+        cache_age_sec:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Seconds between `latest_bar` and response time (null unknown).
+          title: Cache Age Sec
+        cache_through:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Timestamp through which the cached frame is complete.
+          title: Cache Through
+        cached:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: True when candles were served from the live-edge disk cache.
+          title: Cached
         candles:
           items: {}
           title: Candles
           type: array
+        close_bar_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: IST session date (YYYY-MM-DD) of the last displayed candle.
+          title: Close Bar Date
+        data_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Candle provenance for this response: ''provider'' (network fetch), ''cache'' (disk cache only), ''cache+tail'' (cache + live tail merge), ''cache+tail-failed'' (tail attempted, cached frame served), or ''none'' (empty/error). Never reuse `source`, which tags pattern hits.'
+          title: Data Source
         delay_label:
           anyOf:
           - type: string
@@ -4201,12 +4237,24 @@ components:
           - $ref: '#/components/schemas/ChartIndicators'
           - type: 'null'
           description: Backend-computed indicator series aligned to `candles` (SMA/BB/VWAP + golden/death crosses); null on empty/error.
+        latest_bar:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Timestamp (ISO 8601) of the last bar behind `candles`.
+          title: Latest Bar
         market:
           anyOf:
           - type: string
           - type: 'null'
           description: 'Chart market: ''india'' (default) or ''usa''.'
           title: Market
+        market_open:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: Holiday-aware NSE session state at response time.
+          title: Market Open
         note:
           anyOf:
           - type: string
@@ -4216,6 +4264,12 @@ components:
           items: {}
           title: Overlays
           type: array
+        refreshing:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: True when a background cache refresh was kicked for this response.
+          title: Refreshing
         session_date:
           anyOf:
           - type: string
@@ -4241,6 +4295,18 @@ components:
           - type: string
           - type: 'null'
           title: Timeframe
+        updated:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Bars repaired by the live tail merge (0 when none).
+          title: Updated
+        warning:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Non-fatal data warning (e.g. a failed live-tail merge).
+          title: Warning
       required:
       - symbol
       title: SymbolChartResponse

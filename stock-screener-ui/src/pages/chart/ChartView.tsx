@@ -5,6 +5,7 @@ import { IconArrowsMaximize } from "@/ui/icons";
 import { fetchTimeframes, fetchSymbolChart } from "@/api/chartPatterns";
 import type {
   ChartCandle,
+  ChartDataSource,
   ChartIndicators,
   ChartPayload,
   PatternHitDTO,
@@ -21,7 +22,8 @@ import { PatternChartToolbar } from "@/components/patterns/PatternChartToolbar";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
 import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
 import { SymbolTvLink } from "@/components/patterns/SymbolTvLink";
-import type { ChartMarket } from "@/utils/chart/time";
+import { MARKET_TIME_ZONE, toEpochMs, type ChartMarket } from "@/utils/chart/time";
+import { formatAgeLong } from "@/utils/ui-helpers";
 
 /** Patterns read best on the daily frame; the URL can override it (`?tf=1W`). */
 const DEFAULT_TIMEFRAME = "1D";
@@ -31,6 +33,9 @@ const US_TIMEFRAMES = ["1D", "1m", "5m", "15m", "1h"] as const;
 
 /** Quick-switch timeframes offered when the current frame has no patterns. */
 const EMPTY_STATE_TIMEFRAMES = ["1D", "1W", "1h", "15m"];
+
+/** A stale live chart retries its tail at this cadence while the session is open. */
+const LIVE_POLL_MS = 20_000;
 
 /** Canonical frames offered when a timeframe returns no candles at all. */
 const NO_CANDLE_TIMEFRAMES = [
@@ -251,8 +256,12 @@ interface ChartLoaderState {
   srZones: SRZone[];
   loading: boolean;
   error: string | null;
-  /** Endpoint explanation when the response carries no candles. */
+  /** Endpoint/empty-state explanation; informational notes stay off the banner. */
   note: string | null;
+  /** Non-fatal warning for the compact banner (tail failure, degraded frame). */
+  warning: string | null;
+  /** Timeframe that produced `candles`; null while clearing or loading another. */
+  candlesTimeframe: string | null;
   /** SCAN/LIVE badge source, only when the payload actually reports one. */
   source: HitSource | null;
   /** Active feed; US payloads additionally carry source/delay/session metadata. */
@@ -260,6 +269,16 @@ interface ChartLoaderState {
   feed: string | null;
   delayLabel: string | null;
   sessionDate: string | null;
+  /** Candle provenance reported by the live-edge chart endpoint. */
+  dataSource: ChartDataSource | null;
+  stale: boolean;
+  appended: number;
+  updated: number;
+  marketOpen: boolean;
+  cacheThrough: string | null;
+  latestBar: string | null;
+  cacheAgeSec: number | null;
+  refreshing: boolean;
 }
 
 const EMPTY_LISTS = {
@@ -267,6 +286,7 @@ const EMPTY_LISTS = {
   hits: [] as PatternHitDTO[],
   overlays: [] as PatternOverlay[],
   candles: [] as ChartCandle[],
+  candlesTimeframe: null as string | null,
   indicators: null as ChartIndicators | null,
   srZones: [] as SRZone[],
   source: null as HitSource | null,
@@ -274,7 +294,67 @@ const EMPTY_LISTS = {
   feed: null as string | null,
   delayLabel: null as string | null,
   sessionDate: null as string | null,
+  warning: null as string | null,
+  dataSource: null as ChartDataSource | null,
+  stale: false,
+  appended: 0,
+  updated: 0,
+  marketOpen: false,
+  cacheThrough: null as string | null,
+  latestBar: null as string | null,
+  cacheAgeSec: null as number | null,
+  refreshing: false,
 };
+
+const CHART_DATA_SOURCES: ReadonlySet<string> = new Set([
+  "provider",
+  "cache",
+  "cache+tail",
+  "cache+tail-failed",
+  "none",
+]);
+
+function readDataSource(raw: unknown): ChartDataSource | null {
+  return typeof raw === "string" && CHART_DATA_SOURCES.has(raw)
+    ? (raw as ChartDataSource)
+    : null;
+}
+
+/** Bar counts are additive metadata; a malformed value must never grow a badge. */
+function readBarCount(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.floor(raw);
+}
+
+function readCacheAge(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : null;
+}
+
+/** A note can report a degraded frame even when the backend omits `error`. */
+const FAILURE_NOTE_RE = /\b(failed?|failure|error|timeout|unavailable|could not|couldn't)\b/i;
+
+const SESSION_TIMEFRAMES: ReadonlySet<string> = new Set(["1D", "1W", "1M"]);
+
+/**
+ * Humanize a bar timestamp in the chart's market zone. A daily/weekly/monthly
+ * bar is a session date, so its clock time would be midnight noise.
+ */
+function formatBarTime(
+  raw: string | null,
+  timeZone: string,
+  timeframe: string,
+): string | null {
+  if (!raw) return null;
+  const ms = toEpochMs(raw, timeZone);
+  if (!Number.isFinite(ms)) return null;
+  const coarse = SESSION_TIMEFRAMES.has(timeframe);
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    day: "2-digit",
+    month: "short",
+    ...(coarse ? {} : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" as const }),
+  }).format(new Date(ms));
+}
 
 /**
  * Inline Solid twin of src/hooks/useSymbolPatternChart (still React). A route
@@ -302,66 +382,151 @@ function useSymbolPatternChartSolid(args: {
     mounted = false;
   });
 
-  const load = () => {
+  const load = (refresh = false) => {
     const symbol = args.symbol();
+    const timeframe = args.timeframe();
     if (!symbol) {
       setState({ symbol, ...EMPTY_LISTS, loading: false, error: null, note: null });
       return;
     }
     const token = ++requestToken;
-    // A different symbol must not keep showing the previous chart while the
-    // new one loads; a timeframe/as-of change keeps the candles (less flicker).
-    setState((prev) =>
-      prev.symbol === symbol
-        ? { ...prev, loading: true, error: null, note: null }
-        : { symbol, ...EMPTY_LISTS, loading: true, error: null, note: null },
-    );
+    // A different symbol must not keep showing the previous chart. A same-frame
+    // reload keeps its candles (less flicker), but a new timeframe must not lend
+    // its bars to the new frame — not even while the request is in flight.
+    // Freshness metadata belongs to one response, so it is cleared on reload.
+    setState((prev) => {
+      if (prev.symbol !== symbol) {
+        return { symbol, ...EMPTY_LISTS, loading: true, error: null, note: null };
+      }
+      const keepCandles = prev.candlesTimeframe === timeframe;
+      return {
+        ...prev,
+        ...(keepCandles
+          ? {}
+          : {
+              candles: [],
+              candlesTimeframe: null,
+              hit: null,
+              hits: [],
+              overlays: [],
+              indicators: null,
+              srZones: [],
+              source: null,
+            }),
+        loading: true,
+        error: null,
+        note: null,
+        warning: null,
+        dataSource: null,
+        stale: false,
+        appended: 0,
+        updated: 0,
+        cacheThrough: null,
+        latestBar: null,
+        cacheAgeSec: null,
+        refreshing: false,
+      };
+    });
 
     const asOf = args.asOf();
     const fromDate = args.fromDate();
-    const timeframe = args.timeframe();
     const market = args.market();
     const baseOptions = {
       ...(asOf ? { asOf } : {}),
       ...(fromDate ? { fromDate } : {}),
+      ...(refresh ? { refresh: true } : {}),
     };
 
-    const applyChart = (chart: ChartPayload, market: ChartMarket) => {
+    const applyChart = (
+      chart: ChartPayload,
+      market: ChartMarket,
+      fallbackNote?: string,
+    ) => {
       if (!mounted || requestToken !== token) return;
       const hits = sortHitsNewest(chart.hits ?? []);
       const hit = newestHit(hits);
       const meta = chart as MarketChartPayload;
       const isUS = market === "usa";
+      const dataSource = readDataSource(chart.data_source);
+      const stale = chart.stale === true || dataSource === "cache+tail-failed";
+      // A successful tail merge ("+N bars", "no new bar") is informational;
+      // only a degraded payload or a failed fallback earns the warning banner.
+      const degraded =
+        stale || Boolean(chart.error) || FAILURE_NOTE_RE.test(chart.note ?? "");
+      const warning =
+        chart.warning ||
+        (degraded ? chart.note || chart.error || null : null) ||
+        fallbackNote ||
+        null;
       setState({
         symbol,
         hit,
         hits,
         overlays: chart.overlays ?? [],
         candles: chart.candles ?? [],
+        candlesTimeframe: timeframe,
         indicators: chart.indicators ?? null,
         srZones: chart.sr_zones ?? [],
         loading: false,
         error: null,
-        note: (chart.candles?.length ?? 0) > 0 ? null : (chart.note ?? chart.error ?? null),
+        note: chart.note || chart.warning || chart.error || fallbackNote || null,
+        warning,
         source: readHitSource(hit, chart),
         market,
         feed: isUS ? readMetaString(meta.feed) : null,
         delayLabel: isUS ? readMetaString(meta.delay_label) : null,
         sessionDate: isUS ? readMetaString(meta.session_date) : null,
+        dataSource,
+        stale,
+        appended: readBarCount(chart.appended),
+        updated: readBarCount(chart.updated),
+        marketOpen: chart.market_open === true,
+        cacheThrough: readMetaString(chart.cache_through),
+        latestBar: readMetaString(chart.latest_bar),
+        cacheAgeSec: readCacheAge(chart.cache_age_sec),
+        refreshing: chart.refreshing === true,
       });
     };
 
     const fail = (err: unknown) => {
       if (!mounted || requestToken !== token) return;
-      setState((prev) =>
-        prev.symbol === symbol
-          ? {
-              ...prev,
-              loading: false,
-              error: err instanceof Error ? err.message : "Failed to load chart",
-            }
-          : prev,
-      );
+      const message = err instanceof Error ? err.message : "Failed to load chart";
+      setState((prev) => {
+        if (prev.symbol !== symbol) return prev;
+        // A failed same-frame reload must never replace a usable chart with the
+        // error panel; a failed frame switch must not leave the old frame's
+        // candles under the new timeframe.
+        const sameFrame =
+          prev.candles.length > 0 && prev.candlesTimeframe === timeframe;
+        if (sameFrame) {
+          return {
+            ...prev,
+            loading: false,
+            error: null,
+            note: message,
+            warning: message,
+            stale: true,
+            // Keep the session gate: a failed tick must not cancel the 20s retry.
+            marketOpen: prev.marketOpen,
+          };
+        }
+        return {
+          ...prev,
+          loading: false,
+          error: message,
+          note: null,
+          warning: null,
+          stale: false,
+          candles: [],
+          candlesTimeframe: null,
+          hit: null,
+          hits: [],
+          overlays: [],
+          indicators: null,
+          srZones: [],
+          source: null,
+        };
+      });
     };
 
     // US is a single live-detection read: one call, no stored scan lookup and
@@ -394,7 +559,20 @@ function useSymbolPatternChartSolid(args: {
         }
         void fetchSymbolChart(symbol, timeframe, { ...baseOptions, detectPatterns: true })
           .then((chart) => applyChart(chart, market))
-          .catch(fail);
+          .catch((err) => {
+            if (!mounted || requestToken !== token) return;
+            // The stored payload already had usable candles; keep them with a
+            // warning instead of replacing the chart with the error panel.
+            if ((chart.candles?.length ?? 0) > 0) {
+              applyChart(
+                chart,
+                market,
+                err instanceof Error ? err.message : "Pattern detection failed",
+              );
+              return;
+            }
+            fail(err);
+          });
       })
       .catch(fail);
   };
@@ -409,10 +587,30 @@ function useSymbolPatternChartSolid(args: {
     load();
   });
 
+  // A stale live-edge frame is only useful until the next tail catches up.
+  // Poll while the backend says the session is open and the frame is stale;
+  // the request token makes a late response unable to overwrite a newer
+  // symbol/timeframe, and the effect cleanup cancels a pending tick.
+  createEffect(() => {
+    const current = state();
+    if (
+      current.loading ||
+      current.error ||
+      !current.symbol ||
+      !current.marketOpen ||
+      !current.stale ||
+      args.asOf() != null
+    ) {
+      return;
+    }
+    const timer = setTimeout(() => load(), LIVE_POLL_MS);
+    onCleanup(() => clearTimeout(timer));
+  });
+
   const selectHit = (hit: PatternHitDTO) =>
     setState((prev) => (prev.symbol === hit.symbol ? { ...prev, hit } : prev));
 
-  return { state, selectHit, reload: load };
+  return { state, selectHit, reload: () => load(true) };
 }
 
 /** First value if the param arrived as a (repeated) array, else the string. */
@@ -547,6 +745,33 @@ const ChartView = () => {
   const showEmpty = () =>
     !chart.state().loading && !chart.state().error && chart.state().candles.length === 0;
 
+  /** Everything the freshness badges can explain without opening a panel. */
+  const freshnessDetail = () => {
+    const current = chart.state();
+    const timeZone = MARKET_TIME_ZONE[current.market];
+    // Describe the bars actually on screen, not the frame the URL names now.
+    const tf = current.candlesTimeframe ?? timeframe();
+    const zoneLabel = current.market === "india" ? "IST" : "ET";
+    const cacheThrough = formatBarTime(current.cacheThrough, timeZone, tf);
+    const latestBar = formatBarTime(current.latestBar, timeZone, tf);
+    const barAge =
+      current.cacheAgeSec != null ? formatAgeLong(current.cacheAgeSec * 1000) : null;
+    return [
+      cacheThrough ? `cache through ${cacheThrough} ${zoneLabel}` : null,
+      latestBar ? `latest bar ${latestBar} ${zoneLabel}` : null,
+      barAge ? `bar age ${barAge}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  };
+  const showUpdatingBadge = () =>
+    chart.state().refreshing || (chart.state().stale && chart.state().marketOpen);
+  /** Successful tail notes stay out of the banner; only degraded frames warn. */
+  const chartWarningNote = () => {
+    const current = chart.state();
+    return current.candles.length > 0 ? current.warning : null;
+  };
+
   return (
     <div
       class="flex h-full min-h-0 w-full flex-col overflow-hidden"
@@ -571,6 +796,14 @@ const ChartView = () => {
           data-feed={chart.state().feed ?? ""}
           data-delay-label={chart.state().delayLabel ?? ""}
           data-session-date={chart.state().sessionDate ?? ""}
+          data-data-source={chart.state().dataSource ?? ""}
+          data-candle-timeframe={chart.state().candlesTimeframe ?? ""}
+          data-cache-through={chart.state().cacheThrough ?? ""}
+          data-latest-bar={chart.state().latestBar ?? ""}
+          data-market-open={chart.state().marketOpen ? "1" : "0"}
+          data-appended={chart.state().appended}
+          data-updated={chart.state().updated}
+          data-refreshing={chart.state().refreshing ? "1" : "0"}
           class="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-fin-bg"
         >
         <div
@@ -606,6 +839,46 @@ const ChartView = () => {
                 </Badge>
               )}
             </Show>
+            <Show when={chart.state().stale}>
+              <Badge
+                size="xs"
+                color="warning"
+                data-testid="chart-freshness-stale"
+                title={freshnessDetail() || "Served from the candle cache"}
+              >
+                STALE
+              </Badge>
+            </Show>
+            <Show when={showUpdatingBadge()}>
+              <Badge
+                size="xs"
+                color="info"
+                data-testid="chart-freshness-updating"
+                title="Fetching newer bars in the background"
+              >
+                UPDATING
+              </Badge>
+            </Show>
+            <Show when={chart.state().appended > 0}>
+              <Badge
+                size="xs"
+                color="success"
+                data-testid="chart-freshness-appended"
+                title={freshnessDetail()}
+              >
+                {`+${chart.state().appended} BARS`}
+              </Badge>
+            </Show>
+            <Show when={chart.state().appended === 0 && chart.state().updated > 0}>
+              <Badge
+                size="xs"
+                color="success"
+                data-testid="chart-freshness-updated"
+                title={freshnessDetail()}
+              >
+                UPDATED
+              </Badge>
+            </Show>
             <Show when={isUS()}>
               <Show when={usFeedLabel()}>
                 <Badge size="xs" color="dimmed" data-testid="chart-us-feed">
@@ -633,6 +906,30 @@ const ChartView = () => {
             </Tooltip>
           </ToolbarRow>
         </div>
+
+        <Show when={chartWarningNote()}>
+          {(note) => (
+            <div
+              data-testid="chart-warning"
+              role="status"
+              class="flex min-w-0 shrink-0 items-center gap-2 border-b border-fin-border px-4 py-2"
+            >
+              <Badge size="xs" color="warning">
+                NOTE
+              </Badge>
+              <Text
+                size="xs"
+                c="dimmed"
+                truncate
+                title={note()}
+                class="text-ui-micro"
+                data-testid="chart-warning-text"
+              >
+                {note()}
+              </Text>
+            </div>
+          )}
+        </Show>
 
         <Switch>
           <Match when={chart.state().error}>
