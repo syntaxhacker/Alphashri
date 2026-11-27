@@ -26,6 +26,7 @@ const NARROW_WIDTH = 390;
 const NARROW_HEIGHT = 844;
 
 import { collectConsoleErrors } from "./helpers/flowsB";
+import { waitForSettled } from "./helpers/evidenceFast";
 
 const EVIDENCE = process.env.SCREENSHOT_EVIDENCE === "1";
 // Overridable so a fix can capture before/after frames outside the repo's
@@ -55,6 +56,7 @@ for (const [width, height] of [
     const rowSelector = width === NARROW_WIDTH ? NARROW_RESULTS : PATTERNS_EVIDENCE_RESULTS;
     await page.waitForSelector(rowSelector, { timeout: 20000 });
     const rows = page.locator(rowSelector);
+    await waitForSettled(page, rowSelector);
     await expect(rows.first()).toBeVisible();
     expect(await rows.count(), "expected at least one rendered result row").toBeGreaterThan(0);
 
