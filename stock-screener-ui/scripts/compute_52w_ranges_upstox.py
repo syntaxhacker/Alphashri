@@ -28,14 +28,15 @@ import config
 from db.database import SessionLocal, init_db
 from db.models import Instrument
 from db.models.stock_52w_touch import Stock52WeekRange
-from trading.week52_utils import build_52w_range_from_ohlc, days_since_52w_high_touch_from_df
-from trading.week52_job_status import (
+from trading.week52.job import (
     finish_job,
     fail_job,
     get_job_status,
     start_job,
     update_job_progress,
 )
+from trading.week52.upsert import upsert_52w_ranges
+from trading.week52_utils import build_52w_range_from_ohlc, days_since_52w_high_touch_from_df
 
 NSE_INSTRUMENTS_JSON = (
     _project_root.parent / "upstox_trader" / "config_and_utils" / "nse_instruments.json"
@@ -350,66 +351,12 @@ def fetch_range_for_symbol(api, symbol: str, to_date: str | None) -> dict | None
     return entry
 
 
-def _range_changed(row: Stock52WeekRange, info: dict) -> bool:
-    return (
-        row.high_52w != info["high"]
-        or row.low_52w != info["low"]
-        or row.close != info["close"]
-        or row.days_ago != info.get("days_ago")
-    )
-
-
 def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
-    """Upsert into stock_52w_range; optionally refresh Redis cache.
-
-    Only rows whose values actually changed are written. Running a batch that
-    recomputes identical ranges used to dirty all ~3k rows and hold the SQLite
-    writer for seconds, which is what stalled the auth/config reads.
-    """
+    """Persist one change-only batch; Redis is refreshed once by main()."""
     if not data:
         return 0, 0
 
-    db = SessionLocal()
-    added = 0
-    updated = 0
-    try:
-        # Scope the read to this chunk: the caller batches at DB_FLUSH_EVERY, so
-        # this stays well under SQLite's bound-parameter limit and avoids
-        # reloading the whole table for every flush.
-        existing = {
-            r.symbol: r
-            for r in db.query(Stock52WeekRange)
-            .filter(Stock52WeekRange.symbol.in_(list(data)))
-            .all()
-        }
-        now = datetime.now(config.IST).replace(tzinfo=None)
-        for symbol, info in data.items():
-            cur = existing.get(symbol)
-            if cur is None:
-                db.add(
-                    Stock52WeekRange(
-                        symbol=symbol,
-                        high_52w=info["high"],
-                        low_52w=info["low"],
-                        close=info["close"],
-                        days_ago=info.get("days_ago"),
-                        updated_at=now,
-                    )
-                )
-                added += 1
-            elif _range_changed(cur, info):
-                cur.high_52w = info["high"]
-                cur.low_52w = info["low"]
-                cur.close = info["close"]
-                cur.days_ago = info.get("days_ago")
-                cur.updated_at = now
-                updated += 1
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+    added, updated = upsert_52w_ranges(SessionLocal, data)
 
     # Redis write is deferred to the merge step in main() so the bulk key is
     # written ONCE with the complete merged data, not once per chunk.

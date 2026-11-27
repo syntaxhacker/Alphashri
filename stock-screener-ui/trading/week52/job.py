@@ -6,10 +6,9 @@ from typing import Any
 
 import config
 
-import os
-
-JOB_STATUS_KEY = "52w_range:job_status"
-JOB_STATUS_TTL = 86400 * 7  # 7 days
+from .config import job_stale_sec
+from .keys import JOB_STATUS as JOB_STATUS_KEY
+from .keys import JOB_TTL as JOB_STATUS_TTL
 
 # A "running" job whose last update is older than this is considered stale
 # (crashed/hung subprocess) and may be reset by the scheduler or admin endpoints.
@@ -107,6 +106,26 @@ def finish_job(
     )
 
 
+def complete_job(
+    *,
+    ok: int = 0,
+    failed: int = 0,
+    skipped: int = 0,
+    total: int = 0,
+    elapsed_sec: float = 0.0,
+    error: str | None = None,
+) -> None:
+    """Write a terminal job status; shares finish_job's failed-on-error rule."""
+    finish_job(
+        ok=ok,
+        failed=failed,
+        skipped=skipped,
+        total=total,
+        elapsed_sec=elapsed_sec,
+        error=error,
+    )
+
+
 def fail_job(message: str) -> None:
     set_job_status(
         status="failed",
@@ -117,11 +136,8 @@ def fail_job(message: str) -> None:
 
 
 def get_stale_threshold_sec() -> int:
-    """Staleness threshold for a 'running' job (env SCREENER_52W_STALE_SEC, default 1800)."""
-    try:
-        return max(0, int(os.environ.get("SCREENER_52W_STALE_SEC", str(STALE_DEFAULT_SEC))))
-    except (TypeError, ValueError):
-        return STALE_DEFAULT_SEC
+    """Staleness threshold for a 'running' job, owned by week52.config."""
+    return job_stale_sec()
 
 
 def _parse_ts(value: Any) -> datetime | None:

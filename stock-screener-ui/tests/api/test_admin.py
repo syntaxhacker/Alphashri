@@ -37,10 +37,20 @@ def admin_auth_headers(admin_user: User):
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture
+def test_52w_sessionlocal(db: Session):
+    """_52w_range_db_stats opens db.database.SessionLocal outside get_db; bind it to the test DB."""
+    from sqlalchemy.orm import sessionmaker
+
+    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+    with patch("db.database.SessionLocal", TestSessionLocal):
+        yield
+
+
 class TestAdmin52wRange:
     """Tests for 52W range batch admin endpoints."""
 
-    def test_get_52w_range_status_admin(self, client, admin_auth_headers):
+    def test_get_52w_range_status_admin(self, client, admin_auth_headers, test_52w_sessionlocal):
         response = client.get("/api/admin/52w-range-status", headers=admin_auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -53,7 +63,7 @@ class TestAdmin52wRange:
         assert response.status_code == 403
 
     @patch("api.admin_routes._run_52w_batch_subprocess")
-    @patch("trading.week52_job_status.get_job_status", return_value=None)
+    @patch("trading.week52.job.get_job_status", return_value=None)
     def test_run_52w_range_batch(self, mock_status, mock_run, client, admin_auth_headers):
         response = client.post(
             "/api/admin/52w-range/run",
@@ -83,7 +93,7 @@ class TestAdmin52wRange:
         assert env["UPSTOX_RL_CONSUMER"] != "api"
 
     @patch("api.admin_routes.clear_52w_range_data")
-    @patch("trading.week52_job_status.get_job_status", return_value=None)
+    @patch("trading.week52.job.get_job_status", return_value=None)
     def test_delete_52w_cache(self, mock_status, mock_clear, client, admin_auth_headers):
         mock_clear.return_value = {
             "redis_keys_deleted": 10,
@@ -98,7 +108,7 @@ class TestAdmin52wRange:
         assert response.status_code == 200
         mock_clear.assert_called_once_with(clear_db=False)
 
-    def test_get_52w_status_includes_schedule(self, client, admin_auth_headers):
+    def test_get_52w_status_includes_schedule(self, client, admin_auth_headers, test_52w_sessionlocal):
         response = client.get("/api/admin/52w-range-status", headers=admin_auth_headers)
         assert response.status_code == 200
         assert "schedule" in response.json()

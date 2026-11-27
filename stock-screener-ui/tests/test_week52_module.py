@@ -1,7 +1,7 @@
-"""Tests for trading.week52 — the single-home 52W module (config, keys, math).
+"""Tests for the canonical trading.week52 package (config, keys, math).
 
-Verifies the consolidated module exposes the same behavior as the legacy
-screener_models helpers, and that the env/constant table is the single source.
+Config owns every 52W env reader; math owns the pure helpers. These tests assert
+that contract directly rather than comparing against the legacy flat modules.
 """
 import pytest
 
@@ -152,6 +152,10 @@ class TestConfigTable:
         monkeypatch.delenv("SCREENER_52W_INTERVAL_SEC", raising=False)
         assert config.batch_interval_sec() == 3600
 
+    def test_batch_max_wait_default(self, monkeypatch):
+        monkeypatch.delenv("SCREENER_52W_MAX_WAIT_SEC", raising=False)
+        assert config.batch_max_wait_sec() == 7200
+
     def test_job_stale_default(self, monkeypatch):
         monkeypatch.delenv("SCREENER_52W_STALE_SEC", raising=False)
         assert config.job_stale_sec() == 1800
@@ -170,6 +174,93 @@ class TestConfigTable:
         assert config.TV_BATCH_SIZE == 80
 
 
+class TestBatchAndCacheConfig:
+    def test_cache_ttl_default_is_24h(self, monkeypatch):
+        monkeypatch.delenv("SCREENER_52W_CACHE_TTL", raising=False)
+        assert config.cache_ttl_sec() == 86400
+
+    def test_cache_ttl_env_override(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_CACHE_TTL", "120")
+        assert config.cache_ttl_sec() == 120
+
+    def test_cache_ttl_bad_value_falls_back(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_CACHE_TTL", "not-a-number")
+        assert config.cache_ttl_sec() == 86400
+
+    def test_cache_ttl_negative_falls_back(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_CACHE_TTL", "-5")
+        assert config.cache_ttl_sec() == 86400
+
+    def test_batch_workers_default(self, monkeypatch):
+        monkeypatch.delenv("SCREENER_52W_WORKERS", raising=False)
+        assert config.batch_workers() == 3
+
+    def test_batch_workers_env_override(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_WORKERS", "5")
+        assert config.batch_workers() == 5
+
+    def test_batch_workers_bad_value_falls_back(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_WORKERS", "many")
+        assert config.batch_workers() == 3
+
+    def test_batch_workers_negative_falls_back(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_WORKERS", "-2")
+        assert config.batch_workers() == 3
+
+    def test_batch_delay_default(self, monkeypatch):
+        monkeypatch.delenv("SCREENER_52W_DELAY_SEC", raising=False)
+        assert config.batch_delay_sec() == 0.35
+
+    def test_batch_delay_env_override(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_DELAY_SEC", "1.0")
+        assert config.batch_delay_sec() == 1.0
+
+    def test_batch_delay_bad_value_falls_back(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_DELAY_SEC", "slow")
+        assert config.batch_delay_sec() == 0.35
+
+    def test_batch_delay_negative_falls_back(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_DELAY_SEC", "-0.5")
+        assert config.batch_delay_sec() == 0.35
+
+    @pytest.mark.parametrize(
+        "env_name,reader,default",
+        [
+            ("SCREENER_52W_TOUCHED_GAP_PCT", config.touched_52w_gap_threshold_pct, 1.0),
+            ("SCREENER_52W_TOUCH_EPS_PCT", config.touch_eps_pct, 0.5),
+            ("SCREENER_RETEST_WINDOW_DAYS", config.retest_window_days, 5),
+            ("SCREENER_52W_MIN_VOLUME_M", config.min_52w_volume_m, 0.0),
+            ("SCREENER_52W_MIN_TURNOVER_CR", config.min_52w_turnover_cr, 0.5),
+            ("SCREENER_52W_ENRICH_TOP", config.enrich_top_n, 80),
+            ("SCREENER_TOUCH_BAND_GAP_PCT", config.touch_band_gap_pct, 5.0),
+            ("SCREENER_TOUCH_LOOKBACK_TOP", config.touch_lookback_top, 120),
+            ("SCREENER_52W_INTERVAL_SEC", config.batch_interval_sec, 3600),
+            ("SCREENER_52W_MAX_WAIT_SEC", config.batch_max_wait_sec, 7200),
+            ("SCREENER_52W_STALE_SEC", config.job_stale_sec, 1800),
+            ("SCREENER_52W_CACHE_TTL", config.cache_ttl_sec, 86400),
+            ("SCREENER_52W_WORKERS", config.batch_workers, 3),
+            ("SCREENER_52W_DELAY_SEC", config.batch_delay_sec, 0.35),
+        ],
+    )
+    @pytest.mark.parametrize("bad", ["not-a-number", "-1", "-0.5"])
+    def test_all_numeric_readers_fall_back(self, monkeypatch, env_name, reader, default, bad):
+        monkeypatch.setenv(env_name, bad)
+        assert reader() == default
+
+    def test_zero_min_volume_is_honored(self, monkeypatch):
+        monkeypatch.setenv("SCREENER_52W_MIN_VOLUME_M", "0")
+        assert config.min_52w_volume_m() == 0.0
+
+    def test_profiles_with_52w_buckets_owned_by_config(self):
+        assert isinstance(config.PROFILES_WITH_52W_BUCKETS, set)
+        assert config.PROFILES_WITH_52W_BUCKETS == {
+            "trending",
+            "near_52w_breakout",
+            "touched_52w_high",
+            "52w_high",
+        }
+
+
 class TestKeys:
     def test_per_symbol_format(self):
         assert keys.per_symbol("RELIANCE") == "52w_range:RELIANCE"
@@ -178,39 +269,14 @@ class TestKeys:
         assert keys.BULK == "52w_range:all"
         assert keys.JOB_STATUS == "52w_range:job_status"
 
-    def test_ttls_positive(self):
-        assert keys.RANGE_TTL > 0
-        assert keys.JOB_TTL > 0
+    def test_range_ttl_is_daily(self):
+        assert keys.RANGE_TTL == 24 * 60 * 60 == 86400
+
+    def test_job_ttl_and_paper_cache_dir(self):
+        assert keys.JOB_TTL == 86400 * 7
+        assert keys.PAPER_52W_CACHE_DIR == "experiments/data/52w_cache"
 
     def test_prefix_matches_key_family(self):
         assert keys.BULK.startswith(keys.PREFIX)
         assert keys.JOB_STATUS.startswith(keys.PREFIX)
         assert keys.per_symbol("X").startswith(keys.PREFIX)
-
-
-class TestParityWithLegacy:
-    """The consolidated module must not drift from screener_models helpers."""
-
-    def test_gap_parity(self):
-        from api.screener_api import screener_models as sm
-
-        for high, price in [(100, 95), (500, 480), (10, 12), (100, 100)]:
-            assert sm.gap_pct_to_52w_high(high, price) == gap_pct_to_52w_high(high, price)
-
-    def test_threshold_parity(self, monkeypatch):
-        from api.screener_api import screener_models as sm
-
-        monkeypatch.setenv("SCREENER_52W_TOUCHED_GAP_PCT", "1.7")
-        assert sm.touched_52w_gap_threshold_pct() == config.touched_52w_gap_threshold_pct() == 1.7
-
-    def test_classify_parity(self):
-        from api.screener_api import screener_models as sm
-
-        for args in [(True, None), (False, 2), (False, 9)]:
-            assert sm.classify_approach(*args) == classify_approach(*args)
-
-    def test_etf_parity(self):
-        from api.screener_api import screener_models as sm
-
-        for sym in ["RELIANCE", "NIFTYBEES", "AONELIQUID", ""]:
-            assert sm.is_likely_etf(sym) == is_likely_etf(sym)

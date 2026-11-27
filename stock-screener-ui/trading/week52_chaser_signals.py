@@ -18,14 +18,12 @@ from trading.week52_utils import Base52WSignalGenerator, calculate_52w_high
 logger = logging.getLogger(__name__)
 
 
-# Canonical 52W Chaser filter defaults — single source of truth.
-#
-# The backtest Nautilus strategy (backtest/strategies/week52_chaser.py) imports
-# these constants so the live-signal path and the backtest path screen the same
-# thing. The backtest page / UI only exposes `enable_filters` (default False,
-# matching both `Week52ChaserStrategy.get_params()` and the generator default
-# below); the thresholds below are deliberately NOT user-tunable — they are the
-# ablation winners:
+# Canonical 52W Chaser defaults live in trading.week52.defaults (single source of
+# truth). The backtest strategy imports the same constants so the live-signal
+# path and the backtest path screen the same thing. The backtest page / UI only
+# exposes `enable_filters` (default False, matching both
+# `Week52ChaserStrategy.get_params()` and the generator default below); the
+# thresholds are deliberately NOT user-tunable — they are the ablation winners:
 #   - ADX >= 25 kept (optimal operating point; do NOT loosen).
 #   - RSI upper veto loosened 70 -> 75: the RSI>70 veto killed ~1.73pp profit per
 #     noise trade avoided and is conceptually backwards for a momentum-chaser.
@@ -35,10 +33,13 @@ logger = logging.getLogger(__name__)
 #     filters would only add maintenance surface and false confidence.
 #   - enable_filters default False everywhere (UI backtestDefaults.ts,
 #     Week52ChaserStrategy.get_params(), Week52ChaserConfig, generator).
-CHASER_ADX_MIN = 25.0
-CHASER_RSI_HI = 75.0
-CHASER_VOLUME_MULT = 1.8
-CHASER_ENABLE_FILTERS_DEFAULT = False
+from trading.week52.defaults import (
+    CHASER_ADX_MIN,
+    CHASER_ENABLE_FILTERS_DEFAULT,
+    CHASER_RSI_HI,
+    CHASER_VOLUME_MULT,
+    ChaserDefaults,
+)
 
 
 class Week52ChaserSignalGenerator(Base52WSignalGenerator):
@@ -46,21 +47,22 @@ class Week52ChaserSignalGenerator(Base52WSignalGenerator):
     strategy_type = "52W_CHASER"
 
     def __init__(self, config: dict):
-        self.sl_pct = float(config.get("sl_pct", 2.0))
-        self.tp_pct = float(config.get("tp_pct", 3.0))
-        self.entry_threshold_pct = float(config.get("entry_threshold_pct", 3.0))
-        self.min_breakout_pct = float(config.get("min_breakout_pct") or 0.5)
-        self.enable_trailing_stop = bool(config.get("enable_trailing_stop", False))
-        self.trailing_stop_pct = float(config.get("trailing_stop_pct", 2.0))
-        self.trailing_activation_pct = float(config.get("trailing_activation_pct", 3.0))
-        self.max_holding_days = int(config.get("max_holding_days", 30))
-        self.cooldown_days = int(config.get("cooldown_days", 30))
-        self.enable_filters = bool(config.get("enable_filters", CHASER_ENABLE_FILTERS_DEFAULT))
-        self.adx_min = float(config.get("adx_min", CHASER_ADX_MIN))
-        self.rsi_hi = float(config.get("rsi_hi", CHASER_RSI_HI))
-        self.volume_mult = float(config.get("volume_mult", CHASER_VOLUME_MULT))
-        self.min_avg_volume = float(config.get("min_avg_volume", 50000))
-        self.recent_touch_days = int(config.get("recent_touch_days", 3))
+        defaults = ChaserDefaults
+        self.sl_pct = float(config.get("sl_pct", defaults.sl_pct))
+        self.tp_pct = float(config.get("tp_pct", defaults.tp_pct))
+        self.entry_threshold_pct = float(config.get("entry_threshold_pct", defaults.entry_threshold_pct))
+        self.min_breakout_pct = float(config.get("min_breakout_pct") or defaults.min_breakout_pct)
+        self.enable_trailing_stop = bool(config.get("enable_trailing_stop", defaults.enable_trailing_stop))
+        self.trailing_stop_pct = float(config.get("trailing_stop_pct", defaults.trailing_stop_pct))
+        self.trailing_activation_pct = float(config.get("trailing_activation_pct", defaults.trailing_activation_pct))
+        self.max_holding_days = int(config.get("max_holding_days", defaults.max_holding_days))
+        self.cooldown_days = int(config.get("cooldown_days", defaults.cooldown_days))
+        self.enable_filters = bool(config.get("enable_filters", defaults.enable_filters))
+        self.adx_min = float(config.get("adx_min", defaults.adx_min))
+        self.rsi_hi = float(config.get("rsi_hi", defaults.rsi_hi))
+        self.volume_mult = float(config.get("volume_mult", defaults.volume_mult))
+        self.min_avg_volume = float(config.get("min_avg_volume", defaults.min_avg_volume))
+        self.recent_touch_days = int(config.get("recent_touch_days", defaults.recent_touch_days))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
 
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:

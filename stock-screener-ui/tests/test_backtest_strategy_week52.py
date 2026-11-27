@@ -35,6 +35,7 @@ from backtest.strategies.week52_chaser import (
     get_date_from_ns,
 )
 from backtest.strategies.base import StrategyParam
+from trading.week52.defaults import ChaserDefaults
 
 
 def create_mock_candle_data(
@@ -343,7 +344,7 @@ class TestWeek52ChaserStrategyMetadata:
             (p for p in params if p.key == "entry_threshold_pct"), None
         )
         assert entry_threshold is not None
-        assert entry_threshold.default == 3.0
+        assert entry_threshold.default == ChaserDefaults.entry_threshold_pct
         assert entry_threshold.type == "number"
 
     def test_stop_loss_param_defaults(self):
@@ -351,7 +352,7 @@ class TestWeek52ChaserStrategyMetadata:
         params = Week52ChaserStrategy.get_params()
         sl = next((p for p in params if p.key == "stop_loss_pct"), None)
         assert sl is not None
-        assert sl.default == 3.0
+        assert sl.default == ChaserDefaults.sl_pct
         assert sl.min == 1.0
         assert sl.max == 8.0
 
@@ -360,7 +361,7 @@ class TestWeek52ChaserStrategyMetadata:
         params = Week52ChaserStrategy.get_params()
         tp = next((p for p in params if p.key == "take_profit_pct"), None)
         assert tp is not None
-        assert tp.default == 5.0
+        assert tp.default == ChaserDefaults.tp_pct
 
     def test_trailing_stop_is_boolean(self):
         """Test: Enable trailing stop is boolean type."""
@@ -376,9 +377,9 @@ class TestWeek52ChaserStrategyMetadata:
         defaults = strategy.get_default_params()
 
         assert isinstance(defaults, dict)
-        assert defaults["entry_threshold_pct"] == 3.0
-        assert defaults["stop_loss_pct"] == 3.0
-        assert defaults["take_profit_pct"] == 5.0
+        assert defaults["entry_threshold_pct"] == ChaserDefaults.entry_threshold_pct
+        assert defaults["stop_loss_pct"] == ChaserDefaults.sl_pct
+        assert defaults["take_profit_pct"] == ChaserDefaults.tp_pct
 
 
 class TestWeek52ChaserStrategyValidation:
@@ -388,9 +389,9 @@ class TestWeek52ChaserStrategyValidation:
         """Test: Valid params return no errors."""
         strategy = Week52ChaserStrategy()
         errors = strategy.validate_params({
-            "entry_threshold_pct": 3.0,
-            "stop_loss_pct": 3.0,
-            "take_profit_pct": 5.0,
+            "entry_threshold_pct": ChaserDefaults.entry_threshold_pct,
+            "stop_loss_pct": ChaserDefaults.sl_pct,
+            "take_profit_pct": ChaserDefaults.tp_pct,
         })
         assert errors == []
 
@@ -486,16 +487,16 @@ class TestWeek52ChaserConfig:
             bar_type=bar_type,
         )
 
-        assert config.entry_threshold_pct == 2.0
-        assert config.stop_loss_pct == 2.0
-        assert config.take_profit_pct == 3.0
-        assert config.enable_trailing_stop is False
-        assert config.trailing_stop_pct == 2.0
-        assert config.trailing_activation_pct == 3.0
-        assert config.max_holding_days == 30
-        assert config.cooldown_days == 30
+        assert config.entry_threshold_pct == ChaserDefaults.entry_threshold_pct
+        assert config.stop_loss_pct == ChaserDefaults.sl_pct
+        assert config.take_profit_pct == ChaserDefaults.tp_pct
+        assert config.enable_trailing_stop is ChaserDefaults.enable_trailing_stop
+        assert config.trailing_stop_pct == ChaserDefaults.trailing_stop_pct
+        assert config.trailing_activation_pct == ChaserDefaults.trailing_activation_pct
+        assert config.max_holding_days == ChaserDefaults.max_holding_days
+        assert config.cooldown_days == ChaserDefaults.cooldown_days
         assert config.trade_size == 100
-        assert config.enable_filters is False
+        assert config.enable_filters is ChaserDefaults.enable_filters
 
     def test_config_custom_values(self):
         """Test: Config accepts custom values."""

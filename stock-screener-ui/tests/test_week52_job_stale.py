@@ -1,6 +1,6 @@
 """Unit tests for 52W range batch stale-job detection.
 
-Pure dict-level tests over trading.week52_job_status helpers — no Redis access.
+Pure dict-level tests over trading.week52.job helpers — no Redis access.
 """
 
 import os
@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import config
-from trading.week52_job_status import (
+from trading.week52.job import (
     get_stale_threshold_sec,
     is_job_stale,
     job_age_sec,

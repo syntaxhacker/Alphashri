@@ -229,7 +229,7 @@ def _lookup_upstox_52w_high(symbol):
     callers fall back to TradingView in that case.
     """
     try:
-        from trading.week52_range_lookup import get_52w_range
+        from trading.week52.ranges import get_52w_range
     except Exception:
         return None
     try:

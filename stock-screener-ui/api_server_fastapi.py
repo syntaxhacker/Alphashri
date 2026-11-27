@@ -145,7 +145,7 @@ async def screener_prewarm_task():
 def _is_market_hours() -> bool:
     """Returns True during Indian equity market hours (09:15-15:30 IST on trading days, excluding weekends/holidays).
     Delegates to the canonical trading.utils.is_market_open (respects MARKET_OPEN/MARKET_CLOSE + holiday calendar).
-    Used to gate background 52W range batches, screener cache invalidations, and prewarms.
+    Used to gate background prewarms (screeners, chart patterns, watch and market snapshots).
     """
     try:
         from trading.utils import is_market_open
@@ -159,149 +159,7 @@ def _is_market_hours() -> bool:
 from cache.week52 import (
     load_52w_ranges as _load_52w_ranges_from_redis,
     sanitize_bulk as _sanitize_52w_ranges_bulk,
-    sanitize_entry as _sanitize_52w_range_entry,
-    store_52w_ranges as _store_52w_ranges_bulk,
 )
-
-_52W_RANGE_CACHE_TTL = 600
-
-
-def _store_52w_ranges_in_redis(data: dict):
-    """Store every 52W range in one bulk Redis key via the shared cache helper."""
-    return _store_52w_ranges_bulk(data, ttl=_52W_RANGE_CACHE_TTL)
-
-
-def _persist_52w_ranges_to_db(data: dict):
-    """Upsert 52W ranges into DB. Bulk replace for simplicity (~4000 rows)."""
-    from db.database import SessionLocal
-    from db.models.stock_52w_touch import Stock52WeekRange
-
-    db = SessionLocal()
-    try:
-        existing = {r.symbol: r for r in db.query(Stock52WeekRange).all()}
-        to_add = []
-        now = datetime.now(config.IST).replace(tzinfo=None)
-        for symbol, info in data.items():
-            cur = existing.get(symbol)
-            if cur:
-                # Always bump updated_at on refresh so max(updated_at) reflects last
-                # successful range computation/verification time for the most recent symbol.
-                cur.high_52w = info['high']
-                cur.low_52w = info['low']
-                cur.close = info['close']
-                cur.updated_at = now
-            else:
-                to_add.append(Stock52WeekRange(
-                    symbol=symbol, high_52w=info['high'],
-                    low_52w=info['low'], close=info['close'],
-                    updated_at=now,
-                ))
-        if to_add:
-            db.add_all(to_add)
-        db.commit()
-    except Exception:
-        db.rollback()
-    finally:
-        db.close()
-
-
-def is_52w_batch_stale(job: dict | None) -> bool:
-    """True when the scheduler should treat a 'running' 52W job as stuck.
-
-    Pure check over the job dict (no Redis) — delegates to
-    trading.week52_job_status.is_job_stale with the SCREENER_52W_STALE_SEC threshold.
-    """
-    try:
-        from trading.week52_job_status import is_job_stale
-
-        return is_job_stale(job)
-    except Exception:
-        return False
-
-
-async def compute_52w_ranges_task():
-    """Hourly Upstox 52W batch (daily staleness refresh) + screener cache invalidation when complete.
-    Symbols already refreshed today are skipped, so the first run each day updates the full
-    universe (~5 min) and later hourly runs no-op in ~1s. The batch + invalidation only
-    actually run during market hours (see _is_market_hours).
-    On startup we do a prompt initial run (short delay) if in market hours so that
-    "just ran start.sh and data is stale" results in an observable batch quickly
-    instead of waiting the full interval.
-    """
-    import os
-    from trading.week52_job_status import get_job_status, fail_job, job_age_sec
-
-    interval = int(os.environ.get("SCREENER_52W_INTERVAL_SEC", "3600"))
-    poll_sec = 30
-    max_wait = int(os.environ.get("SCREENER_52W_MAX_WAIT_SEC", "7200"))
-
-    first = True
-    while True:
-        try:
-            if first:
-                # Prompt startup run when market is open (addresses stale data on `start.sh`).
-                # Subsequent cycles use the normal interval.
-                await asyncio.sleep(5)
-                first = False
-            else:
-                await asyncio.sleep(interval)
-
-            if not _is_market_hours():
-                # Only perform 52W batch + cache flush during market hours
-                # (consistent with prewarm behavior for other screeners).
-                continue
-
-            job = get_job_status() or {}
-            if job.get("status") == "running":
-                if is_52w_batch_stale(job):
-                    age = job_age_sec(job)
-                    age_str = f"{age:.0f}s" if age is not None else "unknown age"
-                    print(f"[52W Range] Stale running job detected (age={age_str}) — resetting and starting fresh batch")
-                    try:
-                        fail_job("stale — reset by scheduler")
-                    except Exception as e:
-                        print(f"[52W Range] Stale reset failed: {e}")
-                else:
-                    print("[52W Range] Scheduled run skipped — batch already running")
-                    continue
-
-            from api.admin_routes import _run_52w_batch_subprocess
-
-            print(f"[52W Range] Starting scheduled daily-staleness batch (every {interval}s)")
-            await asyncio.to_thread(_run_52w_batch_subprocess, False, True, 0, True)
-
-            waited = 0
-            while waited < max_wait:
-                await asyncio.sleep(poll_sec)
-                waited += poll_sec
-                job = get_job_status() or {}
-                st = job.get("status")
-                if st in ("completed", "failed", None, "idle"):
-                    break
-
-            if _52w_batch_changed_ranges(job) is False:
-                # Prompt startup runs usually skip every symbol (--skip-updated-today).
-                # Wiping the prewarmed screener cache then just forces a 100s cold
-                # recompute on the next request for no data benefit.
-                print("[52W Range] Batch updated 0 ranges; screener cache left intact")
-            else:
-                from cache.redis_client import invalidate_screener_cache
-
-                n = invalidate_screener_cache()
-                print(f"[52W Range] Scheduled batch done (status={job.get('status')}); screener cache keys cleared: {n}")
-
-            # Also clear the paper trading 52W file cache
-            import shutil
-            from pathlib import Path
-            paper_cache_dir = Path(__file__).parent / "experiments" / "data" / "52w_cache"
-            if paper_cache_dir.exists():
-                shutil.rmtree(paper_cache_dir)
-                paper_cache_dir.mkdir(parents=True, exist_ok=True)
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            print(f"[52W Range] Scheduled task error: {e}")
-            await asyncio.sleep(300)
 
 
 async def chart_patterns_bootstrap_task():
@@ -605,25 +463,6 @@ async def _warm_screener_cache(cache_key, provider, mode, screener, profile_filt
         _WARMING_SCREENERS.discard(cache_key)
 
 
-def _52w_batch_changed_ranges(job: dict | None) -> bool | None:
-    """Whether a finished 52W batch changed range data; None when unknown.
-
-    A finished job with ok=0 is the common prompt-startup case (everything was
-    already refreshed today): the screener cache must not be wiped then.
-    """
-    if not isinstance(job, dict):
-        return None
-    if str(job.get("status") or "").lower() not in ("completed", "failed"):
-        return None
-    ok = job.get("ok")
-    if ok is None:
-        return None
-    try:
-        return int(ok) > 0
-    except (TypeError, ValueError):
-        return None
-
-
 def _spawn_task(label: str, factory, *, started: str = "🔄 {label} started", failed: str = "⚠️ {label} failed: {e}"):
     """Create a background task; return None on failure (matches existing fail-soft startup)."""
     try:
@@ -692,7 +531,6 @@ def _prebuild_route_dependants(app: FastAPI) -> int:
 async def lifespan(app: FastAPI):
     print(f'🚀 Alphashri API starting...')
     prewarm = None
-    _52w_task = None
     _release_sync_task = None
     news_poller = None
     _prefetch_task = None
@@ -884,7 +722,6 @@ async def lifespan(app: FastAPI):
         import traceback
         print(f"❌ Startup failed: {e}")
         print(traceback.format_exc())
-        _52w_task = None
     # Scrub credential-adjacent values from broker/transport error logs. Called
     # here (not at import) because uvicorn configures its handlers first.
     try:
@@ -896,8 +733,6 @@ async def lifespan(app: FastAPI):
     yield
     if prewarm:
         prewarm.cancel()
-    if _52w_task:
-        _52w_task.cancel()
     if _release_sync_task:
         _release_sync_task.cancel()
     if news_poller:
@@ -1469,7 +1304,7 @@ async def get_52w_range(symbol: str = Query(...)):
     many symbols are requested.
     """
     import asyncio
-    from trading.week52_range_lookup import get_52w_range as lookup_52w_range
+    from trading.week52.ranges import get_52w_range as lookup_52w_range
 
     entry = await asyncio.to_thread(lookup_52w_range, symbol)
     if entry:

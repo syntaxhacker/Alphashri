@@ -36,6 +36,7 @@ if not _NAUTILUS_AVAILABLE:
     Strategy = _SafeNautilusBase
 
 from .base import BaseStrategy, StrategyParam, Week52NautilusMixin
+from trading.week52.defaults import TargetDefaults
 from trading.week52_utils import calculate_52w_high, get_date_from_ns
 
 # Add project root to path for imports
@@ -57,11 +58,11 @@ if _NAUTILUS_AVAILABLE:
         
         instrument_id: InstrumentId
         bar_type: BarType
-        entry_threshold_pct: float = 2.0  # Entry when price is within this % below 52W high
-        trailing_stop_pct: float = 2.0  # Trailing stop after price closes above 52W high
-        stop_loss_pct: float = 2.0  # Stop loss %
-        max_holding_days: int = 15  # Max days to hold
-        cooldown_days: int = 7  # Days to wait before re-entry after exit
+        entry_threshold_pct: float = TargetDefaults.entry_threshold_pct  # Entry when price is within this % below 52W high
+        trailing_stop_pct: float = TargetDefaults.trailing_stop_pct  # Trailing stop after price closes above 52W high
+        stop_loss_pct: float = TargetDefaults.sl_pct  # Stop loss %
+        max_holding_days: int = TargetDefaults.max_holding_days  # Max days to hold
+        cooldown_days: int = TargetDefaults.cooldown_days  # Days to wait before re-entry after exit
         trade_size: int = 100  # Number of shares per trade
 else:
     Week52TargetConfig = None
@@ -249,7 +250,7 @@ class Week52TargetStrategy(BaseStrategy):
                 key='entry_threshold_pct',
                 label='Entry Threshold %',
                 type='number',
-                default=2.0,
+                default=TargetDefaults.entry_threshold_pct,
                 min=1.0,
                 max=10.0,
                 step=0.5,
@@ -258,7 +259,7 @@ class Week52TargetStrategy(BaseStrategy):
                 key='stop_loss_pct',
                 label='Stop Loss %',
                 type='number',
-                default=2.0,
+                default=TargetDefaults.sl_pct,
                 min=1.0,
                 max=5.0,
                 step=0.5,
@@ -267,7 +268,7 @@ class Week52TargetStrategy(BaseStrategy):
                 key='trailing_stop_pct',
                 label='Trailing Stop %',
                 type='number',
-                default=0.5,
+                default=TargetDefaults.trailing_stop_pct,
                 min=0.1,
                 max=2.0,
                 step=0.1,
@@ -276,7 +277,7 @@ class Week52TargetStrategy(BaseStrategy):
                 key='max_holding_days',
                 label='Max Holding Days',
                 type='number',
-                default=15,
+                default=TargetDefaults.max_holding_days,
                 min=5,
                 max=30,
                 step=5,
@@ -285,7 +286,7 @@ class Week52TargetStrategy(BaseStrategy):
                 key='cooldown_days',
                 label='Cooldown Days',
                 type='number',
-                default=7,
+                default=TargetDefaults.cooldown_days,
                 min=1,
                 max=15,
                 step=1,
@@ -304,11 +305,11 @@ class Week52TargetStrategy(BaseStrategy):
     def validate_params(self, params: Dict) -> List[str]:
         """Validate strategy parameters."""
         errors = []
-        if params.get('entry_threshold_pct', 0) <= 0:
+        if params.get('entry_threshold_pct', TargetDefaults.entry_threshold_pct) <= 0:
             errors.append('entry_threshold_pct must be positive')
-        if params.get('stop_loss_pct', 0) <= 0:
+        if params.get('stop_loss_pct', TargetDefaults.sl_pct) <= 0:
             errors.append('stop_loss_pct must be positive')
-        if params.get('trailing_stop_pct', 0) <= 0:
+        if params.get('trailing_stop_pct', TargetDefaults.trailing_stop_pct) <= 0:
             errors.append('trailing_stop_pct must be positive')
         return errors
 
@@ -371,11 +372,11 @@ def run_single_stock_week52_target(args):
         )
 
 
-        entry_threshold_pct = float(params.get('entry_threshold_pct', 2.0))
-        stop_loss_pct = float(params.get('stop_loss_pct', 2.0))
-        trailing_stop_pct = float(params.get('trailing_stop_pct', 0.5))
-        max_holding_days = int(params.get('max_holding_days', 15))
-        cooldown_days = int(params.get('cooldown_days', 7))
+        entry_threshold_pct = float(params.get('entry_threshold_pct', TargetDefaults.entry_threshold_pct))
+        stop_loss_pct = float(params.get('stop_loss_pct', TargetDefaults.sl_pct))
+        trailing_stop_pct = float(params.get('trailing_stop_pct', TargetDefaults.trailing_stop_pct))
+        max_holding_days = int(params.get('max_holding_days', TargetDefaults.max_holding_days))
+        cooldown_days = int(params.get('cooldown_days', TargetDefaults.cooldown_days))
         trade_size = int(params.get('trade_size', 100))
         include_costs = bool(params.get('include_costs', True))
 

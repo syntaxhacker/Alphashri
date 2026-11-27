@@ -5,14 +5,14 @@ Volume, change, sector, market_cap, RSI and other live params are enriched via t
 TradingView scanner query (set_tickers on the exact candidate symbols) so the screener output
 has rich columns like the other TV-based screeners.
 """
-import os
 from datetime import datetime
 
 import config
 from api.tv import get_scanner_data
 from db.database import SessionLocal
 
-from trading.week52_range_lookup import load_all_52w_ranges
+from trading.week52.config import enrich_top_n, touch_band_gap_pct, touch_lookback_top
+from trading.week52.ranges import load_all_52w_ranges
 
 from .screener_models import (
     _to_float,
@@ -503,7 +503,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         except ImportError:
             has_upstox = False
         if has_upstox:
-            top_n = int(os.environ.get('SCREENER_52W_ENRICH_TOP', '80'))
+            top_n = enrich_top_n()
             all_rows = approaching + touched
             _enrich_top_with_ltp(all_rows, api, top_n, touched_gap_pct)
 
@@ -534,8 +534,8 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
 
     _fill_days_ago_from_upstox(data['touched'], api, use_api, touched_gap_pct)
     if use_api:
-        band = float(os.environ.get('SCREENER_TOUCH_BAND_GAP_PCT', '5.0'))
-        top_n = int(os.environ.get('SCREENER_TOUCH_LOOKBACK_TOP', '120'))
+        band = touch_band_gap_pct()
+        top_n = touch_lookback_top()
         near = sorted(
             (s for s in data['approaching'] if _to_float(s.get('to_52w_high'), 100) <= band),
             key=lambda s: _to_float(s.get('to_52w_high'), 100),
