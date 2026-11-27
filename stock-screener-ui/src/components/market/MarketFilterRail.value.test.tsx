@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { createComponent } from "solid-js";
-import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { MarketFilterRail } from "./MarketFilterRail";
 import {
@@ -160,10 +160,20 @@ describe("MarketFilterRail — value gallery entry", () => {
     search.focus();
     fireEvent.keyDown(search, { key: "ArrowDown" });
     expect(document.activeElement).toBe(screen.getByTestId("market-value-preset"));
+    // A value-section entry stays in the value section; it never wraps into
+    // the off-screen mover cards.
     fireEvent.keyDown(search, { key: "ArrowUp" });
-    expect(document.activeElement).toBe(
-      Array.from(document.querySelectorAll<HTMLButtonElement>('[data-preset-apply="true"]')).at(-1),
-    );
+    expect(document.activeElement).toBe(screen.getByTestId("market-value-preset"));
+  });
+
+  test("opening focuses the search field so ↑↓ walk immediately", async () => {
+    mount();
+    openValueGallery();
+    const search = screen.getByTestId("market-preset-search");
+    await waitFor(() => expect(document.activeElement).toBe(search));
+    // The dialog itself owns arrow handling too: no second Tab/click needed.
+    fireEvent.keyDown(document, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByTestId("market-value-preset"));
   });
 
   test("slash focuses the search field from anywhere in the open gallery", () => {
@@ -209,7 +219,7 @@ describe("MarketFilterRail — viewport fit", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
-  test("at 390 the gallery renders as a full-height sheet", () => {
+  test("at 390 the gallery renders as a bottom sheet over the app", () => {
     const original = window.matchMedia;
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
       matches: query.includes("640px"),
@@ -224,9 +234,25 @@ describe("MarketFilterRail — viewport fit", () => {
     try {
       mount();
       openValueGallery();
-      expect(screen.getByTestId("market-preset-gallery").querySelector('[data-sheet="true"]')).toBeInTheDocument();
+      const gallery = screen.getByTestId("market-preset-gallery");
+      expect(gallery.querySelector('[data-sheet="true"]')).toBeInTheDocument();
+      const panel = gallery.firstElementChild as HTMLElement;
+      expect(panel.style.alignSelf).toBe("flex-end");
+      expect(panel.style.maxHeight).toBe("82dvh");
     } finally {
       window.matchMedia = original;
+    }
+  });
+
+  test("rail gallery entries meet the 24px target and read as clickable", () => {
+    mount();
+    for (const id of ["market-value-toggle", "market-movers-toggle"]) {
+      const entry = screen.getByTestId(id);
+      expect(entry).not.toHaveAttribute("disabled");
+      expect(entry.className).toContain("min-h-6");
+      expect(entry.className).toContain("cursor-pointer");
+      expect(entry.className).not.toContain("opacity");
+      expect(entry).not.toHaveAttribute("aria-controls");
     }
   });
 });

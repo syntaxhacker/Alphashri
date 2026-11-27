@@ -946,7 +946,20 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   createEffect(() => {
     if (!drawerOpen()) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      // The preset gallery is portalled out of this drawer and owns both Tab
+      // and Escape while it is up.
+      if (document.querySelector('[data-testid="market-preset-gallery"]')) return;
       if (event.key === "Escape") {
+        // The gallery's own Escape handler closes only the gallery. The event
+        // target stays inside the gallery subtree even after its close path
+        // unmounts it.
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest('[data-testid="market-preset-gallery"]')
+        ) {
+          return;
+        }
         event.preventDefault();
         closeDrawer();
         return;
@@ -1586,6 +1599,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               currency={currency()}
               onCollapse={closeDrawer}
               collapseLabel="Close filters"
+              portalGallery
             />
           </Box>
         </Box>

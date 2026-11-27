@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { createComponent } from "solid-js";
-import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { MarketFilterRail } from "./MarketFilterRail";
 import {
@@ -107,6 +107,66 @@ describe("MarketFilterRail — mover gallery", () => {
     expect(screen.getByTestId("market-mover-gainers-clear")).toBeDisabled();
     fireEvent.click(screen.getByTestId("market-mover-gainers-clear"));
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test("the shared cap floor is stated once, not repeated as a chip on every card", () => {
+    mount();
+    openMoverGallery();
+    expect(screen.getByTestId("preset-mover-floor")).toHaveTextContent("₹500Cr");
+    for (const preset of MOVER_PRESETS) {
+      const card = screen.getByTestId(`preset-card-${preset.id}`);
+      expect(card.querySelector('[data-testid="preset-chip-mcap"]')).toBeNull();
+    }
+  });
+
+  test("a US session labels the shared floor in dollars, never crore", () => {
+    render(() =>
+      createComponent(MarketFilterRail, {
+        filters: defaultMarketFilters(),
+        onChange: vi.fn(),
+        sectors: [],
+        currency: "USD",
+      }),
+    );
+    fireEvent.click(screen.getByTestId("market-movers-toggle"));
+    const floor = screen.getByTestId("preset-mover-floor");
+    expect(floor).toHaveTextContent("$500B");
+    expect(floor).not.toHaveTextContent("Cr");
+  });
+
+  test("from the Mover presets entry, arrows start on a mover and never jump to Deep", async () => {
+    mount();
+    fireEvent.click(screen.getByTestId("market-movers-toggle"));
+    const search = screen.getByTestId("market-preset-search");
+    await waitFor(() => expect(document.activeElement).toBe(search));
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByTestId("market-mover-gainers"));
+    expect(document.activeElement).not.toBe(screen.getByTestId("market-value-preset"));
+  });
+
+  test("search count is announced and no-match is scoped to the mover section", () => {
+    mount();
+    openMoverGallery();
+    const count = screen.getByTestId("preset-match-count");
+    expect(count).toHaveAttribute("aria-live", "polite");
+
+    fireEvent.input(screen.getByTestId("market-preset-search"), {
+      target: { value: "gap down" },
+    });
+    expect(count).toHaveTextContent("1 matching preset");
+    expect(screen.getByTestId("preset-card-gapDown")).toBeInTheDocument();
+    expect(screen.queryByTestId("preset-no-matches-movers")).toBeNull();
+
+    fireEvent.input(screen.getByTestId("market-preset-search"), {
+      target: { value: "zzzz" },
+    });
+    expect(count).toHaveTextContent("0 matching presets");
+    expect(screen.getByTestId("preset-no-matches-movers")).toHaveTextContent(
+      "No mover presets match",
+    );
+    expect(screen.getByTestId("preset-no-matches-deep")).toHaveTextContent(
+      "No deep-value preset matches",
+    );
   });
 
   test("clicking the band header opens the gallery and keeps it open", () => {

@@ -649,6 +649,15 @@ export interface MoverPreset {
 export const MOVER_MIN_MCAP_CR = 500;
 
 /**
+ * The shared mover floor in the active universe's unit. Ten cards repeated it
+ * as a chip (and printed "Cr" on a US session); the gallery states it once.
+ */
+export function moverFloorLabel(universe: MarketUniverse = "all_equity"): string {
+  const descriptor = marketUniverseDescriptor(universe);
+  return `${descriptor.currencySymbol}${MOVER_MIN_MCAP_CR}${descriptor.capUnit}`;
+}
+
+/**
  * Mirrors of the ten panels in api/screener_api/dashboard.py plus the two
  * "New 52W" panels in the daily-moves report (ReportMovePanels.tsx), which have
  * no dashboard card. Gainers, Losers, Most Active, Top Turnover and Range
@@ -788,9 +797,16 @@ export function activeMoverPreset(filters: MarketFilterState): MoverPreset | nul
  * included because a mover is a fresh screen, not just a set of bounds; the
  * preset's own chip is omitted — the card already identifies itself.
  */
-export function moverPresetChips(preset: MoverPreset): MarketFilterChip[] {
-  const state: MarketFilterState = { ...defaultMarketFilters(), ...preset.filters, sort: preset.sort };
-  const chips = buildMarketFilterChips(state).filter((chip) => !chip.key.startsWith("mover:"));
+export function moverPresetChips(
+  preset: MoverPreset,
+  universe: MarketUniverse = "all_equity",
+): MarketFilterChip[] {
+  const state: MarketFilterState = { ...defaultMarketFilters(universe), ...preset.filters, sort: preset.sort };
+  // Every mover carries the same floor; the gallery states it once for the
+  // whole section instead of repeating an identical chip on twelve cards.
+  const chips = buildMarketFilterChips(state, universe).filter(
+    (chip) => !chip.key.startsWith("mover:") && chip.key !== "mcap",
+  );
   const sortLabel = MARKET_SORT_OPTIONS.find((option) => option.value === preset.sort)?.label;
   if (sortLabel) chips.push({ key: "sort", label: `Sort ${sortLabel}` });
   return chips;

@@ -19,11 +19,7 @@ import {
 } from "@/ui";
 import { CompactPanel } from "../common/compact";
 import { PresetGallery } from "../market/presets/PresetGallery";
-import {
-  DEEP_VALUE_PRESET,
-  defaultMarketFilters,
-  type MarketFilterState,
-} from "../market/marketFilters";
+import type { MarketFilterState } from "../market/marketFilters";
 import { useValueScanSolid } from "./useValueScanSolid";
 import {
   VALUE_MARKETS,
@@ -68,10 +64,13 @@ interface ValuePanelProps {
   onApplyMarketPreset?: (patch: Partial<MarketFilterState>) => void;
 }
 
-const PRESET_OPTIONS = Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
-  value,
-  label: meta.label,
-}));
+const PRESET_OPTIONS = [
+  { value: "", label: "No preset" },
+  ...Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
+    value,
+    label: meta.label,
+  })),
+];
 
 const VALUE_WARNING_LABELS: Record<string, string> = {
   cache_unavailable: "Price cache unavailable — live scan",
@@ -121,17 +120,13 @@ export function ValuePanel(props: ValuePanelProps) {
   };
   const [galleryOpened, gallery] = useDisclosure(false);
 
-  // The one market card with a real value-scan counterpart is Deep Value;
-  // mover screens have no value-scan gate, so those stay a host concern.
-  const handleMarketPatch = (marketPatch: Partial<MarketFilterState>): void => {
-    const gates = Object.keys(DEEP_VALUE_PRESET);
-    if (gates.some((key) => key in marketPatch)) {
-      const applied = marketPatch.pePctMax != null;
-      patch({ preset: applied ? "DEEP" : undefined });
-      return;
-    }
-    props.onApplyMarketPreset?.(marketPatch);
+  const patchValueBounds = (bounds: Record<string, number | null>): void => {
+    patch(bounds as Partial<ValueFilters>);
   };
+  const valueBounds = () =>
+    filters() as unknown as Record<string, number | null | undefined>;
+  const valueCurrency = () => (filters().market === "usa" ? "USD" : "INR");
+  const valueUniverse = () => (filters().market === "usa" ? "us" : "all_equity");
 
   const canOpenInHost = (exchange: string | undefined): boolean =>
     props.embedded === true &&
@@ -224,11 +219,10 @@ export function ValuePanel(props: ValuePanelProps) {
               </Tabs>
             </Show>
             <Select
-              placeholder="Preset"
               aria-label="Value preset"
               data={PRESET_OPTIONS}
               value={filters().preset ?? ""}
-              onChange={(v) => patch({ preset: v ?? undefined })}
+              onChange={(v) => patch({ preset: v || undefined })}
               w={150}
               size="sm"
               data-testid="value-preset-select"
@@ -310,7 +304,7 @@ export function ValuePanel(props: ValuePanelProps) {
             </Text>
           </Box>
         </Show>
-        <Show when={!showEmpty()}>
+        <Show when={!showEmpty() && !(showError() && rows().length === 0)}>
           <ValueTable
             rows={rows()}
             loading={isLoading()}
@@ -362,8 +356,13 @@ export function ValuePanel(props: ValuePanelProps) {
       <PresetGallery
         opened={galleryOpened()}
         onClose={gallery.close}
-        filters={defaultMarketFilters()}
-        onChange={handleMarketPatch}
+        mode="value"
+        focus="value"
+        universe={valueUniverse()}
+        currency={valueCurrency()}
+        showMovers={typeof props.onApplyMarketPreset === "function"}
+        onMarketPreset={props.onApplyMarketPreset}
+        valueBounds={{ values: valueBounds, onChange: patchValueBounds }}
         valuePresets={{
           selected: filters().preset,
           presets: VALUE_PRESETS,

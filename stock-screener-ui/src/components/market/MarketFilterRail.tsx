@@ -46,6 +46,8 @@ export interface MarketFilterRailProps {
   collapseLabel?: string;
   /** Quote currency of the current universe. Defaults to India so callers are unchanged. */
   currency?: CurrencyCode;
+  /** Portal the preset dialog to `<body>` when this rail sits inside a transformed drawer. */
+  portalGallery?: boolean;
 }
 
 /**
@@ -111,10 +113,11 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
     gallery.open();
   };
   // Hidden fields still narrow the table — the entry button has to say so.
-  const valueActiveCount = () => VALUE_FIELDS.filter((f) => filters()[f.key] != null).length;
+  const valueActiveCount = () => VALUE_FIELDS.filter((f) => filters()[f.key as keyof MarketFilterState] != null).length;
   const moverActive = () => activeMoverPreset(filters());
   const tierCounts = () => props.tierCounts;
   const collapseLabel = () => props.collapseLabel ?? "Collapse filters";
+  const universe = () => descriptorForCurrency(props.currency).value;
   const capTierOpts = () => capTierOptions(descriptorForCurrency(props.currency).value);
   // Class tiers are not rungs above micro: keep them out of the size ladder so
   // the size checkboxes stay a contiguous, descending ladder. The split reads
@@ -287,18 +290,13 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         type="button"
         data-testid="market-value-toggle"
         aria-haspopup="dialog"
-        aria-expanded={galleryOpened()}
-        aria-controls="market-value-fields"
+        aria-expanded={galleryOpened() && focusSection() === "value"}
         onClick={() => openGallery("value")}
-        className="flex items-center justify-between w-full min-w-0 cursor-pointer"
+        className="flex min-h-6 items-center justify-between w-full min-w-0 -mx-1 px-1 rounded-sm cursor-pointer text-fin-text hover:bg-fin-surface-alt focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
       >
         <Box className="flex items-center gap-1 min-w-0">
           <IconCurrencyDollar size={12} />
-          <Text
-            fw={600}
-            c={valueActiveCount() > 0 ? undefined : "dimmed"}
-            className="text-ui-micro whitespace-nowrap"
-          >
+          <Text fw={600} className="text-ui-micro whitespace-nowrap">
             Value filters
           </Text>
           <Show when={valueActiveCount() > 0}>
@@ -316,18 +314,13 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         type="button"
         data-testid="market-movers-toggle"
         aria-haspopup="dialog"
-        aria-expanded={galleryOpened()}
-        aria-controls="market-movers-list"
+        aria-expanded={galleryOpened() && focusSection() === "movers"}
         onClick={() => openGallery("movers")}
-        className="flex items-center justify-between w-full min-w-0 cursor-pointer"
+        className="flex min-h-6 items-center justify-between w-full min-w-0 -mx-1 px-1 rounded-sm cursor-pointer text-fin-text hover:bg-fin-surface-alt focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
       >
         <Box className="flex items-center gap-1 min-w-0">
           <IconSparkles size={12} />
-          <Text
-            fw={600}
-            c={moverActive() ? undefined : "dimmed"}
-            className="text-ui-micro whitespace-nowrap"
-          >
+          <Text fw={600} className="text-ui-micro whitespace-nowrap">
             Mover presets
           </Text>
           <Show when={moverActive()}>
@@ -402,6 +395,9 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         filters={filters()}
         onChange={props.onChange}
         focus={focusSection()}
+        universe={universe()}
+        currency={props.currency}
+        portal={props.portalGallery}
       />
     </Box>
   );

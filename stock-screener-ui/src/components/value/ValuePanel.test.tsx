@@ -231,6 +231,7 @@ describe("ValuePanel", () => {
     const failed = await screen.findByTestId("value-error");
     expect(failed).toHaveTextContent("Value scan failed (HTTP 500)");
     expect(screen.queryByTestId("value-empty")).not.toBeInTheDocument();
+    expect(screen.queryByText("No deep-value matches for these filters")).not.toBeInTheDocument();
     expect(screen.queryByTestId("value-loading")).not.toBeInTheDocument();
   });
 
@@ -559,31 +560,51 @@ describe("ValuePanel", () => {
 });
 
 describe("ValuePanel — preset gallery entry", () => {
-  test("the gallery opens from the Value tab and lists every preset family", async () => {
-    r(<ValuePanel />);
+  test("the gallery opens value-first with no market-only Deep card or bounds", async () => {
+    r(<ValuePanel onApplyMarketPreset={vi.fn()} />);
     await screen.findByTestId("value-row-RELIANCE");
     const entry = screen.getByTestId("value-preset-gallery");
     expect(entry).toHaveAttribute("aria-haspopup", "dialog");
     fireEvent.click(entry);
 
     expect(screen.getByTestId("market-preset-gallery")).toBeInTheDocument();
-    expect(screen.getByTestId("market-value-fields")).toBeInTheDocument();
-    expect(screen.getByTestId("market-movers-list")).toBeInTheDocument();
-    for (const preset of PRESET_IDS) {
-      expect(screen.getByTestId(`value-preset-card-${preset}`)).toBeInTheDocument();
-    }
+    expect(screen.getByTestId("value-preset-gallery-list")).toBeInTheDocument();
+    expect(screen.getByTestId("value-preset-gallery-list").style.scrollMarginTop).toBe("5rem");
+    expect(screen.getByTestId("market-movers-list").style.scrollMarginTop).toBe("5rem");
+    const cards = screen.getAllByTestId(/^value-preset-card-/);
+    expect(cards.map((card) => card.getAttribute("data-testid"))).toEqual(
+      PRESET_IDS.map((id) => `value-preset-card-${id}`),
+    );
+    expect(screen.queryByTestId("market-value-fields")).toBeNull();
+    expect(screen.queryByTestId("market-value-preset")).toBeNull();
+    expect(screen.queryByTestId("market-filter-peMax")).toBeNull();
+    expect(screen.queryByTestId("market-mover-gapUp")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("preset-movers-toggle"));
     for (const preset of MOVER_PRESETS) {
       expect(screen.getByTestId(`preset-card-${preset.id}`)).toBeInTheDocument();
     }
   });
 
-  test("applying Deep Value from the gallery selects the value scan preset once", async () => {
+  test("an unselected gallery starts on a visible No preset option, not Serious", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    const select = within(screen.getByTestId("value-preset-select")).getByRole(
+      "combobox",
+    ) as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(select.selectedOptions[0]?.textContent).toBe("No preset");
+    expect(screen.queryByTestId("value-preset-current")).toBeNull();
+    expect(mockValueScan.mock.calls.at(-1)?.[0]?.preset).toBeUndefined();
+  });
+
+  test("applying Deep from the gallery selects the scan preset and shows Active", async () => {
     r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");
     fireEvent.click(screen.getByTestId("value-preset-gallery"));
 
     const calls = mockValueScan.mock.calls.length;
-    fireEvent.click(screen.getByTestId("market-value-preset"));
+    fireEvent.click(screen.getByTestId("value-preset-apply-DEEP"));
     await waitFor(
       () =>
         expect(mockValueScan.mock.calls.length).toBeGreaterThan(calls) &&
@@ -593,13 +614,30 @@ describe("ValuePanel — preset gallery entry", () => {
         ),
       { timeout: 3000 },
     );
-    // Apply closes the gallery; the header badge is the persistent active-state
-    // indicator (the custom Select does not re-read a late value prop).
     expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
+    const select = within(screen.getByTestId("value-preset-select")).getByRole(
+      "combobox",
+    ) as HTMLSelectElement;
     expect(screen.getByTestId("value-preset-current")).toHaveTextContent("Deep");
+    await waitFor(() => expect(select.value).toBe("DEEP"));
+    expect(select.selectedOptions[0]?.textContent).toBe("Deep");
+    expect(screen.getByTestId("value-preset-current")).toHaveTextContent("Deep");
+
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    expect(screen.getByTestId("value-preset-active-DEEP")).toHaveTextContent("Active");
+    const clear = screen.getByTestId("value-preset-clear-DEEP");
+    expect(clear).toBeEnabled();
+    fireEvent.click(clear);
+    await waitFor(
+      () => expect(mockValueScan.mock.calls.at(-1)?.[0]?.preset).toBeUndefined(),
+      { timeout: 3000 },
+    );
+    await waitFor(() => expect(select.value).toBe(""));
+    expect(select.selectedOptions[0]?.textContent).toBe("No preset");
+    expect(screen.queryByTestId("value-preset-current")).toBeNull();
   });
 
-  test("a value scan preset applies and clears from the gallery", async () => {
+  test("a value preset applies and clears from the gallery", async () => {
     r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");
     fireEvent.click(screen.getByTestId("value-preset-gallery"));
@@ -617,13 +655,57 @@ describe("ValuePanel — preset gallery entry", () => {
     fireEvent.click(screen.getByTestId("value-preset-gallery"));
     fireEvent.click(screen.getByTestId("value-preset-clear-YIELD"));
     await waitFor(
-      () =>
-        expect(mockValueScan).toHaveBeenLastCalledWith(
-          expect.not.objectContaining({ preset: "YIELD" }),
-          expect.anything(),
-        ),
+      () => expect(mockValueScan.mock.calls.at(-1)?.[0]?.preset).toBeUndefined(),
       { timeout: 3000 },
     );
+  });
+
+  test("manual gallery bounds are the real value-scan filters", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+
+    expect(screen.queryByTestId("market-filter-peMax-input")).toBeNull();
+    const pe = screen.getByTestId("value-filter-max_pe-input");
+    fireEvent.input(pe, { target: { value: "15" } });
+    await waitFor(
+      () => expect(mockValueScan.mock.calls.at(-1)?.[0]?.max_pe).toBe(15),
+      { timeout: 3000 },
+    );
+
+    const roe = screen.getByTestId("value-filter-min_roe-input");
+    fireEvent.input(roe, { target: { value: "18" } });
+    await waitFor(
+      () => expect(mockValueScan.mock.calls.at(-1)?.[0]?.min_roe).toBe(18),
+      { timeout: 3000 },
+    );
+
+    fireEvent.input(pe, { target: { value: "" } });
+    await waitFor(
+      () => expect(mockValueScan.mock.calls.at(-1)?.[0]?.max_pe).toBeNull(),
+      { timeout: 3000 },
+    );
+  });
+
+  test("value gate chips are human copy, not internal API keys", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+
+    const deep = screen.getByTestId("value-preset-card-DEEP");
+    for (const label of [
+      "P/E percentile ≤ 15%",
+      "P/B percentile ≤ 30%",
+      "ROE percentile ≥ 70%",
+      "FCF yield percentile ≥ 80%",
+      "Min mcap ₹0.5B",
+      "D/E ≤ 0.8",
+    ]) {
+      expect(within(deep).getByText(label)).toBeInTheDocument();
+    }
+    expect(deep).not.toHaveTextContent("PE PCT MAX");
+    expect(deep).not.toHaveTextContent("MIN MCAP BN");
+    expect(deep).not.toHaveTextContent("ABOVE 200DMA ON");
   });
 
   test("mover presets are handed to the host once and never mutate value filters", async () => {
@@ -631,6 +713,7 @@ describe("ValuePanel — preset gallery entry", () => {
     r(<ValuePanel onApplyMarketPreset={onApplyMarketPreset} />);
     await screen.findByTestId("value-row-RELIANCE");
     fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    fireEvent.click(screen.getByTestId("preset-movers-toggle"));
     const calls = mockValueScan.mock.calls.length;
 
     fireEvent.click(screen.getByTestId("market-mover-gapUp"));
@@ -638,6 +721,92 @@ describe("ValuePanel — preset gallery entry", () => {
     expect(onApplyMarketPreset).toHaveBeenCalledWith({ mcapMinCr: 500, gapMin: 3, sort: "gap_desc" });
     expect(mockValueScan.mock.calls.length).toBe(calls);
     expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
+  });
+
+  test("search count is announced and no-match stays inside each section", async () => {
+    r(<ValuePanel onApplyMarketPreset={vi.fn()} />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    const count = screen.getByTestId("preset-match-count");
+    expect(count).toHaveAttribute("aria-live", "polite");
+
+    fireEvent.input(screen.getByTestId("market-preset-search"), {
+      target: { value: "dividend" },
+    });
+    expect(count).toHaveTextContent("1 matching preset");
+    expect(screen.getByTestId("value-preset-card-YIELD")).toBeInTheDocument();
+    expect(screen.getByTestId("preset-no-matches-movers")).toHaveTextContent(
+      "No mover presets match",
+    );
+    expect(screen.queryByTestId("preset-no-matches-value")).toBeNull();
+
+    fireEvent.input(screen.getByTestId("market-preset-search"), {
+      target: { value: "gap down" },
+    });
+    expect(count).toHaveTextContent("1 matching preset");
+    expect(screen.getByTestId("preset-card-gapDown")).toBeInTheDocument();
+    expect(screen.getByTestId("preset-no-matches-value")).toHaveTextContent(
+      "No value presets match",
+    );
+
+    fireEvent.input(screen.getByTestId("market-preset-search"), {
+      target: { value: "zzzz" },
+    });
+    expect(count).toHaveTextContent("0 matching presets");
+    expect(screen.getByTestId("preset-no-matches-value")).toBeInTheDocument();
+    expect(screen.getByTestId("preset-no-matches-movers")).toBeInTheDocument();
+  });
+
+  test("↑↓ walk value presets immediately on open and stay in the value band", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    const search = screen.getByTestId("market-preset-search");
+    await waitFor(() => expect(document.activeElement).toBe(search));
+
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByTestId("value-preset-apply-SERIOUS"));
+    fireEvent.keyDown(document, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByTestId("value-preset-apply-DEEP"));
+    fireEvent.keyDown(document, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(screen.getByTestId("value-preset-apply-SERIOUS"));
+  });
+
+  test("clearing the search restores the list and returns focus to search", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    fireEvent.input(screen.getByTestId("market-preset-search"), {
+      target: { value: "dividend" },
+    });
+    expect(screen.queryByTestId("value-preset-card-DEEP")).toBeNull();
+    fireEvent.click(screen.getByTestId("market-preset-search-clear"));
+    expect(screen.getByTestId("value-preset-card-DEEP")).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByTestId("market-preset-search"));
+  });
+
+  test("a filtered-out active preset shows no Active state", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    const select = within(screen.getByTestId("value-preset-select")).getByRole(
+      "combobox",
+    ) as HTMLSelectElement;
+    fireEvent.input(select, { target: { value: "DEEP" } });
+    await waitFor(
+      () =>
+        expect(mockValueScan).toHaveBeenLastCalledWith(
+          expect.objectContaining({ preset: "DEEP" }),
+          expect.anything(),
+        ),
+      { timeout: 3000 },
+    );
+
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    fireEvent.input(screen.getByTestId("market-preset-search"), {
+      target: { value: "dividend" },
+    });
+    expect(screen.queryByTestId("value-preset-active-DEEP")).toBeNull();
+    expect(within(screen.getByTestId("value-preset-gallery-list")).queryByText("Active")).toBeNull();
   });
 
   test("Escape closes the gallery and returns focus to the Value tab entry", async () => {

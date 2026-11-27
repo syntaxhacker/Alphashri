@@ -1,9 +1,8 @@
 import { createEffect, createSignal } from "solid-js";
 import { Box, NumberInput, Text } from "@/ui";
-import type { MarketFilterState } from "../marketFilters";
 
 export interface PresetFieldDef {
-  key: keyof MarketFilterState & string;
+  key: string;
   label: string;
   suffix?: string;
   min?: number;
@@ -38,6 +37,23 @@ export const MOVER_VALUE_FIELDS: readonly PresetFieldDef[] = [
   { key: "valueTradedMin", label: "Value traded ≥", min: 0, step: 100 },
 ];
 
+/**
+ * The value-scan contract's manual bounds. These are the same keys the API
+ * accepts (`src/api/valueScan.ts::ValueFilters`), so a typed bound can never
+ * survive only in gallery state while the scan ignores it.
+ */
+export const VALUE_SCAN_FIELDS: readonly PresetFieldDef[] = [
+  { key: "max_pe", label: "P/E ≤", min: 0, step: 0.5 },
+  { key: "max_ps", label: "P/S ≤", min: 0, step: 0.1 },
+  { key: "max_pb", label: "P/B ≤", min: 0, step: 0.1 },
+  { key: "min_roe", label: "ROE ≥", suffix: "%", min: -100, step: 1 },
+  { key: "min_div_yield", label: "Dividend yield ≥", suffix: "%", min: 0, step: 0.1 },
+  { key: "min_fcf_yield", label: "FCF yield ≥", suffix: "%", min: -100, step: 0.1 },
+  { key: "max_de", label: "D/E ≤", min: 0, step: 0.1 },
+  { key: "min_rev_yoy", label: "Revenue growth ≥", suffix: "%", step: 1 },
+  { key: "min_eps_yoy", label: "EPS growth ≥", suffix: "%", step: 1 },
+];
+
 /** In-progress keystrokes ("1.", "-") are not bounds; an empty field is "off". */
 function toBound(raw: number | string): number | null {
   if (raw === "" || raw == null) return null;
@@ -47,19 +63,18 @@ function toBound(raw: number | string): number | null {
 
 interface PresetNumberFieldProps {
   def: PresetFieldDef;
-  filters: MarketFilterState;
-  onChange: (patch: Partial<MarketFilterState>) => void;
+  value: number | null | undefined;
+  onChange: (value: number | null) => void;
+  testIdPrefix?: string;
 }
 
 export function PresetNumberField(props: PresetNumberFieldProps) {
-  const [raw, setRaw] = createSignal(
-    props.filters[props.def.key] == null ? "" : String(props.filters[props.def.key]),
-  );
-  let committed: number | null = props.filters[props.def.key] as number | null;
+  const [raw, setRaw] = createSignal(props.value == null ? "" : String(props.value));
+  let committed: number | null = props.value ?? null;
   // Presets and chip removals change the bound from outside the field; follow
   // them without stomping an in-progress keystroke.
   createEffect(() => {
-    const bound = props.filters[props.def.key] as number | null;
+    const bound = props.value ?? null;
     if (bound === committed) return;
     committed = bound;
     setRaw(bound == null ? "" : String(bound));
@@ -78,14 +93,14 @@ export function PresetNumberField(props: PresetNumberFieldProps) {
         hideControls
         placeholder="Any"
         value={raw()}
-        data-testid={`market-filter-${props.def.key}`}
+        data-testid={`${props.testIdPrefix ?? "market-filter"}-${props.def.key}`}
         onChange={(next) => {
           const text = typeof next === "string" ? next : String(next);
           setRaw(text);
           const bound = toBound(next);
           if (bound === committed) return;
           committed = bound;
-          props.onChange({ [props.def.key]: bound } as Partial<MarketFilterState>);
+          props.onChange(bound);
         }}
       />
     </Box>

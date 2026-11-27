@@ -469,6 +469,22 @@ describe("MarketScreenerPanel — narrow filter drawer keyboard parity", () => {
     expect(drawer.isConnected).toBe(false);
   });
 
+  test("Escape closes only the preset gallery, not the filter drawer", async () => {
+    const { toggle, drawer } = openDrawer();
+    const valueEntry = screen.getByTestId("market-value-toggle");
+    valueEntry.focus();
+    fireEvent.click(valueEntry);
+    const search = screen.getByTestId("market-preset-search");
+    await waitFor(() => expect(document.activeElement).toBe(search));
+
+    fireEvent.keyDown(search, { key: "Escape" });
+
+    expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
+    expect(screen.getByTestId("market-filter-drawer")).toBe(drawer);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(document.activeElement).toBe(valueEntry);
+  });
+
   test("Tab wraps inside the drawer instead of escaping to the page behind", () => {
     const { drawer } = openDrawer();
     const focusables = Array.from(
@@ -724,14 +740,32 @@ describe("MarketScreenerPanel — Movers view", () => {
     expect(screen.getByTestId("market-view-toggle")).toBeInTheDocument();
   });
 
-  test("applying a mover preset switches to the table and closes the gallery", async () => {
+  test("applying a mover preset switches to the table, applies its bounds and owns the order", async () => {
+    mockUseMarketSnapshot.mockReturnValue(
+      hookResult({
+        rows: [
+          row("RELIANCE", { change: 1, marketCapCr: 1000 }),
+          row("MPHASIS", { change: 3, marketCapCr: 1000 }),
+        ],
+      }),
+    );
     renderPanel({ initialView: "vis" });
     fireEvent.click(await screen.findByTestId("market-movers-toggle"));
-    fireEvent.click(await screen.findByTestId("market-mover-gapUp"));
+    fireEvent.click(await screen.findByTestId("market-mover-gainers"));
     await waitFor(() =>
       expect(screen.getByTestId("market-table-region")).not.toHaveClass("hidden"),
     );
     expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
+
+    // Bounds reach the chip row, and the preset's sort reaches the grid.
+    expect(screen.getByTestId("market-filter-chip-mcap")).toHaveTextContent(
+      "MCap ≥ 500 Cr",
+    );
+    expect(screen.queryByTestId("market-filter-chip-gap")).toBeNull();
+    const order = screen
+      .getAllByTestId(/^market-row-/)
+      .map((el) => el.getAttribute("data-testid"));
+    expect(order).toEqual(["market-row-MPHASIS", "market-row-RELIANCE"]);
   });
 
   test("the Vis tab renders the registry default heatmap", async () => {
@@ -2121,6 +2155,64 @@ describe("MarketScreenerPanel — embedded Value view", () => {
     r(() => <MarketScreenerPanel initialView="value" />);
     expect(await screen.findByTestId("value-panel", {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
+  });
+
+  test("the Value host applies the real DEEP preset and shows it in the selector", async () => {
+    mockValueScan.mockResolvedValue(valueResponse([valueRow("RELIANCE", "NSE")]));
+    r(() => <MarketScreenerPanel initialView="value" />);
+    await screen.findByTestId("value-row-RELIANCE", {}, { timeout: 3000 });
+
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    expect(screen.queryByTestId("market-value-preset")).toBeNull();
+    fireEvent.click(screen.getByTestId("value-preset-apply-DEEP"));
+
+    await waitFor(
+      () =>
+        expect(mockValueScan).toHaveBeenLastCalledWith(
+          expect.objectContaining({ preset: "DEEP" }),
+          expect.anything(),
+        ),
+      { timeout: 3000 },
+    );
+    const select = within(screen.getByTestId("value-preset-select")).getByRole(
+      "combobox",
+    ) as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe("DEEP"));
+    expect(screen.getByTestId("value-preset-current")).toHaveTextContent("Deep");
+    expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
+  });
+
+  test("manual bounds in the Value gallery reach the scan, not a dead market state", async () => {
+    mockValueScan.mockResolvedValue(valueResponse([valueRow("RELIANCE", "NSE")]));
+    r(() => <MarketScreenerPanel initialView="value" />);
+    await screen.findByTestId("value-row-RELIANCE", {}, { timeout: 3000 });
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+
+    expect(screen.queryByTestId("market-filter-peMax-input")).toBeNull();
+    fireEvent.input(screen.getByTestId("value-filter-max_pe-input"), {
+      target: { value: "12" },
+    });
+    await waitFor(
+      () => expect(mockValueScan.mock.calls.at(-1)?.[0]?.max_pe).toBe(12),
+      { timeout: 3000 },
+    );
+  });
+
+  test("a mover preset from the Value gallery applies to the Market table", async () => {
+    mockValueScan.mockResolvedValue(valueResponse([valueRow("RELIANCE", "NSE")]));
+    r(() => <MarketScreenerPanel initialView="value" />);
+    await screen.findByTestId("value-row-RELIANCE", {}, { timeout: 3000 });
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    fireEvent.click(screen.getByTestId("preset-movers-toggle"));
+    fireEvent.click(screen.getByTestId("market-mover-gainers"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("market-table-region")).not.toHaveClass("hidden"),
+    );
+    expect(screen.queryByTestId("value-panel")).toBeNull();
+    expect(screen.getByTestId("market-filter-chip-mcap")).toHaveTextContent(
+      "MCap ≥ 500 Cr",
+    );
   });
 
   test("the Value button renders the panel and hides the Market-only chrome", async () => {
