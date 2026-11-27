@@ -1,0 +1,76 @@
+{
+  "feature": "section-headings",
+  "route": "/screener/market",
+  "head": "939e8438276e65128c28afde42a202f5d6843ea7",
+  "viewports": [1600, 390],
+  "sha256": {
+    "sh-sections-loaded-1600.png": "7ba385c3fe6dce344544794be1c44948a773a35d00727a0348c54a9ed94465a8",
+    "sh-sections-loaded-390.png": "4ebd10d8f747c8b37a7f366829fe3e9694e2152d591e4611c61f95922b45d130",
+    "sh-sections-empty-1600.png": "a4784fedf4cba878dc17fa702ffeff5e7ffdbef850064bbacb7f5e014fee2450",
+    "sh-sections-empty-390.png": "7e16d61b87fdd037d33a794b0c0a3eefed377fcd78e167e72a792ad7e83a0cf6",
+    "sh-sections-error-1600.png": "7cb105c1cd023bbbdc1fa7a0b37041ce869cd57c57b48d1194a32a0c167fc731",
+    "sh-sections-error-390.png": "cf15396b85595730271b23c1708b63783d16c606ccd799c20a4d584b172ee709",
+    "sh-sections-loading-1600.png": "8fcb2570ecb2d541e614c33322b5dbe1378444735904f304f1d808f4413f4280",
+    "sh-sections-loading-390.png": "4dfed37be23be9a0de47feb6ec1ac285759d21d822f1fed8d134be1355ea21a5",
+    "sh-sections-delayed-off-1600.png": "d2104899e7f57da47d508b7aad10437ccc042d99730b4317310710f94fbe7dda",
+    "sh-sections-delayed-off-390.png": "64d732617657c3bc58b5e9fb3800ae36de43d4d67da18876ded33855dda62e4e",
+    "sh-movers-tab-1600.png": "7a4c90424f4f79cb0b19b9302ae35d4c53d52aaef91a160a07fd8cc972da370b",
+    "sh-movers-tab-390.png": "fdcdb97d09e84e389c02ef608f090de479a3bd25da06ccd57576fe6a6606f084"
+  },
+  "states": [
+    {
+      "id": "sections-loaded",
+      "covers": "Sections tab at 1600x1000 and 390x844: every card carries a visible section name and real match count above its single-bordered table.",
+      "stateNote": "Mocked: user.sections seeds VWAP Reclaim / Momentum 1m / Volume Surge 5m; /api/sections/scan returns four fixture rows (RELIANCE, TCS, INFY, HDFCBANK) with per-section signals and one delayed row.",
+      "files": {
+        "1600": "sh-sections-loaded-1600.png",
+        "390": "sh-sections-loaded-390.png"
+      }
+    },
+    {
+      "id": "sections-empty",
+      "covers": "No enabled sections: the empty reason line replaces the card grid at both viewports.",
+      "stateNote": "Mocked: user.sections saved with an empty list; the pre-hydration default-section scan is mocked to an empty result so no stale counts leak into the shell.",
+      "files": {
+        "1600": "sh-sections-empty-1600.png",
+        "390": "sh-sections-empty-390.png"
+      }
+    },
+    {
+      "id": "sections-error",
+      "covers": "Scan failure: reason and Retry replace all section cards, with no heading leaked.",
+      "stateNote": "Mocked: /api/sections/scan returns 502 'mock scanner upstream unavailable'.",
+      "files": {
+        "1600": "sh-sections-error-1600.png",
+        "390": "sh-sections-error-390.png"
+      }
+    },
+    {
+      "id": "sections-loading",
+      "covers": "Delayed response: named spinners appear under each section heading; match counts are withheld until data lands.",
+      "stateNote": "Mocked: /api/sections/scan is held open for 30s so the real per-card spinners are captured; released after the frame.",
+      "files": {
+        "1600": "sh-sections-loading-1600.png",
+        "390": "sh-sections-loading-390.png"
+      }
+    },
+    {
+      "id": "sections-delayed-off",
+      "covers": "Include delayed toggled off: headings/counts stay correct and the delayed badge and note disappear.",
+      "stateNote": "Mocked: same section fixtures; Include delayed toggled off and Refresh issues allow_delayed=false; the response carries delayed_rows=0.",
+      "files": {
+        "1600": "sh-sections-delayed-off-1600.png",
+        "390": "sh-sections-delayed-off-390.png"
+      }
+    },
+    {
+      "id": "movers-tab",
+      "covers": "Adjacent Movers tab selected: tab selector still works and no section heading leaks into the dashboard.",
+      "stateNote": "Mocked: Movers selected from the tab strip; the dashboard uses the shared mockDashboardResponse fixture; live snapshot is unmocked and reads UNKNOWN.",
+      "files": {
+        "1600": "sh-movers-tab-1600.png",
+        "390": "sh-movers-tab-390.png"
+      }
+    }
+  ]
+}

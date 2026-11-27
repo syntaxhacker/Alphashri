@@ -1,0 +1,60 @@
+{
+  "feature": "oi-alert-labels",
+  "route": "/report/index",
+  "head": "939e8438276e65128c28afde42a202f5d6843ea7",
+  "viewports": [1600, 390],
+  "sha256": {
+    "oi-wall-relocation-1600.png": "8ce95a5042c05da0dc2e8d68c9efab9506c6bab2cb7c9a3a737d8070eb5d56c0",
+    "oi-wall-relocation-390.png": "26b86f81f562e94a6da4b77699d12f231b2e68e3f4c37dbc4a97d6a30afad2bd",
+    "oi-coil-1600.png": "6b2c608b88fb927fb60f98338ced22793d859d66a3cd57949d2634e03d444253",
+    "oi-coil-390.png": "45d8c575d4e18d6aebc0f8a94e353718fd34c57dcdcd27ef511c35c78493568d",
+    "oi-genuine-unconfirmed-1600.png": "da642cf466e5fbc5a1480c960b00a6124194b5125cc533cedcd3cce9d8fae9da",
+    "oi-genuine-unconfirmed-390.png": "2d3084cdccc2030baca3f19fb0401a9dd3eaebf720e0d1f8635e21689d1422c1",
+    "oi-empty-1600.png": "b1735832890e831efeec3663508314285881ed703bc373b383abe045934642b3",
+    "oi-empty-390.png": "8fb84a84324c9c0819b89dacb216d4dc2c27ca75e346e900f52b2b03f85db1c1",
+    "oi-loading-1600.png": "445adb0263552119081510cf5e0ef3e0a30c6818678aa32c0620e2a682f2e3b0",
+    "oi-loading-390.png": "8ea2c5cf93a98b89267473a495f1b5ff186465a02902a306ef2a09ac8851b294",
+    "oi-error-1600.png": "ae97568db39790efc67df11fccee9941ae81dd97d5b439d9366a93f1a4bf6992",
+    "oi-error-390.png": "51332fbc9527129c9f6ef18a5725932b2346126278e8101eafa6620a2a0365af"
+  },
+  "states": [
+    {
+      "id": "wall-relocation",
+      "files": { "1600": "oi-wall-relocation-1600.png", "390": "oi-wall-relocation-390.png" },
+      "covers": "RESEARCH mode with one production-shaped type=wall call relocation (from 25,800, to 26,000, strike 26,000, no wall field, delta 0). Headline reads CALL WALL 25,800 -> 26,000 with FROM 25,800 and TO 26,000 facts; no '?' placeholder and no OI SHIFT label."
+    },
+    {
+      "id": "coil",
+      "files": { "1600": "oi-coil-1600.png", "390": "oi-coil-390.png" },
+      "covers": "One production-shaped type=coil row: delta 0, premChg 0.6, backend fuel_state fresh_buyers, wall 25,800, and NO range_pct/dist_pct. Headline reads COILING @ 25,800; no FUEL metric, no buyer/writer claim. The row tooltip reads '— range, — away', never '?%'."
+    },
+    {
+      "id": "genuine-unconfirmed",
+      "files": { "1600": "oi-genuine-unconfirmed-1600.png", "390": "oi-genuine-unconfirmed-390.png" },
+      "covers": "One directional put burst, delta -1.13M, flow=unconfirmed and plan_suppressed=true with a supplied backend plan. Row reads CRITICAL / OI SHIFT - unconfirmed with real ΔOI -1.13M and SPOT 25,912; no backend plan text."
+    },
+    {
+      "id": "empty",
+      "files": { "1600": "oi-empty-1600.png", "390": "oi-empty-390.png" },
+      "covers": "MOCKED: burst feed fulfilled with {count:0, bursts:[]}; the OI bursts panel is not mounted and no alert row renders."
+    },
+    {
+      "id": "loading",
+      "files": { "1600": "oi-loading-1600.png", "390": "oi-loading-390.png" },
+      "covers": "MOCKED: burst route holds its response for 30s, so the real report shell stays on nifty-report-loading ('Loading index report')."
+    },
+    {
+      "id": "error",
+      "files": { "1600": "oi-error-1600.png", "390": "oi-error-390.png" },
+      "covers": "MOCKED: burst route returns HTTP 500 and the report envelope HTTP 503, both carrying the production-shaped detail 'report temporarily unavailable'; the app renders its real red Error banner + Retry and 'No report for this selection'."
+    }
+  ],
+  "notes": [
+    "Full recapture after the verifier fixes at UI head 939e8438276e65128c28afde42a202f5d6843ea7 (current git HEAD) using a temporary 12-test Playwright harness (tests/e2e/_capture-oi-alert-fix.spec.ts), deleted afterwards. No git writes/commits, no devtools sessions, no server or API restarts; the running tape recorder was untouched.",
+    "Payloads are production-shaped: the wall row carries from/to/strike and no wall field (the API normalizer keeps from/to since the verifier fix); the coil row carries delta 0, premChg 0.6, fuel_state fresh_buyers and omits range_pct/dist_pct so the tooltip must say '— range, — away'; the genuine row keeps flow=unconfirmed/plan_suppressed with delta -1.13M. No invented symbol names: every alert is NIFTY.",
+    "All six states are deliberately mocked with page.route on GET /api/reports/nifty/bursts; auxiliary feeds (breadth, chain10s, blasts, sensex, NIFTY walls) are also mocked so the real app renders a complete report. A no-op page.routeWebSocket mock prevents live burst frames from perturbing the single mocked row. Loading/error are network states the live app cannot produce on demand.",
+    "Strict web-first assertions passed for all 12 captures: no ΔOI +0, +NaN, NaN, undefined, NSE: or .NS in alert surfaces or visible report text; WATCH severity for wall/coil, CRITICAL plus CRITICAL 1 badge for the genuine row; wall headline FROM/TO with no '?'; coil shows no FUEL metric and no buyer/writer claim; genuine keeps ΔOI -1.13M.",
+    "390 geometry: the narrow log layout renders the HEADLINE column at non-zero width (79.875px, x=157, right=236.9 inside the 390px viewport) with SEV 64px, SYMBOL 70px, HEADLINE 60px, FACTS 96px and IST 34px columns in order and non-overlapping; no SCROLL cue is needed. At 1600 the headline is 939.875px wide. document.documentElement.scrollWidth equals window.innerWidth (1600 and 390) in every capture.",
+    "Every one of the 12 PNGs was read back after the final run: wall/coil rows read honestly with FROM/TO and COILING labels and no fake delta; genuine reads OI SHIFT - unconfirmed with ΔOI -1.13M; empty has no OI panel; loading shows the spinner; error shows 'report temporarily unavailable'. No blank canvas, clipped columns, -0.0% or NaN was observed."
+  ]
+}
