@@ -106,7 +106,7 @@ Everything below in this file describes the work; it does not grant the main age
 SolidJS 1.9 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
-- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
+- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. The scheduled 52W range batch is no longer started; data arrives via the release-sync watcher or an admin-triggered hard refresh (see the 52W section). Logs to `logs/alphashri.log`.
 - `bun run dev` — dev server only (proxy /api → localhost:8765)
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
@@ -288,7 +288,7 @@ src/
 - **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug in hosted runs — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works in some local runs because the runtime config differs. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the affected environment.
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 - **Trading costs**: `backtest/costs.py:calculate_trading_costs()` is the single source of truth. Both `runner_signals.py` and `paper_portfolio.py` use it — never use flat `trade_value * 0.0006`.
-- **Background screener tasks** (prewarm + 52W range batch) are started in the lifespan and gated to market hours. The 52W batch now does a prompt initial run shortly after `start.sh` (during market hours) rather than waiting the full interval — see the dedicated 52W section for agent behavior around this.
+- **Background screener tasks**: the prewarm task is started in the lifespan and gated to market hours. The scheduled 52W range batch is no longer spawned — data arrives via the release-sync watcher or an admin-triggered hard refresh — see the dedicated 52W section.
 
 ## Backtest Engine (`backtest/sim`)
 
@@ -550,12 +550,12 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Force refresh**: `POST /api/chart-patterns/scan` with `refresh: true` clears the candle cache for the scope + timeframe and forces the scan. UI: "Force refresh" button in the patterns results toolbar → store `forceRefresh()` → `triggerScan(true, { refresh: true })` → `startScan` (`src/api/chartPatterns.ts` `ScanRequest.refresh`).
 
 ## 52W Range Screener Background Job
-- The 52W range batch job (`compute_52w_ranges_task`) and screener prewarm task are started from the FastAPI lifespan.
-- Both are gated to market hours via `_is_market_hours()` (delegates to the canonical `trading.utils.is_market_open()` for precise 9:15-15:30 IST trading days + holidays; always use `config.IST`; has a simple hour fallback).
-- **Key `start.sh` behavior**: The range batch now performs a *prompt initial run* shortly after startup (during market hours) instead of sleeping the full interval first. This ensures that running `start.sh` when ranges are stale triggers an observable batch quickly (previous behavior waited up to 1 hour). After the initial run, it follows the normal `SCREENER_52W_INTERVAL_SEC` (default 3600, overrideable).
-- Scheduled runs use daily staleness refresh (`--skip-updated-today`): symbols whose `updated_at` is already today are skipped. The first run each day refreshes the full NSE_EQ universe (~5-15 min at 3 workers × 0.35s delay). Subsequent hourly runs find everything fresh and no-op in ~1s. Mid-day restarts only refresh symbols not yet updated today.
-- The admin 52W panel shows the last job result from Redis (status usually stays "completed"). The live progress bar is only shown while the job status is actively "running" — because normal runs are so fast, it is rarely visible on the panel's 5s poll. Use "Clear cache + DB" followed by a manual "Run batch" (or full refresh) if you need to observe the progress UI.
-- "Latest DB update" (max row `updated_at`) only moves forward when the script actually inserts or changes range data for a symbol (not on every job execution).
+- The screener prewarm task is started from the FastAPI lifespan and gated to market hours via `_is_market_hours()` (delegates to the canonical `trading.utils.is_market_open()` for precise 9:15-15:30 IST trading days + holidays; always use `config.IST`; has a simple hour fallback).
+- **Scheduled local compute is off by default**: `compute_52w_ranges_task` is no longer spawned. The function still exists; it is simply not scheduled. Published release assets arrive through the automatic watcher below, and a full local NSE recompute is admin-triggered (hard refresh below).
+- **Automatic release-sync watcher** (`release_sync_task`, mirroring `db_backup_task`): spawned in the lifespan, never blocks startup, skipped in `CI_MODE`. It polls for the newest 52W asset across releases and dedupes via `reports/refresh_runs.json` (`last_applied_52w_as_of` vs newest `latest_52w_as_of`). A newer asset triggers `run_sync(mode="latest", allow_empty=True)`, applying both the newest agri and 52W assets and invalidating the screener cache. It only imports published assets; it does not compute ranges locally.
+- Watcher env (alongside the SCREENER_52W / DB backup settings): `RELEASE_SYNC_ENABLED` (default `1`; `0` disables), `RELEASE_SYNC_POLL_SEC` (default `900`), `RELEASE_SYNC_STARTUP_DELAY_SEC` (default `30`, delay before the first poll).
+- **On-demand hard refresh**: admin "Clear cache + DB" (`DELETE /api/admin/52w-range/cache?clear_db=true`) then "Run batch" with Full refresh (`POST /api/admin/52w-range/run`, `api/admin_routes.py:255-277`) launches the local subprocess script (~5-15 min at 3 workers × 0.35s delay). This is the only local-compute path now; `scripts/sync_refresh_assets.py --latest` remains available for manual release-asset apply.
+- The admin 52W panel shows the last job result from Redis. The live progress bar appears while an on-demand job is actively "running" (full refreshes take ~5-15 min, so it is visible on the panel's 5s poll). "Latest DB update" (max row `updated_at`) only moves forward when the script actually inserts or changes range data for a symbol (not on every job execution).
 - Prewarm keeps the 52w_high screener (and others) responsive during market hours.
 - Logs for the jobs appear in `logs/alphashri.log`.
 
@@ -1009,7 +1009,7 @@ Use this when fixing CI on an open PR or merging a release:
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
 - **Portfolio summary compact redesign** — mentioned but not started
 - **52W daily data caching** — fetches 400 days per chart request with no caching
-- **52W range batch progress in admin UI**: The first daily run refreshes all stale symbols (~5-15 min at 3 workers × 0.35s delay), so the progress bar is visible during that window. Subsequent hourly runs are fast (everything already fresh → no-op in ~1s). Use the admin panel's "Clear cache + DB" or adjust `SCREENER_52W_INTERVAL_SEC` to control freshness.
+- **52W range batch progress in admin UI**: Scheduled runs are off by default; an on-demand Full refresh refreshes the full NSE_EQ universe (~5-15 min at 3 workers × 0.35s delay), so the progress bar is visible during that window. Use the admin panel's "Clear cache + DB" then "Run batch" with Full refresh to trigger it; release freshness otherwise comes from the automatic watcher.
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
