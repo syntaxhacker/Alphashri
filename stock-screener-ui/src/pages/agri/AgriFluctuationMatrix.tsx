@@ -219,14 +219,16 @@ function CommodityCell(props: { row: AgriFluctuationMatrixRow }) {
         <Text size="xs" fw={700} truncate className="min-w-0 flex-1">
           {labelOf(props.row)}
         </Text>
-        <Badge
-          size="xs"
-          color={coverageTierTone(tier())}
-          title={coverageTierTitle(tier())}
-          data-testid={`agri-matrix-tier-${props.row.key}`}
-        >
-          {tierText(tier())}
-        </Badge>
+        <Show when={tier() === "B" || tier() === "C"}>
+          <Badge
+            size="xs"
+            color={coverageTierTone(tier())}
+            title={coverageTierTitle(tier())}
+            data-testid={`agri-matrix-tier-${props.row.key}`}
+          >
+            {tierText(tier())}
+          </Badge>
+        </Show>
       </Box>
       <Box className="flex min-w-0 items-center gap-1">
         <Badge

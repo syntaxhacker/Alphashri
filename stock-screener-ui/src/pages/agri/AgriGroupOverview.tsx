@@ -319,14 +319,16 @@ function GroupCard(props: {
         <Text size="xs" fw={700} truncate className="min-w-0" title={props.group.label}>
           {props.group.label}
         </Text>
-        <Badge
-          size="xs"
-          color={coverageTierTone(tier())}
-          title={coverageTierTitle(tier())}
-          data-testid={`agri-group-tier-${key()}`}
-        >
-          {tier() ? `Tier ${tier()}` : "Tier —"}
-        </Badge>
+        <Show when={tier() === "B" || tier() === "C"}>
+          <Badge
+            size="xs"
+            color={coverageTierTone(tier())}
+            title={coverageTierTitle(tier())}
+            data-testid={`agri-group-tier-${key()}`}
+          >
+            Tier {tier()}
+          </Badge>
+        </Show>
       </Box>
 
       <Box className="min-w-0">
@@ -461,7 +463,7 @@ export function AgriGroupOverview(props: AgriGroupOverviewProps) {
   };
 
   const description = () =>
-    `Index 100 at window start · breadth = % commodities up · as of ${formatAgriSessionDate(asOf())}`;
+    `Index 100 at window start · breadth = % commodities up · Tier A is the default broad sample; only B/C badges flag thinner coverage · as of ${formatAgriSessionDate(asOf())}`;
 
   return (
     <CompactPanel

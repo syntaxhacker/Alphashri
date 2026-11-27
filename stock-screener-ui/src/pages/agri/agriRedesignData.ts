@@ -70,7 +70,16 @@ export interface AgriDispersionSummary {
   median: number | null;
   q1: number | null;
   q3: number | null;
+  /** Fence used for the halos, over the same drawn rows as the stats. */
+  fenceLow: number | null;
+  fenceHigh: number | null;
   outliers: number;
+}
+
+export interface AgriDispersionPopulation {
+  /** Drawn rows, ascending by modal, with the drawn-set halo flag applied. */
+  rows: AgriDispersionRow[];
+  summary: AgriDispersionSummary;
 }
 
 const MAX_SPARK_POINTS = 40;
@@ -283,13 +292,13 @@ export function buildDispersionRows(
 /** Population context for the dispersion panel: how many mandis exist and
  *  where the middle of the quote page sits, so "top 8 all outliers" is not
  *  mistaken for the whole mandi universe. */
-export function summariseDispersion(
+export function selectDispersionPopulation(
   rows: readonly AgriDispersionRow[] | null | undefined,
   shown: number,
-): AgriDispersionSummary {
+): AgriDispersionPopulation {
   const source = Array.isArray(rows) ? rows : [];
-  // The reference statistics describe the mandis the panel actually draws;
-  // a full-quote-page IQR would sit far outside the plotted top-eight range.
+  // One population only: the stats and the halo fence both describe the
+  // mandis the panel actually draws, never the full quote page.
   const drawCount = Math.max(0, Math.min(shown, source.length));
   const drawn = drawCount > 0 ? source.slice(source.length - drawCount) : [];
   const modals = drawn
@@ -297,14 +306,44 @@ export function summariseDispersion(
     .filter((value): value is number => value != null)
     .sort((a, b) => a - b);
   const at = (p: number) => (modals.length > 0 ? quantile(modals, p) : null);
+  const q1 = at(0.25);
+  const q3 = at(0.75);
+  let fenceLow: number | null = null;
+  let fenceHigh: number | null = null;
+  if (modals.length >= 4 && q1 != null && q3 != null) {
+    const iqr = q3 - q1;
+    fenceLow = q1 - IQR_FENCE * iqr;
+    fenceHigh = q3 + IQR_FENCE * iqr;
+  }
+  const drawnRows = drawn.map((row) => ({
+    ...row,
+    outlier:
+      row.modal != null &&
+      fenceLow != null &&
+      fenceHigh != null &&
+      (row.modal < fenceLow || row.modal > fenceHigh),
+  }));
   return {
-    markets: source.length,
-    shown: drawCount,
-    median: at(0.5),
-    q1: at(0.25),
-    q3: at(0.75),
-    outliers: drawn.filter((row) => row?.outlier).length,
+    rows: drawnRows,
+    summary: {
+      markets: source.length,
+      shown: drawCount,
+      median: at(0.5),
+      q1,
+      q3,
+      fenceLow,
+      fenceHigh,
+      outliers: drawnRows.filter((row) => row.outlier).length,
+    },
   };
+}
+
+/** Back-compatible summary accessor (same population as the drawn rows). */
+export function summariseDispersion(
+  rows: readonly AgriDispersionRow[] | null | undefined,
+  shown: number,
+): AgriDispersionSummary {
+  return selectDispersionPopulation(rows, shown).summary;
 }
 
 /**

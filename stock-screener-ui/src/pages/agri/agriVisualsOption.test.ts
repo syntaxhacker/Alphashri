@@ -305,6 +305,9 @@ describe("dispersion option", () => {
     expect(option.xAxis[0].min).toBeGreaterThanOrEqual(12_000);
     expect(option.xAxis[0].max).toBeLessThanOrEqual(19_000);
     expect(option.xAxis[0].interval).toBeGreaterThanOrEqual(1_000);
+    expect(
+      (option.xAxis[0].max - option.xAxis[0].min) / option.xAxis[0].interval + 1,
+    ).toBe(3);
   });
 
   it("returns {} without a modal price", () => {

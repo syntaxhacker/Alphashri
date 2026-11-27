@@ -287,15 +287,16 @@ describe("buildSupplyDemandOption", () => {
     expect(graphic[0].style.text).not.toMatch(/undefined|NaN/);
   });
 
-  it("labels axes with qtl and ₹/quintal", () => {
+  it("keeps units in the title and tooltip rather than clipped axis names", () => {
     const option = buildSupplyDemandOption({ scatter });
-    expect(axisOf(option).name).toBe("Arrivals (qtl)");
-    expect(yAxisOf(option).name).toBe("₹/quintal");
+    expect((option.title as { text: string }).text).toContain("qtl");
+    expect(axisOf(option).name).toBeUndefined();
+    expect(yAxisOf(option).name).toBeUndefined();
   });
 
-  it("honours a custom arrivals unit in the axis and tooltip", () => {
+  it("honours a custom arrivals unit in the title and tooltip", () => {
     const option = buildSupplyDemandOption({ scatter, arrivalsUnit: "quintals" });
-    expect(axisOf(option).name).toBe("Arrivals (quintals)");
+    expect((option.title as { text: string }).text).toContain("quintals");
     expect(formatterOf(option)([{ dataIndex: 0, value: [500, 260] }])).toContain("500 quintals");
   });
 

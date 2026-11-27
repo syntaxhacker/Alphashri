@@ -90,8 +90,9 @@ export function buildAgriDispersionOption(
   const prices = rows.flatMap((row) => [row.min, row.modal, row.max].filter((value): value is number => typeof value === "number" && Number.isFinite(value)));
   const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
   const maxPrice = prices.length > 0 ? Math.max(...prices) : 1;
-  const pad = Math.max((maxPrice - minPrice) * 0.05, 1);
+  const pad = Math.max((maxPrice - minPrice) * 0.03, 1);
   const axis = niceAxis(Math.max(0, minPrice - pad), maxPrice + pad, compact ? 3 : 5);
+  if (compact) axis.interval = (axis.max - axis.min) / 2;
 
   const tooltip = (params: unknown): string => {
     const list = asParams(params);

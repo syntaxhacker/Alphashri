@@ -70,7 +70,7 @@ import {
   buildRankBoard,
   buildSeasonRows,
   buildSparkRows,
-  summariseDispersion,
+  selectDispersionPopulation,
   type AgriAnalyticsSeries,
 } from "./agriRedesignData";
 import { monthlyBox, monthlyHeatmap, seasonality, supplyDemand } from "./agriEda";
@@ -813,12 +813,16 @@ export function AgriPage() {
         (commodityMetaByKey().get(row.key)?.group ?? agriCommodity(row.key)?.group) === selected,
     );
   });
+  const sparkEmpty = createMemo(() => sparkRows().length === 0);
 
   const quotes = createMemo(() => prices()?.quotes ?? []);
   const dispersionRows = createMemo(() => buildDispersionRows(quotes()));
+  const dispersionPopulation = createMemo(() =>
+    selectDispersionPopulation(dispersionRows(), AGRI_DISPERSION_MARKETS),
+  );
   const dispersionOption = createMemo(() =>
     buildAgriDispersionOption({
-      rows: dispersionRows(),
+      rows: dispersionPopulation().rows,
       unit: AGRICULTURE_UNIT,
       isDark: isDark(),
       compact: isMobile(),
@@ -838,9 +842,7 @@ export function AgriPage() {
         : `${shown} quote${shown === 1 ? "" : "s"} shown`;
     return `${count} · API page, not the full mandi universe`;
   });
-  const dispersionSummary = createMemo(() =>
-    summariseDispersion(dispersionRows(), AGRI_DISPERSION_MARKETS),
-  );
+  const dispersionSummary = createMemo(() => dispersionPopulation().summary);
   const classifiedWarnings = createMemo(() =>
     warnings().map((text, index) => ({
       id: `warning-${index}`,
@@ -1052,12 +1054,12 @@ export function AgriPage() {
   return (
     <Box
       data-testid="agri-page"
-      className="flex h-full w-full min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto bg-fin-bg p-2"
+      className="flex h-full w-full min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto bg-fin-bg p-2 max-sm:pt-0"
     >
       <ToolbarRow
         gap={8}
         data-testid="agri-toolbar"
-        className="sticky top-0 z-20 shrink-0 rounded-[6px] border border-fin-border bg-fin-bg px-2 py-1 max-sm:-mt-2"
+        className="sticky top-0 z-20 shrink-0 rounded-[6px] border border-fin-border bg-fin-bg px-2 py-1"
       >
         <Box className="flex flex-wrap items-center gap-2 min-w-0" data-testid="agri-scan-group">
           <Text fw={700} className={MICRO_LABEL}>
@@ -1276,8 +1278,8 @@ export function AgriPage() {
               className="cursor-pointer select-none text-ui-micro font-bold uppercase tracking-[0.08em] text-fin-text-muted"
               style={typeStyle("micro")}
             >
-              Data quality · {warnings().length} note{warnings().length === 1 ? "" : "s"} ·
-              tap to read
+              Data quality · {warnings().length} note{warnings().length === 1 ? "" : "s"} · open
+              for detail
             </summary>
             <Box className="mt-1 flex flex-col gap-0.5">
               <For each={classifiedWarnings()}>
@@ -1613,7 +1615,7 @@ export function AgriPage() {
                   kind="no-data"
                   data-testid="agri-seasonality-weak"
                   title="Seasonality is not measurable yet"
-                  description={`A month-of-year cycle needs at least two distinct years. ${seasonalityDetail()} Showing this on one annual cycle would imply a pattern the data cannot support.`}
+                  description={`A month-of-year cycle needs at least two distinct years. ${seasonalityDetail()}. Showing this on one annual cycle would imply a pattern the data cannot support.`}
                   action={
                     <Button
                       size="xs"
@@ -1675,8 +1677,11 @@ export function AgriPage() {
               className="col-span-12 flex min-h-0 flex-col lg:col-span-4"
               scrollable
               style={{
-                "min-height": isMobile() ? "0px" : "620px",
+                // An empty universe collapses like an empty hero instead of
+                // reserving a 620px blank slab.
+                "min-height": sparkEmpty() ? "0px" : isMobile() ? "0px" : "620px",
                 flex: "0 0 auto",
+                "align-self": sparkEmpty() ? "start" : undefined,
               }}
               title="Commodity universe"
               description="Click or press Enter / Space · change = 1M"
@@ -1763,11 +1768,11 @@ export function AgriPage() {
               className="col-span-12 flex min-h-0 flex-col md:col-span-12 lg:col-span-4"
               scrollable
               style={{ "min-height": "460px", flex: "0 0 auto" }}
-              title="Mandi dispersion"
+              title="Top-priced mandis"
               description={
                 dispersionSummary().markets > 0
-                  ? `${dispersionSummary().shown} highest-priced of ${dispersionSummary().markets} mandis (${quotes().length}-quote page) · shown IQR ${formatAgriPrice(dispersionSummary().q1)}–${formatAgriPrice(dispersionSummary().q3)} · median ${formatAgriPrice(dispersionSummary().median)} · as of ${formatAgriSessionDate(asOf())} · dot = modal · bar = min–max · violet halo = outside 1.5×IQR`
-                  : "Dot = modal · bar = min–max · violet halo = outside 1.5×IQR"
+                  ? `${dispersionSummary().shown} highest-priced of ${dispersionSummary().markets} mandis (${quotes().length}-quote page) · IQR/median of these ${dispersionSummary().shown}: ${formatAgriPrice(dispersionSummary().q1)}–${formatAgriPrice(dispersionSummary().q3)} / ${formatAgriPrice(dispersionSummary().median)} · as of ${formatAgriSessionDate(asOf())} · dot = modal · bar = min–max · violet halo = outside this set's 1.5×IQR`
+                  : "Dot = modal · bar = min–max · violet halo = outside this set's 1.5×IQR"
               }
             >
               <Show

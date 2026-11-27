@@ -106,7 +106,9 @@ export function buildSupplyDemandOption(input: EdaSupplyDemandInput | null | und
     ],
     xAxis: [
       {
-        ...valueAxis(t, compact ? undefined : `Arrivals (${arrivalsUnit})`),
+        // The title already carries the units; an end-anchored axis name is
+        // clipped to one glyph on a 1600 panel.
+        ...valueAxis(t),
         splitNumber: compact ? 3 : 5,
         axisLabel: {
           ...(valueAxis(t).axisLabel as Record<string, unknown>),
@@ -125,7 +127,7 @@ export function buildSupplyDemandOption(input: EdaSupplyDemandInput | null | und
     ],
     yAxis: [
       {
-        ...valueAxis(t, compact ? undefined : unit),
+        ...valueAxis(t),
         splitNumber: compact ? 4 : 5,
       },
     ],

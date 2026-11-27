@@ -930,6 +930,18 @@ describe("AgriPage data states", () => {
     expect(screen.getByTestId("agri-chart-panel")).toHaveStyle({ "align-self": "start" });
   });
 
+  it("collapses an empty commodity universe instead of reserving 620px", async () => {
+    vi.mocked(fetchAgriPrices).mockResolvedValueOnce(
+      pricesPayload({ series: [], snapshot: [], comparison: [], quotes: [], quotes_total: 0 }),
+    );
+    renderPage();
+    await settled();
+
+    expect(screen.getByTestId("agri-spark-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("agri-spark-panel")).toHaveStyle({ "min-height": "0px" });
+    expect(screen.getByTestId("agri-spark-panel")).toHaveStyle({ "align-self": "start" });
+  });
+
   it("keeps the working body visible during a refresh", async () => {
     let resolveRefresh!: (value: AgriPricesResponse) => void;
     renderPage();
@@ -1323,6 +1335,10 @@ describe("AgriPage redesign grammar", () => {
     const markets = (option.yAxis as Array<{ data: string[] }>)[0].data;
     expect(markets).toEqual(["Lasalgaon", "Kolar"]);
     expect(markets.length).toBeLessThanOrEqual(8);
+    const panel = screen.getByTestId("agri-dispersion-panel");
+    expect(panel).toHaveTextContent("Top-priced mandis");
+    expect(panel).toHaveTextContent("IQR/median of these 2");
+    expect(panel).toHaveTextContent("outside this set's 1.5×IQR");
   });
 
   it("selects the hero from the universe grid by click, Enter and Space", async () => {
@@ -1422,7 +1438,11 @@ describe("AgriPage layout", () => {
 
     expect(screen.getByTestId("agri-overview-grid")).toHaveClass("flex", "flex-col");
     expect(screen.getByTestId("agri-overview-grid")).not.toHaveClass("grid");
-    expect(screen.getByTestId("agri-page")).toHaveClass("overflow-y-auto", "overflow-x-hidden");
+    expect(screen.getByTestId("agri-page")).toHaveClass(
+      "overflow-y-auto",
+      "overflow-x-hidden",
+      "max-sm:pt-0",
+    );
     expect(screen.getByTestId("agri-body")).toHaveClass("overflow-visible");
     expect(screen.getByTestId("agri-body")).not.toHaveClass("overflow-y-auto");
     expect(screen.getByTestId("agri-chart-region")).toHaveClass("min-h-[280px]");

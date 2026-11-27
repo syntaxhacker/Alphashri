@@ -5,6 +5,7 @@ import {
   buildRankBoard,
   buildSeasonRows,
   buildSparkRows,
+  selectDispersionPopulation,
   shortMarketLabel,
   summariseDispersion,
 } from "./agriRedesignData";
@@ -145,6 +146,23 @@ describe("buildDispersionRows", () => {
     expect(summary.shown).toBe(5);
     expect(summary.median).toBe(120);
     expect(summary.outliers).toBe(1);
+  });
+
+  it("uses one population for the drawn stats and the halo fence", () => {
+    const low = Array.from({ length: 20 }, (_, index) => quote(`L${index}`, 10 + index));
+    const high = Array.from({ length: 8 }, (_, index) => quote(`H${index}`, 1000 + index * 10));
+    const all = buildDispersionRows([...low, ...high]);
+    const population = selectDispersionPopulation(all, 8);
+    // The full quote page's fence would flag every top-priced mandi; the
+    // drawn-set fence flags none of them because the population is consistent.
+    expect(population.rows).toHaveLength(8);
+    expect(population.summary.outliers).toBe(0);
+    expect(population.rows.every((row) => !row.outlier)).toBe(true);
+    expect(population.summary.markets).toBe(28);
+    expect(population.summary.fenceLow).toBeLessThan(population.summary.q1 as number);
+    expect(population.summary.fenceHigh).toBeGreaterThan(population.summary.q3 as number);
+    const summary = summariseDispersion(all, 8);
+    expect(summary).toEqual(population.summary);
   });
 
   it("keeps the IQR/median reference on the mandis the panel draws", () => {
