@@ -12,7 +12,7 @@ from itertools import chain
 from typing import Any, Iterable, Mapping, Optional
 
 import config
-from api.utils import optional_float
+from common.numbers import optional_float
 
 from . import canonical, registry
 

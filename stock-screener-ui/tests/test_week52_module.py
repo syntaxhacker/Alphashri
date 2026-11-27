@@ -123,26 +123,32 @@ class TestHasLiveData:
         assert has_live_data({}) is False
 
 
-class TestToFloatParity:
-    """The DB-free leaf copy must not drift from the canonical api helper."""
+class TestToFloatIdentity:
+    """The DB-free leaf uses the shared stdlib helper, not a local copy."""
+
+    def test_leaf_to_float_is_common_numbers_to_float(self):
+        import common.numbers as numbers
+        from trading.week52.math import _to_float
+
+        assert _to_float is numbers.to_float
 
     @pytest.mark.parametrize(
         "value",
         [None, "", "x", "1.5", "nan", "inf", -2.5, True, 3.25],
     )
-    def test_leaf_copy_matches_canonical(self, value):
-        from api.utils import _to_float as canonical_to_float
-        from trading.week52.math import _to_float as leaf_to_float
+    def test_leaf_behavior_matches_common_numbers(self, value):
+        from common.numbers import to_float
+        from trading.week52.math import _to_float
 
-        assert leaf_to_float(value) == canonical_to_float(value)
-        assert leaf_to_float(value, default=0.25) == canonical_to_float(value, default=0.25)
+        assert _to_float(value) == to_float(value)
+        assert _to_float(value, default=0.25) == to_float(value, default=0.25)
 
     def test_has_live_data_keeps_default_zero_semantics(self):
-        from api.utils import _to_float as canonical_to_float
-        from trading.week52.math import _to_float as leaf_to_float
+        from common.numbers import to_float
+        from trading.week52.math import _to_float
 
-        assert leaf_to_float(None) == canonical_to_float(None) == 0.0
-        assert leaf_to_float("nan") == canonical_to_float("nan") == 0.0
+        assert _to_float(None) == to_float(None) == 0.0
+        assert _to_float("nan") == to_float("nan") == 0.0
         assert has_live_data({"volume_m": "2.5"}) is True
         assert has_live_data({"volume_m": "nan"}) is False
         assert has_live_data({"volume_m": -1}) is False
@@ -333,6 +339,8 @@ class TestPackageExports:
         code = """
 import sys
 import trading.week52 as pkg
+assert "common.numbers" in sys.modules
+assert not any(name == "api" or name.startswith("api.") for name in sys.modules)
 assert pkg.ChaserDefaults.__name__ == "ChaserDefaults"
 assert pkg.TargetDefaults.__name__ == "TargetDefaults"
 for name in ("trading.week52.ranges", "trading.week52.upsert",

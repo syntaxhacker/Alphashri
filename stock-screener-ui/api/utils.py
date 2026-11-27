@@ -2,7 +2,8 @@
 api/utils.py — Shared helpers for API layer to reduce DRY clones.
 
 Centralizes:
-- Data normalizers (_to_float, optional_float, _sanitize_for_json, _ensure_datetime_index)
+- Data normalizers (_to_float/optional_float re-exported from common.numbers;
+  _sanitize_for_json, _ensure_datetime_index)
 - Common response builders (_make_empty_chart_response)
 - Cache helpers for JSON+TTL meta-file caches (_get_cache_path, _get_cache_meta_path, _read_cache, _write_cache)
   Used by correlation.py and sector.py to eliminate ~26-line duplicate cache logic.
@@ -28,6 +29,8 @@ import uuid
 
 import numpy as np
 
+from common.numbers import finite_or_none, optional_float, to_float as _to_float
+
 
 _BUY_SIDES = ("BUY", "LONG")
 _SELL_SIDES = ("SELL", "SHORT")
@@ -51,48 +54,8 @@ def _get_market_price(symbol: str) -> float | None:
     return None
 
 
-def _to_float(value: Any, default: float = 0.0) -> float:
-    """Safely convert value to float; return default on None/NaN/Inf/error."""
-    try:
-        if value is None:
-            return default
-        out = float(value)
-        if not math.isfinite(out):
-            return default
-        return out
-    except Exception:
-        return default
-
-
-def optional_float(value: Any, *, reject_bool: bool = False) -> Optional[float]:
-    """Finite float or ``None`` — nullable numeric fields, no default substitution.
-
-    ``_to_float`` turns missing values into ``0.0``; aggregations and TV payloads
-    need to keep "missing" distinct from zero. ``reject_bool`` preserves TV's
-    guard against pandas boolean placeholders becoming 0.0/1.0.
-    """
-    if value is None or (reject_bool and isinstance(value, bool)):
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
-
-
-def finite_or_none(value: Any) -> Optional[float]:
-    """Return ``float(value)`` for finite numbers, else ``None``.
-
-    Unlike ``_to_float`` this preserves "missing" semantics for payloads whose
-    numeric fields are nullable (NaN/Inf/None all become ``None``).
-    """
-    try:
-        if value is None:
-            return None
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
+# Numeric coercion is owned by common/numbers.py so DB-free leaf modules and
+# standalone scripts can share it; these names remain for existing api callers.
 
 
 def _sanitize_for_json(obj: Any) -> Any:
