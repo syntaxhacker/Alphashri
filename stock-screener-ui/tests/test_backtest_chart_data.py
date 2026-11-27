@@ -650,6 +650,41 @@ class TestExtract52wLevels:
         assert result == []
 
 
+class TestCalculate52wHighSeries:
+    """Tests for the rolling 52-week high series."""
+
+    def _frame(self):
+        return pd.DataFrame({
+            'open': [100.0] * 5,
+            'high': [101.0, 102.0, 103.0, 101.5, 100.5],
+            'low': [99.0] * 5,
+            'close': [100.5] * 5,
+            'volume': [1000] * 5,
+        }, index=pd.date_range('2024-01-15 09:15:00', periods=5, freq='5min'))
+
+    def test_dataframe_branch_returns_rolling_high(self):
+        result = chart_data.calculate_52w_high_series(self._frame(), period=3)
+        assert [level['52w_high'] for level in result] == [101.0, 102.0, 103.0, 103.0, 103.0]
+        assert [level['date'] for level in result] == ['2024-01-15'] * 5
+        assert [level['date_raw'] for level in result] == ['2024-01-15'] * 5
+
+    def test_dataframe_branch_matches_dict_branch(self):
+        frame = self._frame()
+        as_dict = {
+            'index': [str(idx) for idx in frame.index],
+            'high': frame['high'].tolist(),
+        }
+        assert chart_data.calculate_52w_high_series(frame, period=3) == \
+            chart_data.calculate_52w_high_series(as_dict, period=3)
+
+    def test_dataframe_branch_converts_timezone(self):
+        frame = self._frame()
+        frame.index = frame.index.tz_localize('UTC')
+        result = chart_data.calculate_52w_high_series(frame, period=2)
+        assert [level['52w_high'] for level in result] == [101.0, 102.0, 103.0, 103.0, 101.5]
+        assert [level['date'] for level in result] == ['2024-01-15'] * 5
+
+
 class TestBuildChartDataForSymbol:
     """Tests for build_chart_data_for_symbol function."""
 
@@ -922,6 +957,16 @@ class TestIntegration:
         result = chart_data.build_chart_data_for_symbol('TEST', candles_df, trades)
         assert len(result['orb_zones']) == 2
 
+    def test_include_52w_line_with_dataframe(self):
+        highs = [101.0 + (i % 17) * 0.25 for i in range(260)]
+        df = pd.DataFrame({
+            'open': [100.0] * 260, 'high': highs, 'low': [99.0] * 260,
+            'close': [100.5] * 260, 'volume': [1000] * 260,
+        }, index=pd.date_range('2024-01-15 09:15:00', periods=260, freq='min'))
+        result = chart_data.build_chart_data_for_symbol('TEST', df, [], include_52w_line=True)
+        assert len(result['week52_levels']) == 260
+        assert result['week52_levels'][-1]['52w_high'] == round(max(highs[-252:]), 2)
+
     def test_dict_and_dataframe_produce_same_output(self):
         """Test that dict and DataFrame inputs produce equivalent output."""
         dates = pd.date_range('2024-01-15 09:15:00', periods=3, freq='5min')
@@ -1117,3 +1162,141 @@ class TestBuildChartDataRsiAndSide:
         assert len(out['rsi']['data']) == out['total_candles']
         entries = [t for t in out['trades'] if t['type'] == 'entry']
         assert entries and entries[0]['trade']['side'] == 'SHORT'
+
+
+class TestLegacyOutputParity:
+    """Field-for-field parity with the pre-optimisation implementations."""
+
+    @staticmethod
+    def _legacy_candles(frame):
+        candles = []
+        for idx, row in frame.iterrows():
+            dt = idx
+            if hasattr(dt, 'tz_convert') and dt.tz is not None:
+                dt = dt.tz_convert(chart_data.config.IST).replace(tzinfo=None)
+            candles.append({
+                'time': dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
+                'date': dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt)[:10],
+                'time_str': dt.strftime('%H:%M') if hasattr(dt, 'strftime') else '00:00',
+                'open': float(row['open']),
+                'high': float(row['high']),
+                'low': float(row['low']),
+                'close': float(row['close']),
+                'volume': int(row.get('volume', 0)),
+            })
+        return candles
+
+    @staticmethod
+    def _frame(index, volume=True):
+        n = len(index)
+        columns = {
+            'open': [100.0 + i for i in range(n)],
+            'high': [101.0 + i for i in range(n)],
+            'low': [99.0 + i for i in range(n)],
+            'close': [100.5 + i for i in range(n)],
+        }
+        if volume:
+            columns['volume'] = [1000 + i for i in range(n)]
+        return pd.DataFrame(columns, index=index)
+
+    def test_nanosecond_utc_index_is_identical(self):
+        index = pd.date_range('2024-02-01 09:15:00.123456789', periods=120, freq='min', tz='UTC')
+        frame = self._frame(index)
+        assert chart_data.format_candle_data(frame) == self._legacy_candles(frame)
+        assert chart_data.format_candle_data(frame)[0]['time_str'] == '14:45'
+        assert chart_data.format_candle_data(frame)[0]['date'] == '2024-02-01'
+
+    def test_naive_duplicate_and_string_indexes_are_identical(self):
+        stamps = list(pd.date_range('2024-02-01 09:15:00', periods=5, freq='min'))
+        for index in (
+            pd.DatetimeIndex(stamps + stamps),
+            pd.Index([stamp.isoformat() for stamp in stamps]),
+        ):
+            frame = self._frame(index)
+            assert chart_data.format_candle_data(frame) == self._legacy_candles(frame)
+
+    def test_missing_volume_column_is_identical(self):
+        index = pd.date_range('2024-02-01 09:15:00', periods=5, freq='min')
+        frame = self._frame(index, volume=False)
+        assert chart_data.format_candle_data(frame) == self._legacy_candles(frame)
+
+    @staticmethod
+    def _legacy_find_idx(time_val, candles):
+        if not time_val or candles is None:
+            return None
+        time_map = {c['time'][:19]: i for i, c in enumerate(candles)}
+        key = time_val[:19]
+        if key in time_map:
+            return time_map[key]
+        trade_date = time_val[:10]
+        best = -1
+        for i, c in enumerate(candles):
+            if c['date'] != trade_date:
+                if best >= 0:
+                    break
+                continue
+            if c['time'] <= time_val:
+                best = i
+            else:
+                break
+        return best if best >= 0 else None
+
+    @staticmethod
+    def _trade(entry, exit_time):
+        return {
+            'entry_price': 100.0, 'exit_price': 101.0, 'entry_time': entry,
+            'exit_time': exit_time, 'date': entry[:10], 'quantity': 10,
+            'gross_pnl': 10.0, 'trading_costs': 1.0, 'net_pnl': 9.0,
+            'net_pnl_pct': 0.9, 'exit_reason': 'TP',
+        }
+
+    def test_trade_marker_lookup_is_identical(self):
+        candles = []
+        for day in ('2024-01-15', '2024-01-16', '2024-01-17'):
+            for minute in (555, 570, 585, 600):
+                stamp = f'{day}T{minute // 60:02d}:{minute % 60:02d}:00'
+                candles.append({'time': stamp, 'date': day, 'time_str': stamp[11:16]})
+        # duplicate timestamp: the exact-key map keeps the last occurrence
+        candles.append(dict(candles[2]))
+        queries = [
+            '2024-01-15T09:15:00',
+            '2024-01-15T09:20:00',
+            '2024-01-15T08:00:00',
+            '2024-01-15T09:30:00.500',
+            '2024-01-17T23:59:59',
+            '2024-01-20T09:15:00',
+        ]
+        trades = [self._trade(q, q) for q in queries]
+        markers = chart_data.format_trade_markers(trades, candles)
+        for i, query in enumerate(queries):
+            expected = self._legacy_find_idx(query, candles)
+            assert markers[2 * i]['candle_idx'] == expected, query
+            assert markers[2 * i + 1]['candle_idx'] == expected, query
+
+    def test_interleaved_dates_fall_back_to_legacy_scan(self):
+        candles = [
+            {'time': '2024-01-15T09:15:00', 'date': '2024-01-15', 'time_str': '09:15'},
+            {'time': '2024-01-16T09:30:00', 'date': '2024-01-16', 'time_str': '09:30'},
+            {'time': '2024-01-16T09:45:00', 'date': '2024-01-15', 'time_str': '09:45'},
+        ]
+        query = '2024-01-15T10:00:00'
+        marker = chart_data.format_trade_markers([self._trade(query, query)], candles)[0]
+        assert marker['candle_idx'] == self._legacy_find_idx(query, candles) == 0
+
+    def test_echarts_series_with_many_zones_is_identical(self):
+        candles = []
+        for day in ('2024-01-15', '2024-01-16'):
+            for minute in (555, 570, 585, 600):
+                stamp = f'{day}T{minute // 60:02d}:{minute % 60:02d}:00'
+                candles.append({
+                    'time': stamp, 'date': day, 'time_str': stamp[11:16],
+                    'open': 100.0, 'close': 100.5, 'low': 99.5, 'high': 101.0,
+                })
+        zones = [
+            {'date': day, 'or_high': 101.0, 'or_low': 99.5, 'or_end_time': '10:00'}
+            for day in ('2024-01-15', '2024-01-16', '2024-01-15', '2024-01-99')
+        ]
+        result = chart_data.build_echarts_series({'candles': candles, 'orb_zones': zones, 'trades': []})
+        assert result['xAxisData'] == [c['time'] for c in candles]
+        assert result['candlestick'] == [[c['open'], c['close'], c['low'], c['high']] for c in candles]
+        assert result['orb_zones'] == zones
