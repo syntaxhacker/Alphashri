@@ -78,9 +78,11 @@ class BarDataWrangler:
             # so values (including the int64-volume -> float64 upcast) stay identical.
             values = df.to_numpy()
             index = df.index
-            asi8 = getattr(index, "asi8", None)
-            if asi8 is not None:
-                timestamps: Any = asi8
+            # asi8 is in the index's own unit: ms/us/s indexes would emit non-ns
+            # ts_event. as_unit("ns") keeps the tz and matches Timestamp.value.
+            as_unit = getattr(index, "as_unit", None)
+            if as_unit is not None:
+                timestamps: Any = as_unit("ns").asi8
             else:
                 timestamps = [
                     value.value if hasattr(value, "value") else value for value in index
