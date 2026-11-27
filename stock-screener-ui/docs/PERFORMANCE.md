@@ -94,6 +94,7 @@ script's docstring. Report medians, never a single run.
 | [`stock-screener-ui/scripts/perf/bench_options_walls.py`](../scripts/perf/bench_options_walls.py) | Options-wall payload/counts/time on a deterministic tape | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_options_walls.py time` |
 | [`stock-screener-ui/scripts/perf/bench_sector_themes.py`](../scripts/perf/bench_sector_themes.py) | Theme aggregation parity/counts/time | `python scripts/perf/bench_sector_themes.py time` |
 | [`stock-screener-ui/scripts/perf/bench_cache_stats.py`](../scripts/perf/bench_cache_stats.py) | Cache-stats command-count/parity probe | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_cache_stats.py` |
+| [`stock-screener-ui/scripts/perf/bench_tape_reads.py`](../scripts/perf/bench_tape_reads.py) | tape/bursts JSONL parse-cache parity, parse counts and wall clock | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_tape_reads.py --label before` (run again with `--label after` to compare) |
 
 ## 2026-11-26 backend/DB performance loop
 
