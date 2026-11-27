@@ -137,6 +137,43 @@ def test_c_numeric_objects_match_strategy_usage():
     assert str(Money(1_000_000, INR)) == "1000000 INR"
 
 
+def test_d_non_ns_datetime_units_emit_nanoseconds():
+    """asi8 is in the index's own unit; ts_event must stay in nanoseconds."""
+    from nautilus_trader.persistence.wranglers import BarDataWrangler
+
+    def legacy_ts_events(df):
+        events = []
+        for i in range(len(df)):
+            index_value = df.index[i]
+            events.append(
+                int(index_value.value) if hasattr(index_value, "value") else int(index_value)
+            )
+        return events
+
+    for tz in ("UTC", None):
+        for unit in ("s", "ms", "us", "ns"):
+            index = pd.date_range(
+                "2026-01-05T03:45:00", periods=5, freq="1min", tz=tz
+            ).as_unit(unit)
+            closes = 100.0 + np.arange(5, dtype=float)
+            frame = pd.DataFrame(
+                {
+                    "open": closes - 0.25,
+                    "high": closes + 0.75,
+                    "low": closes - 0.75,
+                    "close": closes,
+                    "volume": np.full(5, 1000, dtype=np.int64),
+                },
+                index=index,
+            )
+            expected = [int(pd.Timestamp(value).value) for value in index]
+            assert expected == legacy_ts_events(frame)
+
+            bars = BarDataWrangler().process(frame)
+            assert [bar.ts_event for bar in bars] == expected, (tz, unit)
+            assert [bar.ts_init for bar in bars] == expected, (tz, unit)
+
+
 def test_install_replaces_already_imported_real_submodules():
     uninstall()
     try:
