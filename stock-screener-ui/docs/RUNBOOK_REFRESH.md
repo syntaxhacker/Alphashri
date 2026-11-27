@@ -10,6 +10,7 @@ Paths:
 - Release tag: `data-YYYY-MM`
 - Local agri cache: `reports/agri/agri_prices.db`
 - Local sync: `scripts/sync_refresh_assets.py`
+- Release-sync watcher: `trading/release_sync_watcher.py`
 - Release materializer: `scripts/materialize_agri_release.py`
 - Release snapshots: `reports/agri/releases/<data-YYYY-MM>/`
 - Ledger table: `agri_ingest_partitions`
@@ -277,6 +278,9 @@ The 52W pair is rolling: each successful 52W run publishes ONE dated payload
 (`YYYY-MM-DD.json.gz`) + its manifest (`52w-YYYY-MM-DD.json`) to the monthly
 `data-YYYY-MM` release and deletes earlier 52W pairs from **that** release after
 the upload is verified. Agri assets and older monthly releases are untouched.
+The workflow rejects an older 52W date before upload when the tag already holds
+a newer payload, and never prunes on a smoke run, so a delayed or re-dispatched
+run cannot roll published data back.
 
 Monthly releases are retained; there is no automatic release-tag pruning job. Delete old `data-YYYY-MM` tags by hand if retention matters.
 
@@ -296,9 +300,10 @@ Latest assets only:
 .venv/bin/python scripts/sync_refresh_assets.py --latest
 ```
 
-`--latest` is the local apply path. The old `--from/--to` in-month replay of
-old 52W days is no longer available; apply from the current monthly release's
-single rolling 52W asset instead.
+`--latest` is the local apply path. The `--from` / `--to` flags still exist and
+range mode still works for agri backfills. 52W in-month replay is not available
+because only one rolling 52W date is kept per monthly release; apply 52W via
+`--latest` from that single asset.
 
 The sync must:
 
@@ -335,12 +340,21 @@ when you have changed API code; `start.sh` does not run with `--reload`.
 
 The API spawns a `release_sync_task` on startup (mirroring `db_backup_task`)
 after `RELEASE_SYNC_STARTUP_DELAY_SEC` (default 30s), then re-checks every
-`RELEASE_SYNC_POLL_SEC` (default 900s). It finds the newest 52W asset across the
-monthly releases and compares its `latest_52w_as_of` with the
-`last_applied_52w_as_of` ledger in `reports/refresh_runs.json`. When a newer
-asset exists it calls `run_sync(mode="latest", allow_empty=True)`, which applies
-both the newest agri and 52W assets and invalidates the screener cache. Matching
-dates mean no work, so restarts and idle polls are cheap. The watcher never
+`RELEASE_SYNC_POLL_SEC` (default 900s). Invalid `RELEASE_SYNC_*_SEC` values fall
+back to those defaults instead of creating a busy loop. Release listing forwards
+the `GITHUB_TOKEN` / `GH_TOKEN` environment token when set, and falls back to
+anonymous public access when no token is present.
+
+The watcher dedupes by asset fingerprint against the last applied record in
+`reports/refresh_runs.json`, not by date alone. It checks both the agri and 52W
+pointers, so an agri-only update triggers a sync too. A same-date 21:00
+re-upload is applied because its fingerprint changes when the asset content
+changes; an unchanged re-poll is a no-op. A new fingerprint calls
+`run_sync(mode="latest", allow_empty=True)`, which applies the newest agri and
+52W assets and invalidates the screener cache. `run_sync` takes a file lock: a
+concurrent watcher or CLI sync returns `busy` (`SyncBusy`) and the watcher
+retries on the next poll. If the agri apply fails but 52W applied, the ledger
+record is `partial` rather than `ok`, so agri can be retried. The watcher never
 blocks startup, is skipped in `CI_MODE`, and can be disabled with
 `RELEASE_SYNC_ENABLED=0`. It only imports already-published release assets; it
 does not compute 52W ranges locally.
@@ -543,6 +557,8 @@ complete partition, or fill missing arrivals with zero.
 | Schedule never fires | Workflow on `main`? repo active in last 60 days? | Run `workflow_dispatch`; re-enable the schedule |
 | Asset >10 MB/day | Page/row count; product/unit explosion | Keep the compact delta; investigate duplicate aliases |
 | Local `MAX(date)` unchanged | Sync found no new asset; wrong tag | `gh release list`; run `--latest` again with logs |
+| Watcher reports `busy` (`SyncBusy`) | A watcher or CLI `run_sync` already holds the file lock | No action; the watcher retries next poll. Admin hard-refresh compute is a separate path |
+| Ledger status `partial` | Agri apply failed but 52W applied | Inspect the agri error, fix the source, then re-run `sync_refresh_assets.py --latest` |
 | 52W range empty in the UI | Local Redis stale or absent | Sync refreshes Redis when present; otherwise DB is authoritative |
 | `tsc`/UI shows old API shape | Server running pre-change code | `./start.sh restart`; confirm with a real request |
 
