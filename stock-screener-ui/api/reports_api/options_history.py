@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 import os
 import statistics
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -120,9 +121,52 @@ def _path(kind: str, symbol: str, date_str: str, suffix: str = ".jsonl") -> Path
     return DATA_ROOT / kind / symbol / f"{date_str}{suffix}"
 
 
+#: Parsed-JSONL rows for the polled read paths. The effective key is
+#: ``(resolved path, st_mtime_ns, st_size, tail-window)``: an append moves size,
+#: an atomic replace moves mtime/inode, and both therefore invalidate. Stored
+#: rows are held in a tuple of dicts that is never handed out directly — each
+#: read returns a fresh list of fresh shallow dict copies, so a caller that
+#: reorders the list or overwrites a row key cannot poison the cache. (Nested
+#: values such as ``chain`` are shared read-only: every consumer here —
+#: ``derive_tape_rows``, ``_trim_tape_chains``, ``minute_frames``,
+#: ``summarise_snapshots`` and the burst detectors — builds new dicts instead of
+#: mutating its input, and a deep copy of a 50k-row tape would cost as much as
+#: the parse this cache removes.) A 4-entry LRU bounds memory across symbols;
+#: missing/unstatable files are never cached and still return ``[]``.
+_JSONL_CACHE_MAX = 4
+_JSONL_CACHE: dict[tuple[str, Optional[int]], tuple[tuple[int, int], tuple[dict, ...]]] = {}
+_JSONL_LOCK = threading.Lock()
+
+
+def _cached_jsonl(path: Path, max_bytes: Optional[int]) -> list[dict]:
+    """Parse-through cache shared by the full-file and tail readers."""
+    try:
+        resolved = str(path.resolve())
+        st = Path(resolved).stat()
+    except OSError:
+        return []
+    key = (resolved, max_bytes)
+    stamp = (st.st_mtime_ns, st.st_size)
+    with _JSONL_LOCK:
+        entry = _JSONL_CACHE.get(key)
+        hit = entry is not None and entry[0] == stamp
+    if not hit:
+        # Parsing outside the lock keeps a cold read on one symbol from blocking
+        # another; a concurrent cold read of the same path may parse twice, but
+        # both parses see the same file and the last write wins harmlessly.
+        parsed = (read_jsonl(path) if max_bytes is None
+                  else read_jsonl_tail(path, max_bytes=max_bytes))
+        entry = (stamp, tuple(parsed))
+        with _JSONL_LOCK:
+            _JSONL_CACHE[key] = entry
+            while len(_JSONL_CACHE) > _JSONL_CACHE_MAX:
+                _JSONL_CACHE.pop(next(iter(_JSONL_CACHE)))
+    return [dict(row) for row in entry[1]]
+
+
 def _read_jsonl(path: Path) -> list[dict]:
     """Parsed JSON-object lines; ``[]`` when missing, blank lines skipped."""
-    return read_jsonl(path)
+    return _cached_jsonl(path, None)
 
 
 #: The bursts feed is polled; a symbol's chain10s day file is several MB.
@@ -162,8 +206,10 @@ def _read_jsonl_tail(path: Path, max_bytes: int = 1_500_000) -> list[dict]:
     polls every few seconds; re-reading the whole day for the newest 240
     snapshots was pure waste. The first line of a tail read is almost always
     partial, so it is dropped unless the read started at 0. Never raises.
+    The parse is cached on ``(resolved path, mtime_ns, size, max_bytes)``; the
+    tail-window semantics themselves are unchanged.
     """
-    return read_jsonl_tail(path, max_bytes=max_bytes)
+    return _cached_jsonl(path, max_bytes)
 
 
 def _read_json(path: Path) -> Optional[dict]:
