@@ -80,7 +80,6 @@ function isScreenshot(rawUrl) {
 const images = [...new Set(candidates.filter(isScreenshot))];
 const localImages =
   body.match(/!\[[^\]]*\]\((\/[^)]*|\.{1,2}\/[^)]*|file:\/\/[^)]*)\)/g) ?? [];
-
 if (images.length === 0) {
   const lines = [
     "### Screenshot gate: failed",
@@ -102,8 +101,58 @@ if (images.length === 0) {
   process.exit(1);
 }
 
+async function checkImageUrl(url) {
+  for (const method of ["HEAD", "GET"]) {
+    try {
+      const response = await fetch(url, {
+        method,
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000),
+        headers: method === "GET" ? { Range: "bytes=0-0" } : undefined,
+      });
+      if (response.status === 404 || response.status === 410) {
+        return { ok: false, status: response.status };
+      }
+      if (response.status >= 200 && response.status < 400) {
+        return { ok: true, status: response.status };
+      }
+      if (method === "HEAD" && (response.status === 403 || response.status === 405)) {
+        continue;
+      }
+      return { ok: false, status: response.status };
+    } catch (error) {
+      if (method === "HEAD") continue;
+      return { ok: false, status: 0, error: String(error).slice(0, 80) };
+    }
+  }
+  return { ok: false, status: 0 };
+}
+
+const checks = await Promise.all(
+  images.map(async (url) => ({ url, ...(await checkImageUrl(url)) })),
+);
+const broken = checks.filter((check) => !check.ok);
+
+if (broken.length > 0) {
+  writeSummary([
+    "### Screenshot gate: broken image URL(s)",
+    ...broken.map(
+      (check) =>
+        `- ${check.url} → ${check.status || check.error || "unreachable"}`,
+    ),
+    "",
+    "Use an immutable raw URL (commit SHA) or a GitHub attachment; branch URLs break when the branch is deleted.",
+  ]);
+  console.error(
+    `::error title=Screenshot URL unreachable::${broken
+      .map((check) => `${check.url} (${check.status || check.error || "unreachable"})`)
+      .join(", ")}`,
+  );
+  process.exit(1);
+}
+
 writeSummary([
   "### Screenshot gate: passed",
-  `Found ${images.length} embedded screenshot URL(s).`,
+  `Found ${images.length} embedded screenshot URL(s); all returned a reachable status.`,
   ...images.slice(0, 8).map((url) => `- ${url}`),
 ]);
