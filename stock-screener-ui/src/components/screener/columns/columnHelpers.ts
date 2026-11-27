@@ -89,9 +89,10 @@ export function gapTone(value: number, errorAbove: number): "" | "success" | "er
 }
 
 type GapTone = ReturnType<typeof gapTone>;
+type GapCell = FormattedCell & { className: GapTone };
 
 /** 2-dp signed-percent gap cell with the standard 52W gap tone. */
-export function gapCell(value: number, errorAbove: number): FormattedCell & { className: GapTone } {
+export function gapCell(value: number, errorAbove: number): GapCell {
   return { value: signedPercent(value, 2), className: gapTone(value, errorAbove) };
 }
 
@@ -122,7 +123,7 @@ export function numCol(
 
 type GapRenderer = (
   value: number,
-  cell: FormattedCell,
+  cell: GapCell,
 ) => ReturnType<NonNullable<ColumnDef["format"]>>;
 
 /** One `to_52w_high` definition; `render` only swaps the cell shell (kit vs plain Text). */
