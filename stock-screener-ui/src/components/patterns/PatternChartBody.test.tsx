@@ -127,7 +127,6 @@ const HIT: PatternHitDTO = {
   bars_ago: 2,
   volume_confirmed: true,
   trendlines: [],
-  trend_lines: [],
   notes: "Breakout above ₹112.60 on volume",
   last_close: 120,
   day_change_pct: 2.5,

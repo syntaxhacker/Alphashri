@@ -118,10 +118,6 @@ def test_enrich_fetches_concurrently(monkeypatch):
         return _make_df(80)
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     items = [_hit(f"SYM{i}") for i in range(n)]
     start = time.monotonic()
@@ -147,10 +143,6 @@ def test_enrich_dedupes_keys_and_preserves_order(monkeypatch):
         return _make_df(80)
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     items = [_hit("AAA"), _hit("BBB"), _hit("AAA"), dict(_hit("CCC"), timeframe="15m")]
     out = cp_api._enrich_with_candles(items, "1D")
@@ -173,10 +165,6 @@ def test_enrich_fetch_error_isolates_item(monkeypatch):
         return _make_df(80)
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     out = cp_api._enrich_with_candles([_hit("BAD"), _hit("GOOD")], "1D")
 
@@ -199,7 +187,6 @@ def test_enrich_missing_symbol_passthrough(monkeypatch):
 
     assert out[0]["candles"] == []
     assert out[0]["last_close"] is None
-    assert out[0]["trend_lines"] == []
 
 
 

@@ -1,7 +1,7 @@
 """Store-level tests for chart-pattern persistence (chart_patterns/store.py).
 
-Covers the save/query round-trip (including scan-time ``trend_lines`` /
-``trend_lines_sig``), cross-job dedupe, LIKE escaping, and job helpers.
+Covers the save/query round-trip (including the ``source_sig`` reuse key),
+cross-job dedupe, LIKE escaping, and job helpers.
 Uses the in-memory ``test_db_engine`` fixture — no ``*.db`` files.
 """
 import math
@@ -52,20 +52,6 @@ def _hit(symbol="AAA", **overrides):
     return hit
 
 
-def _line(kind="support"):
-    return {
-        "kind": kind,
-        "start_date": "2026-01-01T00:00:00+00:00",
-        "start_price": 100.0,
-        "end_date": "2026-02-01T00:00:00+00:00",
-        "end_price": 110.0,
-        "slope": 0.2,
-        "touches": 3,
-        "span_bars": 30,
-        "violations": 0,
-    }
-
-
 def test_save_query_round_trip_fields(cp_store):
     store.save_job({"job_id": "cpj_s1", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
     assert store.save_hits("cpj_s1", [_hit()]) == 1
@@ -80,49 +66,6 @@ def test_save_query_round_trip_fields(cp_store):
     assert item["job_id"] == "cpj_s1"
     assert summary["patterns"] == 1
     assert summary["confirmed"] == 1
-
-
-def test_trend_lines_and_sig_round_trip(cp_store):
-    store.save_job({"job_id": "cpj_s2", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
-    lines = [_line("support"), _line("resistance")]
-    store.save_hits("cpj_s2", [_hit(trend_lines=lines, trend_lines_sig="sig-123")])
-
-    items, total, _ = store.query_results({"job_id": "cpj_s2"})
-
-    assert total == 1
-    assert items[0]["trend_lines"] == lines
-    assert items[0]["trend_lines_sig"] == "sig-123"
-
-
-def test_trend_lines_window_round_trip(cp_store):
-    """The trailing-window fingerprint survives the payload JSON round trip.
-
-    Read-side reuse keys on it: a row that loses it falls back to the legacy
-    signature-only gate, so a broken round trip silently disables the proof.
-    """
-    store.save_job({"job_id": "cpj_s2w", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
-    lines = [_line("support")]
-    store.save_hits("cpj_s2w", [_hit(
-        trend_lines=lines, trend_lines_sig="sig-123", trend_lines_window="400:deadbeefdeadbeef",
-    )])
-
-    items, total, _ = store.query_results({"job_id": "cpj_s2w"})
-
-    assert total == 1
-    assert items[0]["trend_lines"] == lines
-    assert items[0]["trend_lines_window"] == "400:deadbeefdeadbeef"
-
-
-def test_blank_trend_lines_yield_empty_and_none_sig(cp_store):
-    store.save_job({"job_id": "cpj_s3", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
-    store.save_hits("cpj_s3", [_hit()])
-
-    items, total, _ = store.query_results({"job_id": "cpj_s3"})
-
-    assert total == 1
-    assert items[0]["trend_lines"] == []
-    assert items[0]["trend_lines_sig"] is None
-    assert items[0]["trend_lines_window"] is None
 
 
 def test_dedupe_across_jobs_unfiltered(cp_store):
@@ -495,8 +438,6 @@ def test_latest_hits_by_symbol_promotes_source_sig(cp_store):
     assert set(by_symbol) == {"AAA", "BBB"}
     assert by_symbol["AAA"]["source_sig"] == "sig-1"
     assert by_symbol["BBB"]["source_sig"] is None
-    # Scan-time lines are promoted too so a reuse read has everything it needs.
-    assert isinstance(by_symbol["AAA"].get("trend_lines"), list)
 
 
 def test_latest_hits_by_symbol_is_scoped_and_excludes_current(cp_store):

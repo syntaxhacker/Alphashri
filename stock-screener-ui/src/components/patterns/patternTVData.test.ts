@@ -5,7 +5,6 @@ import type {
   ChartIndicators,
   PatternHitDTO,
   SRZone,
-  TrendLine,
 } from "@/types/chartPatterns";
 import {
   SR_ZONE_AGE_LABEL_MIN_BARS,
@@ -16,7 +15,7 @@ import {
 } from "./patternTVData";
 import { TZ_US, toEpochSeconds } from "@/utils/chart/time";
 import { INDICATOR_SERIES_META } from "./patternIndicatorData";
-import { makeIRCONHit, makeTrendLine } from "./patternTestFixtures";
+import { makeIRCONHit } from "./patternTestFixtures";
 
 function candle(t: string, o: number, c: number, v = 1000): ChartCandle {
   return { t, o, h: Math.max(o, c) + 1, l: Math.min(o, c) - 1, c, v };
@@ -41,10 +40,6 @@ function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
         { t: "2026-04-01", price: 99 },
         { t: "2026-04-05", price: 103 },
       ],
-    ],
-    trend_lines: [
-      makeTrendLine(),
-      makeTrendLine({ kind: "resistance", start_price: 103, end_price: 107, touches: 2 }),
     ],
     pivots: [
       { t: "2026-04-02", price: 103, kind: "high" },
@@ -93,7 +88,6 @@ describe("buildPatternTVData", () => {
           trendlines: [[{ t: "2026-04-02", price: 101 }, { t: "2026-04-04", price: 105 }]],
         },
       ],
-      trendLines: [],
     });
     const selected = out.lines.filter((l) => l.name === "Falling Wedge");
     const sibling = out.lines.filter((l) => l.name === "Ascending Channel");
@@ -104,7 +98,7 @@ describe("buildPatternTVData", () => {
     expect(sibling[0]).toMatchObject({ dashed: true, width: 1, color: PATTERN_TV_COLORS[1] });
   });
 
-  it("labels only a pattern's first boundary line, and TLS/TLR with touch counts", () => {
+  it("labels only a pattern's first boundary line", () => {
     const out = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
     const selected = out.lines.filter((l) => l.name === "Falling Wedge");
     // Both boundaries are drawn, but only one carries the inline end label.
@@ -112,10 +106,6 @@ describe("buildPatternTVData", () => {
     expect(selected.filter((l) => l.labelEligible)).toHaveLength(1);
     expect(selected.find((l) => l.labelEligible)?.label).toBe("Falling Wedge");
     expect(selected.find((l) => !l.labelEligible)?.label).toBeUndefined();
-
-    const tls = out.lines.find((l) => l.name === "TLS");
-    expect(tls?.labelEligible).toBe(true);
-    expect(tls?.label).toMatch(/^TLS · \d+ touches$/);
   });
 
   it("skips the overlay that matches the selected pattern instance", () => {
@@ -130,40 +120,14 @@ describe("buildPatternTVData", () => {
           trendlines: [[{ t: "2026-04-01", price: 103 }, { t: "2026-04-05", price: 109 }]],
         },
       ],
-      trendLines: [],
     });
     expect(out.lines.filter((l) => l.dashed)).toHaveLength(0);
   });
 
-  it("gates TLS/TLR standalone lines by trendlinesView", () => {
-    const both = buildPatternTVData({ candles: CANDLES, hit: makeHit({ trendlines: [] }) });
-    expect(both.lines.map((l) => l.name).sort()).toEqual(["TLR", "TLS"]);
-
-    const support = buildPatternTVData({
-      candles: CANDLES,
-      hit: makeHit({ trendlines: [] }),
-      trendlinesView: "support",
-    });
-    expect(support.lines.map((l) => l.name)).toEqual(["TLS"]);
-
-    const resistance = buildPatternTVData({
-      candles: CANDLES,
-      hit: makeHit({ trendlines: [] }),
-      trendlinesView: "resistance",
-    });
-    expect(resistance.lines.map((l) => l.name)).toEqual(["TLR"]);
-
-    const none = buildPatternTVData({
-      candles: CANDLES,
-      hit: makeHit({ trendlines: [] }),
-      trendlinesView: "none",
-    });
-    expect(none.lines).toEqual([]);
-  });
-
-  it("snaps TLS/TLR endpoints to existing candle times as 2-point segments", () => {
-    const out = buildPatternTVData({ candles: CANDLES, hit: makeHit({ trendlines: [] }) });
+  it("snaps pattern boundary endpoints to existing candle times as 2-point segments", () => {
+    const out = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
     const candleTimes = new Set(CANDLES.map((c) => toTVTime(c.t)));
+    expect(out.lines).toHaveLength(2);
     for (const line of out.lines) {
       expect(line.points.length).toBe(2);
       for (const p of line.points) {
@@ -171,33 +135,6 @@ describe("buildPatternTVData", () => {
         expect(Number.isFinite(p.value)).toBe(true);
       }
     }
-    const tls = out.lines.find((l) => l.name === "TLS");
-    const tlr = out.lines.find((l) => l.name === "TLR");
-    expect(tls?.color).toBe(POSITIVE);
-    expect(tlr?.color).toBe(NEGATIVE);
-    const full = buildPatternTVData({ candles: CANDLES, hit: makeHit(), trendLines: [] });
-    for (const line of full.lines) {
-      for (const p of line.points) expect(candleTimes.has(p.time)).toBe(true);
-    }
-  });
-
-  it("drops standalone lines outside the candle window", () => {
-    const outside: TrendLine = {
-      kind: "support",
-      start_date: "2025-01-01",
-      start_price: 50,
-      end_date: "2025-01-05",
-      end_price: 55,
-      slope: 1,
-      touches: 2,
-      span_bars: 5,
-      violations: 0,
-    };
-    const out = buildPatternTVData({
-      candles: CANDLES,
-      hit: makeHit({ trendlines: [], trend_lines: [outside] }),
-    });
-    expect(out.lines).toEqual([]);
   });
 
   it("dedupes a trendline whose endpoints clamp onto the same candle", () => {
@@ -213,7 +150,6 @@ describe("buildPatternTVData", () => {
           ],
         ],
       }),
-      trendLines: [],
     });
     expect(out.lines).toHaveLength(1);
     const times = out.lines[0]?.points.map((p) => p.time) ?? [];
@@ -222,7 +158,7 @@ describe("buildPatternTVData", () => {
   });
 
   it("emits no pattern markers when there are no indicator crosses", () => {
-    const out = buildPatternTVData({ candles: CANDLES, hit: makeHit(), trendLines: [] });
+    const out = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
     expect(out.markers).toEqual([]);
   });
 

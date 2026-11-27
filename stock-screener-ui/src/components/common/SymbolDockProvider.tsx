@@ -60,7 +60,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     closeFullscreen,
     selectFullscreenHit,
     refreshSymbolChart,
-  } = usePatternFullscreen({ timeframe: "1D", computeTrendlines: true });
+  } = usePatternFullscreen({ timeframe: "1D" });
 
   let previewTimer: number | null = null;
   let closeTimer: number | null = null;
@@ -517,8 +517,6 @@ function ChartPanel(props: {
       hits={props.state.hits ?? []}
       onSelectHit={props.onSelectHit}
       candles={props.state.candles ?? []}
-      trendLines={props.state.trendLines ?? []}
-      trendlinesView="both"
       indicators={props.state.indicators}
       srZones={props.state.srZones}
       timeframe={props.state.timeframe}

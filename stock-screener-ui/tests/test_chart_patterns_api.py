@@ -615,10 +615,6 @@ def test_symbol_chart_vwap_uses_pre_window_session_bars(
     monkeypatch.setattr(
         cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame
     )
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     chart = cp_client.get(
         "/api/chart-patterns/symbol/IRCON/chart",
@@ -658,10 +654,6 @@ def test_symbol_chart_asof_vwap_uses_pre_window_session_bars(
     )
     monkeypatch.setattr(
         cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame
-    )
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
     )
 
     chart = cp_client.get(
@@ -709,10 +701,6 @@ def test_symbol_chart_asof_vwap_without_warmup_stays_null(
         cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame
     )
     monkeypatch.setattr(cp_api, "_warmup_candles", lambda *a, **k: [])
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     chart = cp_client.get(
         "/api/chart-patterns/symbol/IRCON/chart",
@@ -744,10 +732,6 @@ def test_symbol_chart_carries_aligned_indicators_and_zones(cp_client, monkeypatc
         index=idx,
     )
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     chart = cp_client.get(
         "/api/chart-patterns/symbol/IRCON/chart",
@@ -780,7 +764,6 @@ def test_chart_extras_are_recomputed_after_cache_retrieval(cp_client, monkeypatc
         "timeframe": "1D",
         "candles": cp_api._fast_candle_series(df, 30),
         "overlays": [],
-        "trend_lines": [],
         "error": "no_data",
         "note": "cached answer",
     }
@@ -1324,100 +1307,8 @@ def test_scan_with_lookback_bars_too_large_422(cp_client, monkeypatch):
 
 
 
-def _fake_trendline(kind: str) -> dict:
-    return {
-        "kind": kind,
-        "start_date": "2026-01-01T00:00:00+00:00",
-        "start_price": 100.0,
-        "end_date": "2026-03-01T00:00:00+00:00",
-        "end_price": 110.0,
-        "slope": 0.2,
-        "touches": 3,
-        "span_bars": 40,
-        "violations": 0,
-    }
-
-
-def test_results_items_include_trend_lines(cp_client, monkeypatch):
-    store.save_job({
-        "job_id": "cpj_tl", "universe": "nifty500", "timeframe": "1D",
-        "status": "completed", "total": 10, "done": 10,
-    })
-    store.save_hits("cpj_tl", [_hit("AAA")])
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
-    )
-
-    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_tl"})
-    assert resp.status_code == 200
-    items = resp.json()["items"]
-    assert len(items) == 1
-    assert isinstance(items[0]["trend_lines"], list)
-    assert len(items[0]["trend_lines"]) == 1
-    assert items[0]["trend_lines"][0]["kind"] == "support"
-
-
-def test_results_trend_lines_error_falls_back_to_empty(cp_client, monkeypatch):
-    store.save_job({
-        "job_id": "cpj_tl_err", "universe": "nifty500", "timeframe": "1D",
-        "status": "completed", "total": 10, "done": 10,
-    })
-    store.save_hits("cpj_tl_err", [_hit("AAA")])
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-
-    def _boom(df, lookback_bars=None):
-        raise RuntimeError("detector exploded")
-
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-
-    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_tl_err"})
-    assert resp.status_code == 200
-    assert resp.json()["items"][0]["trend_lines"] == []
-
-
-def test_symbol_chart_includes_trend_lines(cp_client, monkeypatch):
-    store.save_hits("cpj_tlsym", [_hit("IRCON")])
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": _fake_trendline("resistance")},
-    )
-
-    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
-    assert chart.status_code == 200
-    body = chart.json()
-    assert isinstance(body["trend_lines"], list)
-    assert len(body["trend_lines"]) == 2
-    assert {t["kind"] for t in body["trend_lines"]} == {"support", "resistance"}
-
-
-def test_enrich_keeps_stored_trend_lines_without_detector(monkeypatch):
-    """Fresh stored lines (matching signature) must not trigger the detector."""
-    stored = [_fake_trendline("support"), _fake_trendline("resistance")]
-    item = dict(_hit("AAA"), trend_lines=stored, trend_lines_sig=config.trendline_signature())
-    seen = {}
-
-    def _fetch(symbol, timeframe, **kwargs):
-        seen.update(kwargs)
-        return _make_df(80)
-
-    def _boom(df):
-        raise AssertionError("detect_trendlines must not run for stored lines")
-
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-
-    out = cp_api._enrich_with_candles([item], "1D")
-
-    assert out[0]["trend_lines"] == stored
-    assert out[0]["candles"], "candle window is still attached"
-    assert seen.get("lookback_bars") == 500
-
-
-def test_enrich_fetches_bounded_lookback_and_recomputes_when_blank(monkeypatch):
-    """Blank stored lines fall back to the detector on a 500-bar fetch."""
+def test_enrich_fetches_bounded_lookback(monkeypatch):
+    """An Auto card fetch still covers the configured detection headroom."""
     seen = {}
 
     def _fetch(symbol, timeframe, **kwargs):
@@ -1425,209 +1316,11 @@ def test_enrich_fetches_bounded_lookback_and_recomputes_when_blank(monkeypatch):
         return _make_df(80)
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
-    )
 
     out = cp_api._enrich_with_candles([_hit("AAA")], "1D")
 
     assert seen.get("lookback_bars") == 500
-    assert out[0]["trend_lines"] == [_fake_trendline("support")]
-
-
-def test_enrich_recomputes_when_signature_stale(monkeypatch):
-    """Stale stored lines (signature mismatch) are recomputed, not kept."""
-    stored = [_fake_trendline("support")]
-    item = dict(_hit("AAA"), trend_lines=stored, trend_lines_sig="stale-sig")
-    calls = []
-
-    def _boom(df, lookback_bars=None):
-        calls.append(1)
-        raise RuntimeError("detector exploded")
-
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-
-    out = cp_api._enrich_with_candles([item], "1D")
-
-    assert calls, "stale signature must trigger a detector recompute"
-    assert out[0]["trend_lines"] == []
     assert out[0]["candles"], "candle window is still attached"
-
-
-def test_enrich_keeps_fresh_signature_without_detector(monkeypatch):
-    """A matching signature keeps stored lines (detector NOT called)."""
-    stored = [_fake_trendline("support"), _fake_trendline("resistance")]
-    item = dict(_hit("AAA"), trend_lines=stored, trend_lines_sig=config.trendline_signature())
-
-    def _boom(df, lookback_bars=None):
-        raise AssertionError("detect_trendlines must not run for a fresh signature")
-
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-
-    out = cp_api._enrich_with_candles([item], "1D")
-
-    assert out[0]["trend_lines"] == stored
-    assert out[0]["candles"], "candle window is still attached"
-
-
-def test_enrich_reuses_scan_lines_when_window_signature_matches(monkeypatch):
-    """A stored hit whose window fingerprint matches the frame skips the detector."""
-    from chart_patterns import trendlines
-
-    df = _make_df(300)
-    stored = [_fake_trendline("support"), _fake_trendline("resistance")]
-    item = dict(
-        _hit("AAA"), trend_lines=stored, trend_lines_sig=config.trendline_signature(),
-        trend_lines_window=trendlines.window_signature(df),
-    )
-    assert item["trend_lines_window"], "fixture must carry a real fingerprint"
-    calls = []
-
-    def _boom(df_, lookback_bars=None):
-        calls.append(1)
-        raise AssertionError("detect_trendlines must not run for a matching window")
-
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-
-    out = cp_api._enrich_with_candles([item], "1D")
-
-    assert not calls
-    assert out[0]["trend_lines"] == stored
-
-
-def test_enrich_recomputes_when_window_signature_is_stale(monkeypatch):
-    """A fingerprint from a different window must not authorise the stored lines."""
-    from chart_patterns import trendlines
-
-    served = _make_df(300)
-    scanned = _make_df(300)
-    scanned.iloc[-1, scanned.columns.get_loc("close")] += 5.0
-    served_fp = trendlines.window_signature(served)
-    scanned_fp = trendlines.window_signature(scanned)
-    assert served_fp != scanned_fp, "fixtures must differ in the trailing window"
-
-    stored = [_fake_trendline("support")]
-    item = dict(
-        _hit("AAA"), trend_lines=stored, trend_lines_sig=config.trendline_signature(),
-        trend_lines_window=scanned_fp,
-    )
-    calls = []
-
-    def _detect(df_, lookback_bars=None):
-        calls.append(1)
-        return {"support": _fake_trendline("support"), "resistance": None}
-
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: served)
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _detect)
-
-    out = cp_api._enrich_with_candles([item], "1D")
-
-    assert calls, "a stale window fingerprint must recompute the lines"
-    assert out[0]["trend_lines"] == [_fake_trendline("support")]
-
-
-def test_enrich_recomputes_without_a_window_signature(monkeypatch):
-    """Rows persisted before the fingerprint existed keep the signature-only gate.
-
-    They cannot be proven stale, so they are still honoured (recomputing them
-    on every request is the cost this reuse path exists to avoid); once a
-    fingerprint exists it is enforced.
-    """
-    stored = [_fake_trendline("support")]
-    item = dict(_hit("AAA"), trend_lines=stored, trend_lines_sig=config.trendline_signature())
-
-    def _boom(df_, lookback_bars=None):
-        raise AssertionError("legacy rows keep the signature-only path")
-
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-
-    out = cp_api._enrich_with_candles([item], "1D")
-
-    assert out[0]["trend_lines"] == stored
-
-
-def test_enrich_reuses_proven_empty_scan_result(monkeypatch):
-    """A scan that found NO lines on this window is an answer, not a miss.
-
-    Treating the empty list as "unknown" re-ran the detector for every such
-    card on every poll — the strictness that made ``/results`` recompute.
-    """
-    from chart_patterns import trendlines
-
-    df = _make_df(300)
-    item = dict(
-        _hit("AAA"), trend_lines=[], trend_lines_sig=config.trendline_signature(),
-        trend_lines_window=trendlines.window_signature(df),
-    )
-
-    def _boom(df_, lookback_bars=None):
-        raise AssertionError("a proven-empty scan result must not recompute")
-
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-
-    out = cp_api._enrich_with_candles([item], "1D")
-
-    assert out[0]["trend_lines"] == []
-    assert out[0]["candles"], "candle window is still attached"
-
-
-def test_enrich_recomputes_empty_lines_without_a_window_proof(monkeypatch):
-    """An unsigned empty list cannot be told apart from "never ran" → recompute."""
-    item = dict(_hit("AAA"), trend_lines=[], trend_lines_sig=config.trendline_signature())
-    calls = []
-
-    def _detect(df_, lookback_bars=None):
-        calls.append(1)
-        return {"support": _fake_trendline("support"), "resistance": None}
-
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _detect)
-
-    out = cp_api._enrich_with_candles([item], "1D")
-
-    assert calls
-    assert out[0]["trend_lines"] == [_fake_trendline("support")]
-
-
-def test_scan_persists_trend_lines_window_signature(monkeypatch):
-    """Scan-time hits carry the fingerprint of the window their lines were fitted to."""
-    from chart_patterns import scan as scan_mod
-    from chart_patterns import trendlines
-
-    df = _make_df(300)
-
-    def _detect(df_, timeframe, symbol):
-        return [{"pattern_id": "falling_wedge", "end_date": "2026-09-26", "bars_ago": 1}]
-
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
-    monkeypatch.setattr(scan_mod, "_detect", _detect)
-    monkeypatch.setattr(
-        scan_mod.trendlines_mod, "detect_trendlines",
-        lambda df_, lookback_bars=None: {
-            "support": _fake_trendline("support"), "resistance": None,
-        },
-    )
-
-    result = scan_mod._process_symbol(
-        "AAA", "1D", "cpj_win", compute_trendlines=True, lookback_bars=None,
-    )
-    hit = result["hits"][0]
-    assert hit["trend_lines"], "scan-time lines are still attached"
-    assert hit["trend_lines_sig"] == config.trendline_signature()
-    assert hit["trend_lines_window"] == trendlines.window_signature(df)
-
-    def _boom(df_, lookback_bars=None):
-        raise AssertionError("matching window must not recompute")
-
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-    out = cp_api._enrich_with_candles([dict(hit)], "1D")
-    assert out[0]["trend_lines"] == hit["trend_lines"]
 
 
 def test_results_lookback_bars_spans_full_window(cp_client, monkeypatch):
@@ -1650,10 +1343,6 @@ def test_results_lookback_bars_spans_full_window(cp_client, monkeypatch):
         return _make_df(250)
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
-    )
 
     resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_lbl", "lookback_bars": 250})
     assert resp.status_code == 200
@@ -1772,70 +1461,7 @@ def test_symbol_chart_live_from_date_and_lookback_intersect(
     assert all(candle["t"][:10] >= "2026-02-01" for candle in body["candles"])
 
 
-def test_results_compute_trendlines_false_skips_detector(cp_client, monkeypatch):
-    store.save_job({
-        "job_id": "cpj_tlskip", "universe": "nifty500", "timeframe": "1D",
-        "status": "completed", "total": 10, "done": 10,
-    })
-    store.save_hits("cpj_tlskip", [_hit("AAA")])
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-
-    def _boom(df, lookback_bars=None):
-        raise AssertionError("detect_trendlines must not run when compute_trendlines=false")
-
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-
-    resp = cp_client.get(
-        "/api/chart-patterns/results",
-        params={"job_id": "cpj_tlskip", "compute_trendlines": "false"},
-    )
-    assert resp.status_code == 200
-    items = resp.json()["items"]
-    assert len(items) == 1
-    assert items[0]["trend_lines"] == []
-    # Candles + closes are still attached.
-    assert items[0]["candles"], "candle window is still attached"
-    assert items[0]["last_close"] is not None
-    assert items[0]["day_change_pct"] is not None
-
-
-def test_results_compute_trendlines_default_still_computes(cp_client, monkeypatch):
-    store.save_job({
-        "job_id": "cpj_tldef", "universe": "nifty500", "timeframe": "1D",
-        "status": "completed", "total": 10, "done": 10,
-    })
-    store.save_hits("cpj_tldef", [_hit("AAA")])
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
-    )
-
-    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_tldef"})
-    assert resp.status_code == 200
-    assert resp.json()["items"][0]["trend_lines"] == [_fake_trendline("support")]
-
-
-def test_symbol_chart_compute_trendlines_false_skips_detector(cp_client, monkeypatch):
-    store.save_hits("cpj_tlskipchart", [_hit("IRCON")])
-    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-
-    def _boom(df, lookback_bars=None):
-        raise AssertionError("detect_trendlines must not run when compute_trendlines=false")
-
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
-
-    chart = cp_client.get(
-        "/api/chart-patterns/symbol/IRCON/chart",
-        params={"timeframe": "1D", "compute_trendlines": "false"},
-    )
-    assert chart.status_code == 200
-    assert chart.json()["trend_lines"] == []
-
-
-
-
-def test_scan_forwards_compute_trendlines_false(cp_client, monkeypatch):
+def test_scan_params_carry_no_trendline_flag(cp_client, monkeypatch):
     captured = {}
 
     def fake_submit(universe, timeframe, requested_by=None, params=None):
@@ -1848,10 +1474,11 @@ def test_scan_forwards_compute_trendlines_false(cp_client, monkeypatch):
     monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
     resp = cp_client.post(
         "/api/chart-patterns/scan",
-        json={"universe": "nifty500", "timeframe": "1D", "compute_trendlines": False},
+        json={"universe": "nifty500", "timeframe": "1D"},
     )
     assert resp.status_code == 200
-    assert captured["params"]["compute_trendlines"] is False
+    assert "compute_trendlines" not in captured["params"]
+    assert "trend_lines" not in captured["params"]
 
 
 def test_scan_lookback_boundaries_accepted(cp_client, monkeypatch):
@@ -2054,14 +1681,7 @@ def test_results_items_carry_tags(cp_client, monkeypatch):
     })
     store.save_hits("cpj_tags", [_hit("NIFTYBEES"), _hit("RELIANCE"), _hit("AAA")])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
-    resp = cp_client.get(
-        "/api/chart-patterns/results",
-        params={"job_id": "cpj_tags", "compute_trendlines": "false"},
-    )
+    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_tags"})
     assert resp.status_code == 200
     by_symbol = {item["symbol"]: item for item in resp.json()["items"]}
     assert set(by_symbol) == {"NIFTYBEES", "RELIANCE", "AAA"}
@@ -2184,10 +1804,6 @@ def test_results_cards_lookback_bars_clamps_to_exactly_n(cp_client, monkeypatch)
         return _make_df(300)
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
-    )
 
     resp = cp_client.get(
         "/api/chart-patterns/results",
@@ -2212,10 +1828,6 @@ def test_results_card_series_capped_at_card_max_bars(cp_client, monkeypatch):
     store.save_hits("cpj_cardcap", [_hit("AAA")])
     df = _make_df(713)
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
-    )
 
     resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_cardcap"})
     assert resp.status_code == 200
@@ -2225,8 +1837,6 @@ def test_results_card_series_capped_at_card_max_bars(cp_client, monkeypatch):
     assert item["last_close"] == pytest.approx(float(df["close"].iloc[-1]))
     assert item["day_change_pct"] is not None
     assert item["close_bar_date"] is not None, "the close still carries its bar date"
-    # The estimator still ran on the FULL frame, not the capped series.
-    assert len(item["trend_lines"]) == 1
 
 
 def test_results_card_cap_does_not_touch_the_full_chart(cp_client, monkeypatch, no_stale_first):
@@ -2254,10 +1864,6 @@ def test_results_card_and_stream_agree_on_the_capped_series(cp_client, monkeypat
     })
     store.save_hits("cpj_cardcap_stream", [_hit("AAA")])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(713))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     batch = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_cardcap_stream"})
     assert batch.status_code == 200
@@ -2267,7 +1873,7 @@ def test_results_card_and_stream_agree_on_the_capped_series(cp_client, monkeypat
     async def _collect():
         gen = cp_api._results_sse_events(
             [dict(item)], default_timeframe="1D", lookback_bars=None,
-            compute_trendlines=True, total=1, summary={}, data_through=None,
+            total=1, summary={}, data_through=None,
             request=None, max_bars=config.CARD_MAX_BARS,
         )
         out = []
@@ -2358,10 +1964,6 @@ def test_symbol_chart_1d_marks_synthetic_last_bar(cp_client, monkeypatch, tmp_pa
     monkeypatch.setattr(
         "market_data.market_data.get_api_client", lambda: _partial_tape(day=today)
     )
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
     assert chart.status_code == 200
@@ -2389,10 +1991,6 @@ def test_symbol_chart_1d_empty_tape_has_no_partial_mark(cp_client, monkeypatch, 
     monkeypatch.setattr(
         "market_data.market_data.get_api_client",
         lambda: SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: empty),
-    )
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
     )
 
     chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
@@ -2511,9 +2109,8 @@ def test_symbol_chart_detect_patterns_returns_hits(cp_client, monkeypatch, no_st
     assert body["overlays"][-1]["pattern_id"] == "double_bottom"
     assert body["overlays"][-1]["start_date"] == "2026-01-01"
     assert body["overlays"][-1]["end_date"] == "2026-02-01"
-    # Candles and trend_lines are unchanged.
+    # Candles are unchanged.
     assert len(body["candles"]) == 80
-    assert isinstance(body["trend_lines"], list)
 
 
 def test_symbol_chart_without_detect_patterns_returns_stored_hits(cp_client, monkeypatch, no_stale_first):
@@ -2542,7 +2139,7 @@ def test_symbol_chart_without_detect_patterns_returns_stored_hits(cp_client, mon
     # A successful network-path chart now carries the same freshness keys as a
     # cache serve; only the optional expected_as_of may additionally appear.
     assert set(body) - {"expected_as_of"} == {
-        "symbol", "timeframe", "candles", "overlays", "trend_lines",
+        "symbol", "timeframe", "candles", "overlays",
         "as_of", "stale", "detection_as_of", "hits", "close_bar_date",
         "indicators", "sr_zones",
     }
@@ -2990,10 +2587,6 @@ def test_large_results_response_is_gzipped_with_identical_body(gz_client, monkey
     })
     store.save_hits("cpj_gz", [_hit(f"GZ{i:03d}") for i in range(10)])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(500))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     plain = gz_client.get(
         "/api/chart-patterns/results",
@@ -3040,10 +2633,6 @@ def test_results_auto_returns_whole_fetched_window(cp_client, monkeypatch):
     })
     store.save_hits("cpj_auto", [_hit("AAA")])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_auto"})
     assert resp.status_code == 200
@@ -3058,10 +2647,6 @@ def test_gzip_wire_bytes_decompress_to_identical_payload(gz_app, monkeypatch):
     })
     store.save_hits("cpj_gz_wire", [_hit(f"GZ{i:03d}") for i in range(10)])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(500))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
     path = "/api/chart-patterns/results?job_id=cpj_gz_wire"
 
     _, plain_headers, plain_body = asyncio.run(_raw_asgi_get(gz_app, path, "identity"))
@@ -3296,7 +2881,7 @@ def test_symbol_chart_fetch_timeout_returns_empty_200(cp_client, monkeypatch, tm
     assert body["symbol"] == "POWERMECH" and body["timeframe"] == "1D"
     assert body["indicators"] is None
     assert body["sr_zones"] == []
-    assert set(body) >= {"symbol", "timeframe", "candles", "overlays", "trend_lines", "error", "note"}
+    assert set(body) >= {"symbol", "timeframe", "candles", "overlays", "error", "note"}
     # The timeout bound the wait: nowhere near the 30s hang.
     assert elapsed < 5, f"fetch was not bounded: {elapsed:.1f}s"
 
@@ -3392,10 +2977,6 @@ def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch, no_stale_fir
         return _make_df(80)
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _df)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
     cp_api._chart_neg_cache.clear()
 
     chart = cp_client.get("/api/chart-patterns/symbol/RELIANCE/chart", params={"timeframe": "1D", "limit": 50})
@@ -3406,7 +2987,7 @@ def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch, no_stale_fir
     assert body["candles"][0]["t"] and "o" in body["candles"][0]
     assert "error" not in body and "note" not in body
     assert set(body) - {"expected_as_of"} == {
-        "symbol", "timeframe", "candles", "overlays", "trend_lines",
+        "symbol", "timeframe", "candles", "overlays",
         "as_of", "stale", "detection_as_of", "hits", "close_bar_date",
         "indicators", "sr_zones",
     }
@@ -3467,7 +3048,7 @@ def test_symbol_chart_fetch_timeout_stale_fallback_returns_cached_frame(
     assert "error" not in body
     assert len(body["candles"]) == 80
     assert body["candles"][-1]["c"] == pytest.approx(float(df["close"].iloc[-1]))
-    assert body["overlays"] == [] and body["trend_lines"] == []
+    assert body["overlays"] == []
     _assert_chart_extras(body)
     assert elapsed < 5, f"fetch was not bounded: {elapsed:.1f}s"
     joined = [rec.getMessage() for rec in caplog.records]
@@ -3902,7 +3483,7 @@ def test_symbol_chart_stale_first_takes_precedence_over_neg_cache(
     cp_api._chart_neg_cache_put(
         "POWERMECH", "1D", cp_api._ist_session_date(),
         {"symbol": "POWERMECH", "timeframe": "1D", "candles": [],
-         "overlays": [], "trend_lines": [], "error": "no_data", "note": "cached empty"},
+         "overlays": [], "error": "no_data", "note": "cached empty"},
     )
     fetch_calls: list = []
 
@@ -4192,18 +3773,12 @@ def test_pattern_hit_cache_hit_skips_engine_and_detector(cp_client, monkeypatch)
     store.save_hits("cpj_patcache", [_hit("IRCON")])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
     engine_calls: list = []
-    detect_calls: list = []
 
     def fake_detect(df_, timeframe, symbol):
         engine_calls.append(1)
         return [_live_hit(symbol)]
 
-    def fake_tl(df_, lookback_bars=None):
-        detect_calls.append(1)
-        return {"support": _fake_trendline("support"), "resistance": None}
-
     monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", fake_tl)
 
     first = cp_client.get(
         "/api/chart-patterns/symbol/IRCON/chart",
@@ -4215,10 +3790,7 @@ def test_pattern_hit_cache_hit_skips_engine_and_detector(cp_client, monkeypatch)
     )
     assert first.status_code == second.status_code == 200
     assert first.json()["hits"] == second.json()["hits"]
-    assert first.json()["trend_lines"] == second.json()["trend_lines"]
-    assert first.json()["trend_lines"] == [_fake_trendline("support")]
     assert len(engine_calls) == 1
-    assert len(detect_calls) == 1
 
 
 def test_pattern_hit_cache_keyed_by_session(cp_client, monkeypatch):
@@ -4236,10 +3808,6 @@ def test_pattern_hit_cache_keyed_by_session(cp_client, monkeypatch):
         return [_live_hit(symbol)]
 
     monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df_, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     cp_client.get(
         "/api/chart-patterns/symbol/IRCON/chart",

@@ -279,7 +279,6 @@ def _payload_sizes(candles: list[dict], extras: dict, symbol: str) -> dict:
             "symbol": symbol,
             "candles": candles,
             "overlays": [],
-            "trend_lines": [],
             "hits": [],
             **extras,
         },

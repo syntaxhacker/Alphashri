@@ -1,8 +1,8 @@
 # Chart-pattern detection performance
 
-Reproducible timing for `chart_patterns.engine.detect_patterns` and
-`chart_patterns.trendlines.detect_trendlines`. The script is tooling only — it does
-not import the DB or start FastAPI, and it never writes outside the cache file.
+Reproducible timing for `chart_patterns.engine.detect_patterns`. The script is
+tooling only — it does not import the DB or start FastAPI, and it never writes
+outside the cache file.
 
 ## Commands
 
@@ -23,15 +23,15 @@ Run from `stock-screener-ui/` with the project venv.
 
 Useful flags: `--timeframes 1D,1h,5m` (default), `--seed 42` (synthetic RNG),
 `--period` / `--intraday-period` (real), `--cache PATH` (default
-`/tmp/alphashri_pattern_frames.pkl`), `--trendline-lookback N`. `--runs` defaults to 3.
+`/tmp/alphashri_pattern_frames.pkl`). `--runs` defaults to 3.
 Timeframes map to backing frames: `1D/1W/1M` → daily, `1h..4h` → 1h, the rest → 5m.
 
 ## What the hash protects
 
 Each group prints a sha256 of the **canonical JSON of every detector output** for that
-group: `PatternHit`s converted with `dataclasses.asdict` and trendline dicts, with
-sorted keys, sorted item order (timeframe, symbol), non-finite floats normalised and
-no whitespace variation. The `ALL/combined` row hashes both operations together.
+group: `PatternHit`s converted with `dataclasses.asdict`, with sorted keys, sorted
+item order (timeframe, symbol), non-finite floats normalised and no whitespace
+variation. The `ALL/patterns` row hashes every timeframe together.
 
 The hash is an **exact-output-equivalence guard**, not a timing metric. An optimisation
 is only valid when the before/after hashes match byte-for-byte (and hit counts agree);
@@ -41,10 +41,10 @@ with `Output stable across runs: False` if they ever differ.
 
 ## Why interleaved runs and the median
 
-Frames are processed with runs as the outer loop and both operations called on every
-frame inside it: `run1: (all symbols × patterns, trendlines), run2: …`. Interleaving
-spreads warm-up, OS page caching, CPU frequency scaling and thermal drift evenly across
-both operations instead of charging all of it to whichever runs second. **Min** is the
+Frames are processed with runs as the outer loop and detection called on every
+frame inside it: `run1: all symbols × patterns, run2: …`. Interleaving spreads
+warm-up, OS page caching, CPU frequency scaling and thermal drift evenly across
+timeframes instead of charging all of it to whichever runs second. **Min** is the
 closest observable to the frame's uncontended cost; **median** is robust to the GC
 pauses and scheduler pre-emption that a mean would absorb. Compare min/median, and
 compare the same groups (same timeframe, same op, same cache) — never an aggregate from

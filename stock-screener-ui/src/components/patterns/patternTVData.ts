@@ -4,8 +4,6 @@ import type {
   PatternHitDTO,
   PatternOverlay,
   SRZone,
-  TrendLine,
-  TrendlinesView,
   Trendline,
 } from "@/types/chartPatterns";
 import { PATTERN_SERIES_COLORS } from "@/config/patterns";
@@ -20,7 +18,6 @@ import {
   alignSRZones,
   type IndicatorLineStyle,
 } from "./patternIndicatorData";
-import { resolveVisibleStandalone } from "./standaloneLines";
 
 export const PATTERN_TV_COLORS: string[] = PATTERN_SERIES_COLORS;
 
@@ -115,8 +112,6 @@ export interface BuildPatternTVDataInput {
   candles: ChartCandle[];
   hit?: PatternHitDTO | null;
   overlays?: TVSiblingOverlay[];
-  trendLines?: TrendLine[];
-  trendlinesView?: TrendlinesView;
   historyHits?: PatternHitDTO[];
   /** Server-computed indicator bundle; ignored when its timeframe disagrees. */
   indicators?: ChartIndicators | null;
@@ -189,8 +184,6 @@ export function buildPatternTVData({
   candles,
   hit,
   overlays,
-  trendLines,
-  trendlinesView = "both",
   historyHits = [],
   indicators,
   srZones,
@@ -209,7 +202,7 @@ export function buildPatternTVData({
   const times = candles.map((c) => c.t);
   if (times.length === 0) return empty;
 
-  // Axis parses once per build; every group/standalone lookup below reuses it.
+  // Axis parses once per build; every group lookup below reuses it.
   const axis = createAxisIndex(times);
 
   const epochs: number[] = times.map((t) => toEpochSeconds(t, timeZone));
@@ -323,27 +316,6 @@ export function buildPatternTVData({
     });
   });
 
-  const visibleStandalone = resolveVisibleStandalone(trendLines, hit, trendlinesView);
-  visibleStandalone.forEach((line) => {
-    const mapped = axis.mapStandaloneLine(line);
-    if (!mapped) return;
-    const { name, color, points } = mapped;
-    const tvPoints = dedupeByTime(
-      points
-        .map((p) => ({ time: epochAt(p.index), value: p.price }))
-        .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.value)),
-    );
-    if (tvPoints.length === 0) return;
-    lines.push({
-      points: tvPoints,
-      color,
-      dashed: false,
-      width: 1,
-      name,
-      label: `${name} · ${line.touches} touches`,
-      labelEligible: true,
-    });
-  });
   lines.sort((a, b) => (a.points[0]?.time ?? 0) - (b.points[0]?.time ?? 0));
 
   // Case-sensitive: `1m` (minute) and `1M` (month) are different frames, so a

@@ -155,7 +155,6 @@ function candle() {
 const STALE_CHART = {
   candles: [candle()],
   hits: [],
-  trend_lines: [],
   cached: true,
   stale: true,
   as_of: "2026-11-06",
@@ -164,7 +163,6 @@ const STALE_CHART = {
 const FRESH_CHART = {
   candles: [candle()],
   hits: [],
-  trend_lines: [],
   cached: false,
   stale: false,
 } as never;
@@ -174,7 +172,6 @@ const FRESH_CHART = {
 const STALE_BUT_APPENDED_CHART = {
   candles: [candle(), { t: "2026-11-09", o: 121, h: 125, l: 120, c: 124, v: 900 }],
   hits: [],
-  trend_lines: [],
   cached: true,
   stale: true,
   as_of: "2026-11-06",
@@ -191,7 +188,6 @@ const CURRENT_DISPLAY_CANDLES = [
 const CURRENT_DISPLAY_STALE_DETECTION = {
   candles: CURRENT_DISPLAY_CANDLES,
   hits: [],
-  trend_lines: [],
   cached: true,
   stale: false,
   as_of: "2026-11-16",
@@ -201,7 +197,6 @@ const CURRENT_DISPLAY_STALE_DETECTION = {
 const CURRENT_DISPLAY_CURRENT_DETECTION = {
   candles: CURRENT_DISPLAY_CANDLES,
   hits: [],
-  trend_lines: [],
   cached: true,
   stale: false,
   as_of: "2026-11-16",

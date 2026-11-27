@@ -78,16 +78,12 @@ vi.mock("@/api/marketScreener", () => ({
 }));
 
 const harnessState = vi.hoisted(() => ({
-  gridTrendlinesViews: [] as unknown[],
-  fullscreenTrendlinesViews: [] as unknown[],
   // Records the `overlays` prop per fullscreen render (single-pattern contract:
   // the page always passes an empty list so only the active hit is drawn).
   fullscreenOverlays: [] as unknown[],
   mockRefreshSymbolChart: vi.fn(),
 }));
 
-export const gridTrendlinesViews = harnessState.gridTrendlinesViews;
-export const fullscreenTrendlinesViews = harnessState.fullscreenTrendlinesViews;
 export const fullscreenOverlays = harnessState.fullscreenOverlays;
 export const mockRefreshSymbolChart = harnessState.mockRefreshSymbolChart;
 
@@ -104,12 +100,11 @@ vi.mock("./patternsFullscreen", async (importOriginal) => {
 
 // Faithful stubs: preserve the contract testids the page relies on
 // (card buttons incl. expand affordance, fullscreen modal + chart +
-// "No chart data") while recording the `trendlinesView` prop.
+// "No chart data").
 vi.mock("@/components/patterns/PatternGrid", () => ({
   PatternGrid: (props: any) => {
-    harnessState.gridTrendlinesViews.push(props.trendlinesView ?? "both");
     return (
-      <div data-testid="patterns-grid" data-trendlines-view={props.trendlinesView ?? "both"}>
+      <div data-testid="patterns-grid">
         <For each={props.hits as any[]}>
           {(hit: any) => (
             <div>
@@ -201,13 +196,12 @@ vi.mock("@/components/patterns/PatternSymbolMatrix", () => ({
 
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
   PatternFullscreenView: (props: any) => {
-    harnessState.fullscreenTrendlinesViews.push(props.trendlinesView ?? "both");
     harnessState.fullscreenOverlays.push(props.overlays);
     const docked = () => props.docked ?? false;
     const tfs = () => ((props.timeframes as any[]) ?? []).length > 0 ? (props.timeframes as any[]) : [{ id: props.timeframe, label: props.timeframe }];
     return (
       <Show when={props.opened}>
-        <div data-testid={docked() ? "patterns-chart-dock" : "patterns-fullscreen-modal"} data-trendlines-view={props.trendlinesView ?? "both"}>
+        <div data-testid={docked() ? "patterns-chart-dock" : "patterns-fullscreen-modal"}>
           <div data-testid="patterns-fullscreen-active-hit">{props.hit?.pattern_name}</div>
           <For each={(props.hits ?? []) as any[]}>
             {(h: any, i: () => number) => (
@@ -402,12 +396,9 @@ export function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsP
       min_base_days: null,
       max_range_pct: null,
       sort: "confidence",
-      trendlines: "both",
     },    setFilter: vi.fn(),
     resetFilters: vi.fn(),
     applyFilters: vi.fn(),
-    computeTrendlines: true,
-    setComputeTrendlines: vi.fn(),
     customUniverse: "custom",
     selectSymbols: vi.fn(),
     job: null,
@@ -434,8 +425,6 @@ export function r(page: () => JSX.Element) {
 }
 
 function clearRecorders() {
-  gridTrendlinesViews.length = 0;
-  fullscreenTrendlinesViews.length = 0;
   fullscreenOverlays.length = 0;
 }
 

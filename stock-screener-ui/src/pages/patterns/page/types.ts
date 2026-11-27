@@ -28,8 +28,6 @@ export interface PatternsPageProps {
   setFilter: (key: string, value: any) => void;
   resetFilters: () => void;
   applyFilters: (filters: Partial<PatternFilters>) => void;
-  computeTrendlines: boolean;
-  setComputeTrendlines: (value: boolean) => void;
   customUniverse: string;
   selectSymbols: (symbols: string[]) => void;
   job: JobDTO | null;

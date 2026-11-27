@@ -342,13 +342,6 @@ def test_chart_asof_truncates_and_uses_live_hits_only(cp_client, monkeypatch):
     monkeypatch.setattr(
         cp_api, "engine_mod", SimpleNamespace(detect_patterns=fake_detect)
     )
-    seen_tl = {}
-
-    def fake_tl(df, lookback_bars=None):
-        seen_tl["bars"] = len(df)
-        return {"support": None, "resistance": None}
-
-    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", fake_tl)
 
     chart = cp_client.get(
         "/api/chart-patterns/symbol/IRCON/chart",
@@ -361,7 +354,6 @@ def test_chart_asof_truncates_and_uses_live_hits_only(cp_client, monkeypatch):
     assert seen_fetch["as_of_date"] == "2026-09-30"
     assert seen_fetch["from_date"] == "2026-09-30"
     assert seen_engine["bars"] == 4
-    assert seen_tl["bars"] == 4
     # Series ends at the as-of cutoff.
     assert len(body["candles"]) == 4
     # Hits are window-filtered by from_date; overlays come only from live hits

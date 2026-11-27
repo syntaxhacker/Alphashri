@@ -55,7 +55,6 @@ vi.mock("@/components/patterns/PatternChartBody", () => ({
     <div
       data-testid="patterns-fullscreen-body"
       data-hits={(props.hits ?? []).length}
-      data-trend-lines={(props.trendLines ?? []).length}
       data-overlays={(props.overlays ?? []).length}
       data-hit-source={props.hit?.source ?? ""}
       data-timeframe={props.timeframe ?? "unset"}
@@ -153,7 +152,6 @@ const HIT: PatternHitDTO = {
   bars_ago: 1,
   volume_confirmed: true,
   trendlines: [],
-  trend_lines: [],
   notes: "Higher lows into a falling wedge.",
   pivots: [],
 };
@@ -211,7 +209,6 @@ function chartPayload(overrides: Partial<ChartPayload> = {}): ChartPayload {
       { t: "2026-09-26T00:00:00+05:30", o: 104, h: 113, l: 103, c: 112, v: 1200 },
     ],
     overlays: [],
-    trend_lines: [],
     hits: [HIT],
     ...overrides,
   };
@@ -231,8 +228,8 @@ function renderPage(initial = "/chart/TEST") {
 }
 
 /** Default option objects used by the stored-first calls. */
-const STORED_OPTIONS = { computeTrendlines: true, detectPatterns: false };
-const LIVE_OPTIONS = { computeTrendlines: true, detectPatterns: true };
+const STORED_OPTIONS = { detectPatterns: false };
+const LIVE_OPTIONS = { detectPatterns: true };
 
 describe("ChartView (pattern workspace)", () => {
   beforeEach(() => {
@@ -345,7 +342,6 @@ describe("ChartView (pattern workspace)", () => {
     await waitFor(() => expect(fetchSymbolChart).toHaveBeenCalled());
     expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
     expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1D", {
-      computeTrendlines: true,
       detectPatterns: true,
       asOf: "2026-09-20T15:30",
     });
@@ -617,7 +613,7 @@ describe("ChartView (pattern workspace)", () => {
 });
 
 /**
- * US payload carries live-detected hits/trend lines plus US metadata; the view
+ * US payload carries live-detected hits/overlays plus US metadata; the view
  * must apply all of them (single live-detection read, no stored lookup). Cast
  * because those fields are not on the shared (India-first) transport type.
  */
@@ -632,19 +628,6 @@ function usChartPayload(): ChartPayload {
           pattern_name: "Falling Wedge",
           direction: "bullish",
           trendlines: [[{ t: "2026-11-01", price: 100 }, { t: "2026-11-17", price: 110 }]],
-        },
-      ],
-      trend_lines: [
-        {
-          kind: "support",
-          start_date: "2026-11-16",
-          start_price: 100,
-          end_date: "2026-11-17",
-          end_price: 101,
-          slope: 1,
-          touches: 2,
-          span_bars: 5,
-          violations: 0,
         },
       ],
     }),
@@ -666,7 +649,6 @@ describe("ChartView (US market)", () => {
     renderPage("/chart/AAPL?market=usa");
     await waitFor(() => expect(fetchSymbolChart).toHaveBeenCalledTimes(1));
     expect(fetchSymbolChart).toHaveBeenCalledWith("AAPL", "1D", {
-      computeTrendlines: true,
       detectPatterns: true,
       market: "usa",
     });
@@ -692,12 +674,11 @@ describe("ChartView (US market)", () => {
     expect(screen.queryByTestId("chart-no-patterns")).toBeNull();
   });
 
-  it("applies live hits, overlays and trend lines on the US path", async () => {
+  it("applies live hits and overlays on the US path", async () => {
     renderPage("/chart/AAPL?market=usa");
     await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
     const body = screen.getByTestId("patterns-fullscreen-body");
     expect(body).toHaveAttribute("data-hits", "1");
-    expect(body).toHaveAttribute("data-trend-lines", "1");
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent(
       "Falling Wedge",
     );
@@ -737,7 +718,6 @@ describe("ChartView (US market)", () => {
     await waitFor(() => expect(history.get()).toContain("tf=15m"));
     expect(history.get()).toContain("market=usa");
     expect(fetchSymbolChart).toHaveBeenCalledWith("AAPL", "15m", {
-      computeTrendlines: true,
       detectPatterns: true,
       market: "usa",
     });
@@ -749,7 +729,6 @@ describe("ChartView (US market)", () => {
     expect(history.get()).toContain("market=usa");
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith("AAPL", "1D", {
-        computeTrendlines: true,
         detectPatterns: true,
         market: "usa",
       }),
@@ -763,7 +742,6 @@ describe("ChartView (US market)", () => {
     const { history } = renderPage("/chart/AAPL?market=usa&tf=5m");
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith("AAPL", "5m", {
-        computeTrendlines: true,
         detectPatterns: true,
         market: "usa",
       }),
@@ -788,7 +766,6 @@ describe("ChartView (US market)", () => {
     renderPage("/chart/AAPL?market=usa&asof=2026-11-01T10:00");
     await waitFor(() => expect(fetchSymbolChart).toHaveBeenCalled());
     expect(fetchSymbolChart).toHaveBeenCalledWith("AAPL", "1D", {
-      computeTrendlines: true,
       detectPatterns: true,
       market: "usa",
     });

@@ -203,7 +203,6 @@ def test_matrix_hits_and_best_are_slim(matrix_client, monkeypatch):
         candles=[{"t": "2026-09-26", "o": 1, "h": 2, "l": 1, "c": 2, "v": 10}],
         trendlines=[[{"t": "2026-04-26", "price": 100.0}]],
         pivots=[{"t": "2026-04-26", "price": 100.0}],
-        trend_lines=[{"kind": "support"}],
         notes="synthetic",
         payload_json='{"notes": "synthetic"}',
     )
@@ -215,7 +214,7 @@ def test_matrix_hits_and_best_are_slim(matrix_client, monkeypatch):
     row = resp.json()["rows"][0]
     assert set(row["hits"][0]) == _ALLOWED
     assert set(row["best"]) == _ALLOWED
-    for banned in ("candles", "trendlines", "pivots", "trend_lines", "notes", "payload_json"):
+    for banned in ("candles", "trendlines", "pivots", "notes", "payload_json"):
         assert banned not in row["hits"][0]
         assert banned not in row["best"]
 
