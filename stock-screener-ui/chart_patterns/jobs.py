@@ -151,13 +151,9 @@ def _scope_signature(params: Optional[dict] = None) -> tuple:
     """
     p = params if isinstance(params, dict) else {}
     symbols = p.get("symbols") or []
-    compute_trendlines = p.get("compute_trendlines", True)
-    if compute_trendlines is None:
-        compute_trendlines = True
     return (
         tuple(sorted(symbols)),
         p.get("lookback_bars"),
-        bool(compute_trendlines),
         p.get("min_rel_volume"),
         p.get("min_volume_m"),
         p.get("min_avg_volume_10d"),
@@ -173,8 +169,8 @@ def submit(universe: str, timeframe: str, requested_by=None, params: Optional[di
     """Enqueue a job. Raises :class:`QueueFullError` when the queue is full.
 
     A ``queued``/``running`` job for the same ``(universe, timeframe)`` combo
-    with the same scope signature (symbols, lookback, trendlines flag, volume
-    filters, replay window, force/refresh, partial-today flag) is coalesced:
+    with the same scope signature (symbols, lookback, volume filters, replay
+    window, force/refresh, partial-today flag) is coalesced:
     the existing job is returned instead of enqueuing a second scan
     (concurrent same-combo scans race in scan.py's delete/save_hits). A
     same-combo job with a *different* scope is cancelled and superseded by

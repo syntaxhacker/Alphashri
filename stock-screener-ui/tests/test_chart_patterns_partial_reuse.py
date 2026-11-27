@@ -238,7 +238,6 @@ def test_scope_signature_distinguishes_volume_and_replay():
     assert jobs._scope_signature({**base, "min_volume_m": 2.0}) != jobs._scope_signature(base)
     assert jobs._scope_signature({**base, "as_of_date": "2026-09-01"}) != jobs._scope_signature(base)
     assert jobs._scope_signature({**base, "from_date": "2026-08-01"}) != jobs._scope_signature(base)
-    assert jobs._scope_signature({**base, "compute_trendlines": False}) != jobs._scope_signature(base)
     assert jobs._scope_signature({**base, "force": True}) != jobs._scope_signature(base)
     assert jobs._scope_signature(base) == jobs._scope_signature(dict(base))
 

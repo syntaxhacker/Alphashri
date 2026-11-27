@@ -30,25 +30,26 @@ describe("ChainFooter", () => {
   it("renders ITM legend item", () => {
     render(() => 
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />);
-    expect(screen.getByTestId("options-legend-itm")).toBeInTheDocument();
-    expect(screen.getByText("ITM (In The Money)")).toBeInTheDocument();
+    expect(screen.getByTestId("options-legend-itm")).toHaveTextContent("ITM");
+    expect(screen.queryByText("ITM (In The Money)")).not.toBeInTheDocument();
   });
 
   it("renders ATM legend item", () => {
     render(() => 
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />);
-    expect(screen.getByTestId("options-legend-atm")).toBeInTheDocument();
-    expect(screen.getByText("ATM (At The Money)")).toBeInTheDocument();
+    expect(screen.getByTestId("options-legend-atm")).toHaveTextContent("ATM");
+    expect(screen.queryByText("ATM (At The Money)")).not.toBeInTheDocument();
   });
 
-  it("renders sentiment badges legend", () => {
-    render(() => 
+  it("renders sentiment codes without repeating the guide's explanations", () => {
+    render(() =>
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />);
-    expect(screen.getByTestId("options-legend-badges")).toBeInTheDocument();
-    expect(screen.getByText("LB: Long Buildup")).toBeInTheDocument();
-    expect(screen.getByText("SB: Short Buildup")).toBeInTheDocument();
-    expect(screen.getByText("SC: Short Covering")).toBeInTheDocument();
-    expect(screen.getByText("LU: Long Unwinding")).toBeInTheDocument();
+    const legend = screen.getByTestId("options-legend-badges");
+    expect(legend).toHaveTextContent("LB");
+    expect(legend).toHaveTextContent("SB");
+    expect(legend).toHaveTextContent("SC");
+    expect(legend).toHaveTextContent("LU");
+    expect(screen.queryByText("LB: Long Buildup")).not.toBeInTheDocument();
   });
 
   it("shows spot price when provided", () => {

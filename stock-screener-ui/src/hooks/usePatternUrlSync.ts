@@ -7,8 +7,7 @@
  *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
  *   gap52, pos, score, breakout, relvol, volm, avgvol, hist (patterns per
  *   symbol), from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
- *   `symbol=` values are the multi-symbol filter), q, trendlines,
- *   compute_trendlines (`=0` only, when trendline computation is skipped).
+ *   `symbol=` values are the multi-symbol filter), q.
  *   Compact comma-separated forms are also accepted on parse: `symbols=a,b`,
  *   `patterns=a,b`, `families=a,b`, `directions=a,b`, `statuses=a,b`.
  *
@@ -21,7 +20,7 @@
 
 import { createEffect } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
-import type { PatternFilters, TrendlinesView } from "../types/chartPatterns";
+import type { PatternFilters } from "../types/chartPatterns";
 import { DEFAULT_PATTERN_FILTERS, DEFAULT_TIMEFRAME } from "../state/chartPatterns";
 import type { IndexGroup } from "../config/indexGroups";
 
@@ -31,8 +30,6 @@ export interface ParsedPatternParams {
   timeframe: string | null;
   timeframes: string[] | null;
   lookback: number | null;
-  /** False when `compute_trendlines=0`; true when `=1`; null when omitted. */
-  computeTrendlines: boolean | null;
   /** Active workspace tab (`scan`|`watch`); null when omitted (defaults to scan). */
   tab: "scan" | "watch" | null;
   /** Results view (`matrix`|`list`|`grid`); null when omitted (defaults to matrix). */
@@ -50,8 +47,6 @@ export interface PatternUrlState {
   timeframe: string;
   selectedTimeframes?: string[];
   lookbackBars: number | null;
-  /** Omitted (compute) is the default; only `false` is written. */
-  computeTrendlines?: boolean;
   /** Active workspace tab; only `watch` is written (`scan` is the default). */
   tab?: "scan" | "watch";
   /** Results view; `list`/`grid` are written (`matrix` is the default). */
@@ -88,8 +83,6 @@ export interface UsePatternUrlSyncArgs {
   timeframe: UrlSyncSource<string>;
   selectedTimeframes?: UrlSyncSource<string[] | undefined>;
   lookbackBars: UrlSyncSource<number | null>;
-  /** Omitted (compute) is the default; only `false` is written. */
-  computeTrendlines?: UrlSyncSource<boolean | undefined>;
   /** Active workspace tab; only `watch` is written (`scan` is the default). */
   tab?: UrlSyncSource<"scan" | "watch" | undefined>;
   /** Results view; `list`/`grid` are written (`matrix` is the default). */
@@ -103,8 +96,6 @@ export interface UsePatternUrlSyncArgs {
   setTimeframe: (timeframe: string) => void;
   setSelectedTimeframes?: (timeframes: string[]) => void;
   setLookbackBars: (bars: number | null) => void;
-  /** Optional so existing call sites keep compiling; the container provides it. */
-  setComputeTrendlines?: (value: boolean) => void;
   /** Optional; when provided the `tab` param round-trips through the URL. */
   setTab?: (tab: "scan" | "watch") => void;
   /** Optional; when provided the `view` param round-trips through the URL. */
@@ -216,34 +207,12 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   const q = params.get("q");
   if (q) filters.q = q;
 
-  // View-only trendline filter: only known values are adopted; anything else
-  // (including a stale/typo'd param) falls back to the default via omission.
-  const trendlines = params.get("trendlines");
-  if (
-    trendlines === "both" ||
-    trendlines === "support" ||
-    trendlines === "resistance" ||
-    trendlines === "none"
-  ) {
-    filters.trendlines = trendlines as TrendlinesView;
-  }
-
   let lookback: number | null = null;
   const rawLookback = params.get("lookback");
   if (rawLookback != null && rawLookback !== "") {
     const n = Number.parseInt(rawLookback, 10);
     if (Number.isFinite(n)) lookback = n;
   }
-
-  // Compute toggle: only `=0` (skip) is ever written; `=1` parses back for
-  // robustness but is never produced by `buildPatternParams`.
-  const rawCompute = params.get("compute_trendlines");
-  const computeTrendlines =
-    rawCompute === "0" || rawCompute === "false"
-      ? false
-      : rawCompute === "1" || rawCompute === "true"
-        ? true
-        : null;
 
   const timeframes: string[] = [];
   for (const raw of params.getAll("tf")) {
@@ -270,7 +239,6 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
     indexGroup,
     members,
     lookback,
-    computeTrendlines,
     tab: params.get("tab") === "watch" ? "watch" : params.get("tab") === "scan" ? "scan" : null,
     filters,
   };
@@ -331,14 +299,6 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.symbol) params.set("symbol", filters.symbol);
   for (const symbol of filters.symbols ?? []) params.append("symbol", symbol);
   if (filters.q) params.set("q", filters.q);
-  // View-only: written only when it narrows the default "both" view.
-  if (filters.trendlines && filters.trendlines !== DEFAULT_PATTERN_FILTERS.trendlines) {
-    params.set("trendlines", filters.trendlines);
-  }
-  // Compute toggle: only the opt-out (`false`) is written; compute is default.
-  if (state.computeTrendlines === false) {
-    params.set("compute_trendlines", "0");
-  }
   // Workspace tab: only `watch` is written; `scan` is the default view.
   if (state.tab === "watch") {
     params.set("tab", "watch");
@@ -375,8 +335,6 @@ const PATTERN_PARAM_KEYS = new Set([
   "sort",
   "symbol",
   "q",
-  "trendlines",
-  "compute_trendlines",
   "tab",
   "view",
   "igroup",
@@ -389,7 +347,6 @@ function hasAnyPatternParam(parsed: ParsedPatternParams): boolean {
     parsed.universe != null ||
     parsed.timeframe != null ||
     parsed.lookback != null ||
-    parsed.computeTrendlines != null ||
     parsed.tab != null ||
     parsed.view != null ||
     parsed.indexGroup != null ||
@@ -422,7 +379,6 @@ export function usePatternUrlSync({
   timeframe,
   selectedTimeframes,
   lookbackBars,
-  computeTrendlines,
   tab,
   view,
   indexGroup,
@@ -432,7 +388,6 @@ export function usePatternUrlSync({
   setTimeframe,
   setSelectedTimeframes,
   setLookbackBars,
-  setComputeTrendlines,
   setTab,
   setView,
   setIndexGroup,
@@ -480,12 +435,6 @@ export function usePatternUrlSync({
     if (parsed.lookback != null && parsed.lookback !== readSource(lookbackBars)) {
       setLookbackBars(parsed.lookback);
     }
-    if (
-      parsed.computeTrendlines != null &&
-      parsed.computeTrendlines !== readOptional(computeTrendlines)
-    ) {
-      setComputeTrendlines?.(parsed.computeTrendlines);
-    }
     if (parsed.tab != null && parsed.tab !== readOptional(tab)) setTab?.(parsed.tab);
     if (parsed.view != null && parsed.view !== readOptional(view)) setView?.(parsed.view);
     if (parsed.indexGroup != null && parsed.indexGroup !== readOptional(indexGroup)) {
@@ -509,7 +458,6 @@ export function usePatternUrlSync({
     const timeframeValue = readSource(timeframe);
     const selected = readOptional(selectedTimeframes);
     const lookback = readSource(lookbackBars);
-    const compute = readOptional(computeTrendlines);
     const tabValue = readOptional(tab);
     const viewValue = readOptional(view);
     const indexGroupValue = readOptional(indexGroup);
@@ -537,9 +485,6 @@ export function usePatternUrlSync({
           !parsed.timeframes ||
           filterValuesEqual(selected ?? [timeframeValue], parsed.timeframes);
         const lookbackOk = parsed.lookback == null || lookback === parsed.lookback;
-        const computeOk =
-          parsed.computeTrendlines == null ||
-          (compute ?? true) === parsed.computeTrendlines;
         const tabOk = parsed.tab == null || (tabValue ?? "scan") === parsed.tab;
         const viewOk = parsed.view == null || (viewValue ?? "matrix") === parsed.view;
         const indexGroupOk =
@@ -549,7 +494,7 @@ export function usePatternUrlSync({
           const current = (filtersValue as unknown as Record<string, unknown>)[key];
           return filterValuesEqual(current, value);
         });
-        if (!(universeOk && timeframeOk && timeframesOk && lookbackOk && computeOk && tabOk && viewOk && indexGroupOk && membersOk && filtersOk)) return; // wait for adoption
+        if (!(universeOk && timeframeOk && timeframesOk && lookbackOk && tabOk && viewOk && indexGroupOk && membersOk && filtersOk)) return; // wait for adoption
         hydrated = true;
       }
     }
@@ -559,7 +504,6 @@ export function usePatternUrlSync({
       timeframe: timeframeValue,
       selectedTimeframes: selected ?? [timeframeValue],
       lookbackBars: lookback,
-      computeTrendlines: compute,
       tab: tabValue,
       view: viewValue,
       indexGroup: indexGroupValue,
@@ -588,7 +532,6 @@ export function usePatternUrlSync({
     const timeframeValue = readSource(timeframe);
     const selected = readOptional(selectedTimeframes);
     const lookback = readSource(lookbackBars);
-    const compute = readOptional(computeTrendlines);
     const tabValue = readOptional(tab);
     const viewValue = readOptional(view);
     const indexGroupValue = readOptional(indexGroup);
@@ -611,9 +554,6 @@ export function usePatternUrlSync({
     }
     if ((parsed.lookback ?? null) !== (lookback ?? null)) {
       setLookbackBars(parsed.lookback);
-    }
-    if (parsed.computeTrendlines != null && parsed.computeTrendlines !== (compute ?? true)) {
-      setComputeTrendlines?.(parsed.computeTrendlines);
     }
     if (parsed.tab != null && parsed.tab !== (tabValue ?? "scan")) {
       setTab?.(parsed.tab);

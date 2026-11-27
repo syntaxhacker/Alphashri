@@ -14,6 +14,5 @@ describe("PatternsPage toolbar layout", () => {
     const toolbar = screen.getByTestId("patterns-results-toolbar");
     expect(within(toolbar).getAllByRole("separator")).toHaveLength(1);
     expect(within(toolbar).getByTestId("patterns-replay-toggle")).toBeInTheDocument();
-    expect(within(toolbar).getByTestId("patterns-compute-trendlines")).toBeInTheDocument();
   });
 });

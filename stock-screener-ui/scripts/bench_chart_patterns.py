@@ -1,7 +1,6 @@
 """Reproducible benchmark for the chart-pattern detection hot path.
 
-Times :func:`chart_patterns.engine.detect_patterns` and
-:func:`chart_patterns.trendlines.detect_trendlines` over a fixed set of frames.
+Times :func:`chart_patterns.engine.detect_patterns` over a fixed set of frames.
 The default source is a seeded synthetic random walk (no network, no DB). Real
 NSE frames can be fetched with yfinance and cached so repeated runs measure the
 same bars. Every run reports min/median seconds per call, an output hash and a
@@ -33,7 +32,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from chart_patterns.engine import detect_patterns  # noqa: E402
 from chart_patterns.features import OHLCV_COLUMNS  # noqa: E402
-from chart_patterns.trendlines import detect_trendlines  # noqa: E402
 from chart_patterns.timeframes import TIMEFRAME_IDS  # noqa: E402
 
 DEFAULT_CACHE = "/tmp/alphashri_pattern_frames.pkl"
@@ -45,7 +43,7 @@ TF_FREQ = {
     "15m": "15min", "30m": "30min", "1h": "1h", "2h": "2h",
     "3h": "3h", "4h": "4h", "1D": "1D", "1W": "1W", "1M": "ME",
 }
-OPS = ("patterns", "trendlines")
+OPS = ("patterns",)
 
 
 
@@ -199,15 +197,11 @@ def _load_cache(path: str):
 
 
 def _apply(op: str, frame: pd.DataFrame, timeframe: str, symbol: str, lookback: int | None):
-    if op == "patterns":
-        return detect_patterns(frame, timeframe, symbol)
-    return detect_trendlines(frame, lookback_bars=lookback)
+    return detect_patterns(frame, timeframe, symbol)
 
 
 def _hit_count(op: str, out) -> int:
-    if op == "patterns":
-        return len(out or [])
-    return sum(1 for side in ("support", "resistance") if (out or {}).get(side))
+    return len(out or [])
 
 
 def benchmark(frames, timeframes, runs, lookback) -> dict:
@@ -299,8 +293,6 @@ def parse_args(argv=None):
     ap.add_argument("--period", default="2y", help="yfinance daily period (default 2y)")
     ap.add_argument("--intraday-period", default="60d", help="yfinance 1h/5m period (default 60d)")
     ap.add_argument("--cache", default=DEFAULT_CACHE, help=f"--real cache path (default {DEFAULT_CACHE})")
-    ap.add_argument("--trendline-lookback", type=int, default=None,
-                    help="detect_trendlines lookback_bars (default: detector config)")
     args = ap.parse_args(argv)
     if args.from_cache and (args.synthetic or args.real):
         ap.error("--from-cache is mutually exclusive with --synthetic/--real")
@@ -347,7 +339,7 @@ def main(argv=None) -> None:
     print(f"frames: {len(frames)} (bars min/med/max: {lens[0]}/{lens[len(lens)//2]}/{lens[-1]})"
           f"  load: {load:.4f}s")
 
-    result = benchmark(frames, args.timeframes_list, args.runs, args.trendline_lookback)
+    result = benchmark(frames, args.timeframes_list, args.runs, None)
     report(result, args.timeframes_list)
     if not result["stable"]:
         print("WARNING: outputs differed across runs; hash is not a stable equivalence check")

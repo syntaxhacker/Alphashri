@@ -1,9 +1,19 @@
-import { For, Show, createMemo } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Box, Text, Tooltip } from "@/ui";
 import { useMediaQuery } from "@/ui/hooks";
-import { BG_COLOR, CREAM, ROTATION_IMPROVING, ROTATION_LAGGING, ROTATION_LEADING, ROTATION_WEAKENING, TEXT, TEXT_MUTED } from "@/ui/palette";
+import {
+  CREAM,
+  ROTATION_IMPROVING,
+  ROTATION_LAGGING,
+  ROTATION_LEADING,
+  ROTATION_WEAKENING,
+  SURFACE,
+  SURFACE_ALT,
+  TEXT,
+  TEXT_MUTED,
+} from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { formatPercentage } from "@/utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage } from "./sectorUtils";
 import type { RotationQuadrant, RotationRow } from "@/types/rotation";
 
 const QUADRANT_COLORS: Record<RotationQuadrant, string> = {
@@ -56,6 +66,110 @@ function dotRadius(row: RotationRow): number {
   return 4 + Math.min(5, Math.sqrt(Math.max(1, row.members)) * 0.55);
 }
 
+export const RRG_LABEL_HEIGHT = 18;
+const LABEL_PAD = 4;
+const LABEL_GAP = 4;
+const TICK_RESERVE = 26;
+const DOT_GAP = 8;
+export const RRG_COMPACT_FALLBACK = { w: 320, h: 200 };
+export const RRG_DESKTOP_FALLBACK = { w: 640, h: 320 };
+
+export interface RrgLabelCandidate {
+  id: string;
+  name: string;
+  px: number;
+  py: number;
+  selected: boolean;
+}
+
+export interface RrgLabelBox {
+  id: string;
+  name: string;
+  selected: boolean;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  below: boolean;
+}
+
+function boxesIntersect(a: RrgLabelBox, b: RrgLabelBox): boolean {
+  return (
+    a.x < b.x + b.w + LABEL_GAP &&
+    a.x + a.w + LABEL_GAP > b.x &&
+    a.y < b.y + b.h + LABEL_GAP &&
+    a.y + a.h + LABEL_GAP > b.y
+  );
+}
+
+function labelWidth(name: string, compact: boolean): number {
+  // 12px UI sans advances ~7.2px; the extra 16px is the two 4px paddings plus
+  // the rounding slack that used to turn every 12-character compact label into
+  // "Consumer N…". A box must be wide enough for the text it was measured for.
+  return Math.min(compact ? 172 : 168, Math.max(52, name.length * 7.8 + 16));
+}
+
+/**
+ * Pixel-space label layout: selected first (always placed), then the most
+ * extreme groups. A candidate is dropped when neither side stays inside the
+ * plot and clear of every placed box or reserved quadrant caption, so compact
+ * plots cannot stack labels on top of LEADING/WEAKENING.
+ */
+export function layoutRrgLabels(
+  candidates: RrgLabelCandidate[],
+  width: number,
+  height: number,
+  compact: boolean,
+  obstacles: RrgLabelBox[] = [],
+): RrgLabelBox[] {
+  if (width <= 0 || height <= 0) return [];
+  const placed: RrgLabelBox[] = [];
+
+  for (const candidate of candidates) {
+    const display = shortName(candidate.name, compact ? 20 : 22);
+    const h = RRG_LABEL_HEIGHT;
+    const w = Math.min(labelWidth(display, compact), Math.max(24, width - LABEL_PAD * 2));
+    const dotX = (candidate.px / 100) * width;
+    const dotY = (1 - candidate.py / 100) * height;
+    const primaryBelow = dotY < height / 2;
+    let box: RrgLabelBox | null = null;
+
+    for (const below of [primaryBelow, !primaryBelow]) {
+      let y = below ? dotY + DOT_GAP : dotY - h - DOT_GAP;
+      const maxY = height - TICK_RESERVE - h;
+      if (below && y > maxY) {
+        if (!candidate.selected) continue;
+        y = maxY;
+      } else if (!below && y < LABEL_PAD) {
+        if (!candidate.selected) continue;
+        y = LABEL_PAD;
+      }
+      y = Math.max(LABEL_PAD, Math.min(y, maxY));
+      const x = Math.max(LABEL_PAD, Math.min(dotX - w / 2, width - LABEL_PAD - w));
+      const next: RrgLabelBox = {
+        id: candidate.id,
+        name: display,
+        selected: candidate.selected,
+        x,
+        y,
+        w,
+        h,
+        below,
+      };
+      if (
+        !placed.some((other) => boxesIntersect(other, next)) &&
+        !obstacles.some((other) => boxesIntersect(other, next))
+      ) {
+        box = next;
+        break;
+      }
+    }
+    if (box) placed.push(box);
+  }
+
+  return placed;
+}
+
 function Meta(props: { label: string; value: string }) {
   return (
     <>
@@ -84,25 +198,96 @@ export function RotationRrg(props: RotationRrgProps) {
   const x = (v: number) => scale(v, xDomain());
   const y = (v: number) => scale(v, yDomain());
 
-  // Labels: the most extreme groups plus the selection, dropping any label
-  // whose anchor sits on top of one already placed.
-  const labelledIds = createMemo(() => {
-    const placed: { x: number; y: number }[] = [];
-    const ids = new Set<string>();
-    const sorted = [...rows()].sort((a, b) => extremity(b) - extremity(a));
-    for (const row of sorted) {
-      if (ids.size >= (compact() ? 5 : MAX_LABELS) && row.id !== selectedId()) continue;
-      const px = scale(row.rs_pct, xDomain());
-      const py = scale(row.mom_pct, yDomain());
-      const minDx = compact() ? 26 : 14;
-      const minDy = compact() ? 13 : 10;
-      const collides = placed.some((p) => Math.abs(p.x - px) < minDx && Math.abs(p.y - py) < minDy);
-      if (collides && row.id !== selectedId()) continue;
-      placed.push({ x: px, y: py });
-      ids.add(row.id);
-    }
-    return ids;
+  const selectedRow = createMemo(
+    () => rows().find((r) => r.id === selectedId()) ?? rows()[0] ?? null,
+  );
+
+  const [plotEl, setPlotEl] = createSignal<HTMLElement>();
+  const [plotSize, setPlotSize] = createSignal(
+    compact() ? RRG_COMPACT_FALLBACK : RRG_DESKTOP_FALLBACK,
+  );
+
+  createEffect(() => {
+    const el = plotEl();
+    if (!el) return;
+    const measure = () => {
+      const fallback = compact() ? RRG_COMPACT_FALLBACK : RRG_DESKTOP_FALLBACK;
+      setPlotSize({
+        w: el.clientWidth > 0 ? el.clientWidth : fallback.w,
+        h: el.clientHeight > 0 ? el.clientHeight : fallback.h,
+      });
+    };
+    measure();
+    const observer =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    observer?.observe(el);
+    onCleanup(() => observer?.disconnect());
   });
+
+  // Compact plots get the selection plus the four most extreme groups; larger
+  // plots can afford the existing ten-label budget.
+  const labelCandidates = createMemo(() => {
+    const sorted = [...rows()].sort((a, b) => extremity(b) - extremity(a));
+    const selected = selectedRow();
+    const out: RotationRow[] = [];
+    if (selected) out.push(selected);
+    const limit = compact() ? 5 : MAX_LABELS;
+    for (const row of sorted) {
+      if (out.length >= limit) break;
+      if (!out.some((item) => item.id === row.id)) out.push(row);
+    }
+    return out;
+  });
+
+  // The quadrant captions are part of the plot, so a sector label that lands on
+  // LEADING/WEAKENING is as unreadable as a label-on-label overlap.
+  const quadrantCaptionBoxes = createMemo<RrgLabelBox[]>(() => {
+    const w = plotSize().w;
+    const h = plotSize().h;
+    if (w <= 0 || h <= 0) return [];
+    const pad = compact() ? 30 : 12;
+    const crossY = (1 - y(50) / 100) * h;
+    const caption = (name: string, leftSide: boolean, bottomSide: boolean) => {
+      const boxW = Math.min(104, name.length * 7.8 + 16);
+      const boxH = 16;
+      const boxY = Math.max(
+        LABEL_PAD,
+        Math.min(bottomSide ? crossY + 4 : crossY - 4 - boxH, h - TICK_RESERVE - boxH),
+      );
+      return {
+        id: `quadrant:${name}`,
+        name,
+        selected: false,
+        x: leftSide ? pad : Math.max(pad, w - pad - boxW),
+        y: boxY,
+        w: boxW,
+        h: boxH,
+        below: bottomSide,
+      } satisfies RrgLabelBox;
+    };
+    return [
+      caption("IMPROVING", true, false),
+      caption("LEADING", false, false),
+      caption("LAGGING", true, true),
+      caption("WEAKENING", false, true),
+    ];
+  });
+
+  const labelBoxes = createMemo(() =>
+    layoutRrgLabels(
+      labelCandidates().map((row) => ({
+        id: row.id,
+        name: row.name,
+        px: x(row.rs_pct),
+        py: y(row.mom_pct),
+        selected: row.id === selectedId(),
+      })),
+      plotSize().w,
+      plotSize().h,
+      compact(),
+      quadrantCaptionBoxes(),
+    ),
+  );
 
   const counts = createMemo(() => {
     const base: Record<RotationQuadrant, number> = {
@@ -123,21 +308,55 @@ export function RotationRrg(props: RotationRrgProps) {
   return (
     <Box
       data-testid="rotation-rrg"
-      className="flex flex-col flex-1 h-full min-h-0 min-w-0"
+      className="flex w-full max-w-full flex-col flex-1 h-full min-h-0 min-w-0 overflow-hidden"
     >
-      <Box className="flex-1 min-h-0 flex gap-[6px] p-2 pb-[4px]">
-        <Box className="w-[12px] shrink-0 flex items-center justify-center">
+      <Box
+        data-testid="rotation-rrg-plot"
+        className="grid w-full min-w-0 flex-1 min-h-0 grid-cols-[16px_28px_minmax(0,1fr)] gap-x-[4px] overflow-hidden p-2 pb-[4px]"
+      >
+        <Box className="flex h-full w-[16px] min-w-0 items-center justify-center overflow-hidden">
           <Box
             component="span"
-            className="writing-mode-vertical-rl rotate-180 text-ui-micro tracking-[0.6px] uppercase text-fin-text-muted whitespace-nowrap"
+            data-testid="rotation-rrg-axis-title"
+            className="text-ui-micro leading-none tracking-[0.6px] uppercase text-fin-text-muted whitespace-nowrap"
+            style={{ "writing-mode": "vertical-rl", transform: "rotate(180deg)" }}
           >
             Momentum
           </Box>
         </Box>
 
         <Box
+          data-testid="rotation-rrg-y-axis"
+          className="relative h-full w-[28px] min-w-0 overflow-hidden"
+        >
+          <For each={yTicks()}>
+            {(tick) => {
+            const isLo = tick === yDomain().lo;
+            const isHi = tick === yDomain().hi;
+            return (
+              <Box
+                data-testid={`rotation-rrg-y-tick-${isLo ? "lo" : isHi ? "hi" : "mid"}`}
+                className="absolute text-right font-mono text-ui-micro text-fin-text-muted tabular-nums whitespace-nowrap"
+                style={{
+                  right: "4px",
+                  bottom: isLo ? "6px" : isHi ? "auto" : `${y(tick)}%`,
+                  top: isHi ? "6px" : "auto",
+                  transform: isLo || isHi ? "none" : "translateY(50%)",
+                }}
+              >
+                {Math.round(tick)}
+              </Box>
+            );
+            }}
+          </For>
+        </Box>
+
+        <Box
+          ref={setPlotEl}
           data-testid="rotation-rrg-chart"
-          className="relative flex-1 min-w-0 min-h-0 border border-fin-border rounded-[1px] overflow-hidden bg-fin-surface"
+          data-plot-width={plotSize().w}
+          data-plot-height={plotSize().h}
+          className="relative h-full w-full max-w-full flex-1 min-w-0 min-h-0 border border-fin-border rounded-[1px] overflow-hidden bg-fin-surface"
         >
           <Show when={rows().length === 0} fallback={
             <>
@@ -168,14 +387,26 @@ export function RotationRrg(props: RotationRrgProps) {
                       className="absolute font-bold tracking-[0.6px] whitespace-nowrap text-ui-micro"
                       style={{
                         // Both rows hug the 50/50 crosshair, never the outer
-                        // axis where the month and benchmark ticks live.
+                        // axis where the month and benchmark ticks live. At
+                        // compact widths the labels shift in far enough to
+                        // clear the inset x/y tick labels in the corners.
                         top: topSide ? "auto" : "4px",
                         bottom: topSide ? "4px" : "auto",
-                        left: leftSide ? "12px" : "auto",
-                        right: leftSide ? "auto" : "12px",
+                        left: leftSide ? (compact() ? "30px" : "12px") : "auto",
+                        right: leftSide ? "auto" : compact() ? "30px" : "12px",
                         // The tint is the area, never the ink: saturated
                         // quadrant colours fail 4.5:1 on the tinted fill.
                         color: TEXT,
+                        // A dot can land anywhere in the quadrant. The caption
+                        // owns its 16px strip so a mark behind it cannot turn
+                        // LEADING into a smudge.
+                        "background-color": SURFACE,
+                        // Above the selected dot (z=6): a caption must stay
+                        // readable even when a mark lands on the crosshair.
+                        "z-index": 8,
+                        padding: "0 6px",
+                        "line-height": "16px",
+                        "box-shadow": `0 0 0 2px ${SURFACE}`,
                       }}
                     >
                       {QUADRANT_LABELS[key]}
@@ -211,31 +442,13 @@ export function RotationRrg(props: RotationRrgProps) {
                 const isHi = tick === xDomain().hi;
                 return (
                   <Box
+                    data-testid={`rotation-rrg-x-tick-${isLo ? "lo" : isHi ? "hi" : "mid"}`}
                     className="font-mono absolute pointer-events-none text-ui-micro text-fin-text-muted tabular-nums"
                     style={{
-                      left: isLo ? "4px" : isHi ? "auto" : `${x(tick)}%`,
-                      right: isHi ? "4px" : "auto",
-                      bottom: "3px",
+                      left: isLo ? "8px" : isHi ? "auto" : `${x(tick)}%`,
+                      right: isHi ? "10px" : "auto",
+                      bottom: "6px",
                       transform: isLo || isHi ? "none" : "translateX(-50%)",
-                    }}
-                  >
-                    {Math.round(tick)}
-                  </Box>
-                );
-                }}
-              </For>
-              <For each={yTicks()}>
-                {(tick) => {
-                const isLo = tick === yDomain().lo;
-                const isHi = tick === yDomain().hi;
-                return (
-                  <Box
-                    className="font-mono absolute pointer-events-none text-ui-micro text-fin-text-muted tabular-nums"
-                    style={{
-                      right: "4px",
-                      bottom: isLo ? "2px" : isHi ? "auto" : `${y(tick)}%`,
-                      top: isHi ? "2px" : "auto",
-                      transform: isLo || isHi ? "none" : "translateY(50%)",
                     }}
                   >
                     {Math.round(tick)}
@@ -245,23 +458,37 @@ export function RotationRrg(props: RotationRrgProps) {
               </For>
 
               <For each={rows()}>
-                {(row, index) => {
+                {(row) => {
                 const color = QUADRANT_COLORS[row.quadrant];
                 const selected = row.id === selectedId();
+                const labelled = () => labelBoxes().some((box) => box.id === row.id);
                 const r = dotRadius(row) + (selected ? 2 : 0);
                 const px = x(row.rs_pct);
                 const py = y(row.mom_pct);
-                const below = (index() % 2 === 1 || py > 80) && !selected && py > 6;
-                const anchor =
-                  px > 80 ? "translateX(-100%)" : px < 20 ? "none" : "translateX(-50%)";
+                // `100%` would put half the mark outside the plot. Keep the
+                // whole dot (plus its selected ring) inside the chart box at
+                // every viewport; the axis still labels the true 100 edge.
+                const center = () => {
+                  const width = plotSize().w;
+                  const height = plotSize().h;
+                  const margin = r + (selected ? 4 : 2);
+                  return {
+                    x: Math.max(margin, Math.min(width - margin, (px / 100) * width)),
+                    y: Math.max(
+                      margin,
+                      Math.min(height - margin, (1 - py / 100) * height),
+                    ),
+                  };
+                };
                 return (
                   <>
                     <Box
+                      data-testid={`rotation-rrg-dot-anchor-${row.id}`}
                       className="absolute"
                       style={{
-                        left: `${px}%`,
-                        bottom: `${py}%`,
-                        transform: "translate(-50%, 50%)",
+                        left: `${center().x}px`,
+                        top: `${center().y}px`,
+                        transform: "translate(-50%, -50%)",
                         "z-index": selected ? 6 : 3,
                       }}
                     >
@@ -293,6 +520,8 @@ export function RotationRrg(props: RotationRrgProps) {
                         <Box
                           component="button"
                           type="button"
+                          data-testid={`rotation-rrg-dot-${row.id}`}
+                          data-labelled={labelled() ? "true" : "false"}
                           aria-label={`${row.name} — ${QUADRANT_LABELS[row.quadrant]}`}
                           onClick={() => props.onSelect(row.id)}
                           className="block rounded-full p-0 cursor-pointer transition-transform duration-[120ms] hover:scale-135 focus-visible:outline-[1px] focus-visible:outline-solid focus-visible:outline-offset-[2px] focus-visible:outline-fin-text"
@@ -301,8 +530,11 @@ export function RotationRrg(props: RotationRrgProps) {
                             height: `${r * 2}px`,
                             border: selected
                               ? `1.5px solid ${CREAM}`
-                              : `1px solid ${safeTint(color, 0.9)}`,
-                            "background-color": safeTint(color, selected ? 1 : 0.9),
+                              : `1px solid ${safeTint(color, labelled() ? 0.9 : 0.55)}`,
+                            "background-color": safeTint(
+                              color,
+                              selected ? 1 : labelled() ? 0.9 : 0.45,
+                            ),
                             "box-shadow": selected
                               ? `0 0 0 3px ${safeTint(color, 0.25)}`
                               : "none",
@@ -310,32 +542,38 @@ export function RotationRrg(props: RotationRrgProps) {
                         />
                       </Tooltip>
                     </Box>
-                    <Show when={labelledIds().has(row.id)}>
-                      <Box
-                        className="absolute pointer-events-none max-w-[110px] sm:max-w-[132px] px-[4px] py-[1px] rounded-[0.5px]"
-                        style={{
-                          left: `${px}%`,
-                          ...(below
-                            ? { top: `calc(${100 - py}% + ${r + 8}px)` }
-                            : { bottom: `calc(${py}% + ${r + 8}px)` }),
-                          transform: anchor,
-                          "z-index": selected ? 5 : 2,
-                          "background-color": selected
-                            ? "background.paper"
-                            : safeTint(BG_COLOR, 0.38),
-                        }}
-                      >
-                        <Text
-                          className="text-ui-micro leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis"
-                          style={{ "font-weight": selected ? 700 : 500, color: selected ? TEXT : TEXT_MUTED }}
-                        >
-                          {shortName(row.name, compact() ? 12 : 22)}
-                        </Text>
-                      </Box>
-                    </Show>
                   </>
                 );
                 }}
+              </For>
+
+              <For each={labelBoxes()}>
+                {(box) => (
+                  <Box
+                    data-testid={`rotation-rrg-label-${box.id}`}
+                    data-side={box.below ? "below" : "above"}
+                    data-surface={box.selected ? "raised" : "panel"}
+                    className="absolute flex items-center overflow-hidden pointer-events-none rounded-[0.5px] px-[4px]"
+                    style={{
+                      left: `${box.x}px`,
+                      top: `${box.y}px`,
+                      width: `${box.w}px`,
+                      height: `${box.h}px`,
+                      "z-index": box.selected ? 5 : 2,
+                      "background-color": box.selected ? SURFACE_ALT : SURFACE,
+                    }}
+                  >
+                    <Text
+                      className="text-ui-micro leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis"
+                      style={{
+                        "font-weight": box.selected ? 700 : 500,
+                        color: box.selected ? TEXT : TEXT_MUTED,
+                      }}
+                    >
+                      {box.name}
+                    </Text>
+                  </Box>
+                )}
               </For>
             </>
           }>
@@ -348,8 +586,36 @@ export function RotationRrg(props: RotationRrgProps) {
 
       <Show when={rows().length > 0}>
         <Box
+          data-testid="rotation-rrg-compact-summary"
+          className="flex min-w-0 items-center gap-1.5 px-2 pb-1 xl:hidden"
+        >
+          <Show when={selectedRow()}>
+            {(row) => (
+              <>
+                <Box
+                  className="size-[6px] shrink-0 rounded-full"
+                  style={{ "background-color": QUADRANT_COLORS[row().quadrant] ?? TEXT_MUTED }}
+                />
+                <Text truncate className="min-w-0 text-ui-micro font-semibold text-fin-text">
+                  {row().name}
+                </Text>
+                <Text className="shrink-0 text-ui-micro font-bold tracking-[0.3px] text-fin-text-muted">
+                  {QUADRANT_LABELS[row().quadrant] ?? ""}
+                </Text>
+              </>
+            )}
+          </Show>
+          <Box className="flex-1" />
+          <Text className="shrink-0 text-ui-micro text-fin-text-muted">
+            {rows().length} groups
+          </Text>
+        </Box>
+      </Show>
+
+      <Show when={rows().length > 0}>
+        <Box
           data-testid="rotation-rrg-legend"
-          className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2 pb-1 sm:hidden"
+          className="hidden flex-wrap items-center gap-x-2 gap-y-0.5 px-2 pb-1 xl:flex"
         >
           <For each={rows()}>
             {(row) => (
@@ -362,7 +628,7 @@ export function RotationRrg(props: RotationRrgProps) {
                   style={{ "background-color": QUADRANT_COLORS[row.quadrant] ?? TEXT_MUTED }}
                 />
                 <Text className="text-ui-micro text-fin-text-muted">
-                  {shortName(row.name, 12)}
+                  {shortName(row.name, 22)}
                 </Text>
               </Box>
             )}
@@ -371,15 +637,22 @@ export function RotationRrg(props: RotationRrgProps) {
       </Show>
 
       <Box
-        className="flex items-center justify-between gap-2 px-2 pb-[6px] min-w-0"
+        data-testid="rotation-rrg-footer"
+        className="flex w-full min-w-0 flex-col gap-y-0.5 px-2 pb-[6px] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-2"
       >
-        <Text className="text-ui-micro tracking-[0.6px] uppercase text-fin-text-muted">
+        <Text className="shrink-0 whitespace-nowrap text-ui-micro tracking-[0.6px] uppercase text-fin-text-muted">
           RS 1M percentile
         </Text>
-        <Box className="flex items-center gap-2 min-w-0 overflow-hidden">
+        <Box
+          data-testid="rotation-rrg-count-legend"
+          className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5"
+        >
           <For each={["leading", "improving", "weakening", "lagging"] as RotationQuadrant[]}>
             {(key) => (
-            <Box className="inline-flex items-center gap-[3.2px]">
+            <Box
+              data-testid={`rotation-rrg-count-${key}`}
+              className="inline-flex shrink-0 items-center gap-[3.2px]"
+            >
               <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": QUADRANT_COLORS[key] }} />
               <Text className="text-ui-micro font-bold tracking-[0.3px] text-fin-text-muted">
                 {QUADRANT_LABELS[key]}

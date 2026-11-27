@@ -10,7 +10,6 @@ import type {
   PatternHitDTO,
   PatternOverlay,
   SRZone,
-  TrendLine,
   TFSpec,
 } from "@/types/chartPatterns";
 import {
@@ -246,7 +245,6 @@ interface ChartLoaderState {
   hits: PatternHitDTO[];
   overlays: PatternOverlay[];
   candles: ChartCandle[];
-  trendLines: TrendLine[];
   /** Indicator series for the chart/menu (null when the backend omits them). */
   indicators: ChartIndicators | null;
   /** Historical reaction zones for the chart/menu. */
@@ -269,7 +267,6 @@ const EMPTY_LISTS = {
   hits: [] as PatternHitDTO[],
   overlays: [] as PatternOverlay[],
   candles: [] as ChartCandle[],
-  trendLines: [] as TrendLine[],
   indicators: null as ChartIndicators | null,
   srZones: [] as SRZone[],
   source: null as HitSource | null,
@@ -325,7 +322,6 @@ function useSymbolPatternChartSolid(args: {
     const timeframe = args.timeframe();
     const market = args.market();
     const baseOptions = {
-      computeTrendlines: true,
       ...(asOf ? { asOf } : {}),
       ...(fromDate ? { fromDate } : {}),
     };
@@ -342,7 +338,6 @@ function useSymbolPatternChartSolid(args: {
         hits,
         overlays: chart.overlays ?? [],
         candles: chart.candles ?? [],
-        trendLines: chart.trend_lines ?? [],
         indicators: chart.indicators ?? null,
         srZones: chart.sr_zones ?? [],
         loading: false,
@@ -677,7 +672,6 @@ const ChartView = () => {
               onSelectHit={chart.selectHit}
               candles={chart.state().candles}
               overlays={chart.state().overlays}
-              trendLines={chart.state().trendLines}
               timeframe={timeframe()}
               indicators={chart.state().indicators}
               srZones={chart.state().srZones}
@@ -706,7 +700,6 @@ const ChartView = () => {
             hits={chart.state().hits}
             onSelectHit={chart.selectHit}
             overlays={chart.state().overlays}
-            trendLines={chart.state().trendLines}
             indicators={chart.state().indicators}
             srZones={chart.state().srZones}
             timeframe={timeframe()}

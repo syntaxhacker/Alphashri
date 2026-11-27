@@ -212,7 +212,12 @@ export function HistoryLab(props: {
           title={`Seasonality · ${sector()}`}
           description={seasonalityDescription()}
         >
-          <SeasonalityRadial cells={props.seasonality} sector={sector()} showHeader={false} />
+          <SeasonalityRadial
+            cells={props.seasonality}
+            sector={sector()}
+            showHeader={false}
+            showFooter={false}
+          />
         </HistoryPanel>
 
         <HistoryPanel
@@ -226,6 +231,7 @@ export function HistoryLab(props: {
             series={props.series}
             sector={sector()}
             showHeader={false}
+            showFooter={false}
           />
         </HistoryPanel>
 
@@ -240,6 +246,7 @@ export function HistoryLab(props: {
             series={props.series}
             sector={sector()}
             showHeader={false}
+            showFooter={false}
           />
         </HistoryPanel>
       </Box>

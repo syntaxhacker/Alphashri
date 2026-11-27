@@ -1,7 +1,7 @@
 {
   "feature": "chart-dock-sr",
   "route": "/screener?tab=market&view=movers (1600 dock) and /chart/POWERGRID (390)",
-  "head": "22167b077410c1f6cb14e68852012ec76683badc",
+  "head": "7129412bbb0a3a85815563147f291bb46dcab06a",
   "viewports": [1600, 390],
   "data": "Real POWERGRID 1D candles and backend-computed sr_zones (500 bars, last close 266.75) from the chart perf fixture; API routes mocked in Playwright.",
   "sha256": {

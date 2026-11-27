@@ -332,53 +332,6 @@ describe("PatternFilterRail", () => {
     expect(screen.getByTestId("patterns-filter-max-52w-gap")).toBeInTheDocument();
   });
 
-  test("labels the trendlines view options TLS/TLR", () => {
-    render(() => <PatternFilterRail {...makeProps()} />);
-    const select = within(screen.getByTestId("patterns-filter-trendlines")).getByRole("combobox");
-    expect(within(select).getByRole("option", { name: "TLS only" })).toBeInTheDocument();
-    expect(within(select).getByRole("option", { name: "TLR only" })).toBeInTheDocument();
-  });
-
-  test("changes the trendlines view filter", async () => {
-    const props = makeProps();
-    render(() => <PatternFilterRail {...props} />);
-    fireEvent.change(within(screen.getByTestId("patterns-filter-trendlines")).getByRole("combobox"), { target: { value: "support" } });
-    expect(props.setFilter).toHaveBeenCalledWith("trendlines", "support");
-  });
-
-  test("shows the trendlines control in the panel layout", () => {
-    render(() => <PatternFilterRail {...makeProps({ layout: "panel" })} />);
-    expect(within(screen.getByTestId("patterns-filter-trendlines")).getByRole("combobox")).toBeInTheDocument();
-  });
-
-  test("trendlines select exposes all four labels with the right values", () => {
-    render(() => <PatternFilterRail {...makeProps()} />);
-    const select = within(screen.getByTestId("patterns-filter-trendlines")).getByRole("combobox");
-    const options = within(select).getAllByRole("option");
-    expect(
-      options
-        .map((o) => [o.getAttribute("value"), o.textContent] as const)
-        .filter(([value]) => value !== ""),
-    ).toEqual([
-      ["both", "Both"],
-      ["support", "TLS only"],
-      ["resistance", "TLR only"],
-      ["none", "None"],
-    ]);
-  });
-
-  test("changing trendlines to resistance / none / both", async () => {
-    const props = makeProps();
-    render(() => <PatternFilterRail {...props} />);
-    const select = within(screen.getByTestId("patterns-filter-trendlines")).getByRole("combobox");
-    fireEvent.change(select, { target: { value: "resistance" } });
-    expect(props.setFilter).toHaveBeenCalledWith("trendlines", "resistance");
-    fireEvent.change(select, { target: { value: "none" } });
-    expect(props.setFilter).toHaveBeenCalledWith("trendlines", "none");
-    fireEvent.change(select, { target: { value: "both" } });
-    expect(props.setFilter).toHaveBeenCalledWith("trendlines", "both");
-  });
-
   test("clicking a preset calls applyFilters with its patch", async () => {
     const props = makeProps();
     render(() => <PatternFilterRail {...props} />);
@@ -408,7 +361,6 @@ describe("PatternFilterRail", () => {
     expect(within(screen.getByTestId("patterns-quality-select")).getByRole("combobox")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-formed-within")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-sort")).toBeInTheDocument();
-    expect(within(screen.getByTestId("patterns-filter-trendlines")).getByRole("combobox")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-min-base")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-max-range")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-volume-confirmed")).toBeInTheDocument();
@@ -650,7 +602,7 @@ describe("PatternFilterRail", () => {
   test("advanced section starts open when advanced filters are already applied", () => {
     const props = makeProps({
       layout: "panel",
-      filters: { ...FILTERS, min_confidence: 70, trendlines: "support" },
+      filters: { ...FILTERS, min_confidence: 70 },
     });
     render(() => <PatternFilterRail {...props} />);
     const trigger = screen.getByTestId("patterns-filter-advanced");

@@ -89,6 +89,14 @@ describe("RotationDetail mover links", () => {
     const link = screen.getByRole("link", { name: "BRK.B" });
     expect(link).toHaveAttribute("href", "/chart/BRK.B");
   });
+
+  test("activates a decorated mover chart link with Space", () => {
+    render(() => <RotationDetail row={rowWithMover("NSE:RELIANCE")} onOpenMembers={vi.fn()} />);
+    const link = screen.getByRole("link", { name: "RELIANCE" });
+    const click = vi.spyOn(link, "click").mockImplementation(() => {});
+    fireEvent.keyDown(link, { key: " " });
+    expect(click).toHaveBeenCalledTimes(1);
+  });
 });
 
 function renderDetail(open: (...args: unknown[]) => void, market?: string) {

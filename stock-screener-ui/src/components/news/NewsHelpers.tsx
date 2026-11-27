@@ -41,8 +41,8 @@ export function ArticleSymbols(props: { symbols: NewsSymbol[]; onSymbolClick: (s
   return (
     <Show when={props.symbols && props.symbols.length > 0}>
       <Box data-testid="news-article-symbols">
-        <Text size="sm" c="dimmed" style={{ "margin-bottom": "4px" }}>
-          Stocks mentioned:
+        <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ "margin-bottom": "4px" }}>
+          Symbols
         </Text>
         <Group gap="xs" align="center">
           <For each={props.symbols}>
@@ -51,7 +51,7 @@ export function ArticleSymbols(props: { symbols: NewsSymbol[]; onSymbolClick: (s
                 label={
                   symbol.instrument_key
                     ? `View ${symbol.trading_symbol} chart`
-                    : `Open ${symbol.code} on Moneycontrol`
+                    : `Open ${symbol.code} link`
                 }
               >
                 <Box
@@ -458,16 +458,17 @@ export function NewsFilterControls(props: {
           />
         </Group>
         <Show when={props.unreadCount > 0}>
-          <Badge
-            size="sm"
-            variant="light"
-            color="primary"
+          <button
+            type="button"
             onClick={props.onMarkAllRead}
+            aria-label={`${props.unreadCount} unread — mark all as read`}
             data-testid="news-unread-badge"
-            style={{ cursor: "pointer" }}
+            class="cursor-pointer rounded border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
           >
-            {props.unreadCount} unread
-          </Badge>
+            <Badge size="sm" variant="light" color="primary">
+              {props.unreadCount} unread
+            </Badge>
+          </button>
         </Show>
       </ToolbarRow>
     </Stack>
@@ -574,9 +575,6 @@ export function NewsListContent(props: {
           <IconNews size={32} aria-hidden="true" />
           <Text size="sm" fw={600} style={{ "margin-top": "8px" }}>
             No news available
-          </Text>
-          <Text size="sm" c="dimmed">
-            New articles will appear here when sources publish them.
           </Text>
         </Box>
       </Match>

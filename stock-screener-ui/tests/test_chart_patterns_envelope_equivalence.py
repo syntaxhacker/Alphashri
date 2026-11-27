@@ -1,10 +1,8 @@
-"""Guard that the trendline detector uses the single shared envelope search.
+"""Guard for the single shared envelope search in ``features.envelope_line``.
 
-``features.envelope_line`` is now the only implementation of the O(m^2)
-bounding-envelope search. This file used to differential-test it against a
-private copy in ``trendlines``; the copy is gone, so the remaining value is a
-guard that prevents the duplicate from being reintroduced, plus the flat-line
-tie-break check that pins ``(violations, -span)`` first-wins selection.
+The O(m^2) bounding-envelope implementation lives once in
+:mod:`chart_patterns.features`; pattern-boundary detectors reuse it. The
+flat-line tie-break below pins the ``(violations, -span)`` first-wins rule.
 """
 
 from __future__ import annotations
@@ -13,13 +11,6 @@ import numpy as np
 import pandas as pd
 
 from chart_patterns import features as F
-from chart_patterns import trendlines as T
-
-
-def test_trendlines_has_no_private_envelope_implementation():
-    assert not hasattr(T, "_envelope_line")
-    assert not hasattr(T, "_ENVELOPE_CELL_CAP")
-    assert T.F.envelope_line is F.envelope_line
 
 
 def test_flat_boundary_tiebreak_uses_longest_span():

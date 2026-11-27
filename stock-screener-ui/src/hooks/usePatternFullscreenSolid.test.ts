@@ -41,7 +41,6 @@ const chartPayload = (price: number, hits: PatternHitDTO[] = []): ChartPayload =
   timeframe: "1D",
   candles: [{ t: "2026-11-13", o: price, h: price, l: price, c: price, v: 1 }],
   overlays: [],
-  trend_lines: [],
   hits,
   stale: false,
 });
@@ -413,11 +412,10 @@ describe("usePatternFullscreen timeframe options and cache identity", () => {
     vi.clearAllMocks();
   });
 
-  test("a timeframe switch forwards lookbackBars and computeTrendlines to every phase", async () => {
+  test("a timeframe switch forwards lookbackBars to every phase", async () => {
     hook = renderSolidHook(() => usePatternFullscreen({
       timeframe: "1D",
       lookbackBars: 250,
-      computeTrendlines: false,
     }));
     const api = hook.result.current;
     api.openFromSymbol("KAYNES");
@@ -430,8 +428,8 @@ describe("usePatternFullscreen timeframe options and cache identity", () => {
     const calls = vi.mocked(fetchSymbolChart).mock.calls;
     expect(calls.length).toBeGreaterThan(0);
     expect(calls.every((call) => {
-      const opts = call[2] as { lookbackBars?: number; computeTrendlines?: boolean } | undefined;
-      return opts?.lookbackBars === 250 && opts?.computeTrendlines === false;
+      const opts = call[2] as { lookbackBars?: number } | undefined;
+      return opts?.lookbackBars === 250;
     })).toBe(true);
   });
 
@@ -439,7 +437,6 @@ describe("usePatternFullscreen timeframe options and cache identity", () => {
     hook = renderSolidHook(() => usePatternFullscreen({
       timeframe: "1D",
       lookbackBars: 250,
-      computeTrendlines: true,
     }));
     const api = hook.result.current;
     api.openFromSymbol("KAYNES");
@@ -458,14 +455,13 @@ describe("usePatternFullscreen timeframe options and cache identity", () => {
     )).toBe(true);
   });
 
-  test("cache keys separate lookback and trendline options", () => {
+  test("cache keys separate lookback options", () => {
     const base = { asOf: null, fromDate: null };
     const keys = [
-      fullscreenChartCacheKey("KAYNES", "1D", "l", { ...base, lookbackBars: 250, computeTrendlines: true }),
-      fullscreenChartCacheKey("KAYNES", "1D", "l", { ...base, lookbackBars: null, computeTrendlines: true }),
-      fullscreenChartCacheKey("KAYNES", "1D", "l", { ...base, lookbackBars: 250, computeTrendlines: false }),
+      fullscreenChartCacheKey("KAYNES", "1D", "l", { ...base, lookbackBars: 250 }),
+      fullscreenChartCacheKey("KAYNES", "1D", "l", { ...base, lookbackBars: null }),
     ];
-    expect(new Set(keys).size).toBe(3);
+    expect(new Set(keys).size).toBe(2);
   });
 });
 

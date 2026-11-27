@@ -85,6 +85,21 @@ describe("IndexMoversStrip", () => {
     expect(screen.getByText("-2.52%")).toBeInTheDocument();
   });
 
+  it("never renders a negative-zero percentage for a flat loser", async () => {
+    mockFetchIndexMovers.mockResolvedValue(createMockResponse({
+      losers: [{ symbol: "FLAT", ltp: 100, change_pct: -0.001, contribution_pct: 0, volume: 1 }],
+    }));
+
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+
+    await waitFor(() => expect(screen.getByText("FLAT")).toBeInTheDocument(), { timeout: 10000 });
+    const strip = screen.getByTestId("movers-strip");
+    expect(strip.textContent).not.toContain("-0.00%");
+    expect(strip).toHaveTextContent("0.00%");
+    expect(strip.querySelector('[title]')?.getAttribute("title")).not.toContain("-0.00%");
+  });
+
   it("shows EXPAND button", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 

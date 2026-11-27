@@ -42,7 +42,7 @@ test.describe("Sector Correlation & Rotation", () => {
 
     const diagonal = board.locator('[data-diagonal="true"]');
     expect(await diagonal.count()).toBeGreaterThan(0);
-    await expect(diagonal.first()).toHaveText("1.0");
+    await expect(diagonal.first()).toHaveText("100");
   });
 
   test("should display beta bar chart", async ({ page }) => {

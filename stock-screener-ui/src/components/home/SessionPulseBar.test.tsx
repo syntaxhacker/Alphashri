@@ -144,4 +144,17 @@ describe("SessionPulseBar", () => {
     expect(screen.getByTestId("pulse-nifty")).not.toHaveAttribute("aria-live");
     expect(screen.getByTestId("pulse-sector")).not.toHaveAttribute("aria-live");
   });
+
+  it("(format) a sub-centi negative move reads +0.00%, never -0.00%", () => {
+    const base = snapshot();
+    store.data = snapshot({
+      market: { ...base.market!, nifty: { last: 25304.2, change_pct: -0.001 } },
+      sector: { ...base.sector!, change_pct: -0.002, relative_strength_pct: -0.003 },
+    });
+    render(() => <SessionPulseBar />);
+
+    expect(pulse()).not.toHaveTextContent("-0.00%");
+    expect(screen.getByTestId("pulse-nifty")).toHaveTextContent("0.00%");
+    expect(screen.getByTestId("pulse-sector")).toHaveTextContent("0.00%");
+  });
 });

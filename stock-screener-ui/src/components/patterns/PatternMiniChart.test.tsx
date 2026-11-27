@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
-import type { ChartCandle, PatternHitDTO, TrendLine, Trendline } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, Trendline } from "@/types/chartPatterns";
 import { BOUNDARY_COLORS, buildPatternChartOption } from "./patternChartOption";
 import { PatternMiniChart } from "./PatternMiniChart";
 
@@ -145,7 +145,7 @@ describe("PatternMiniChart", () => {
     expect(screen.getByTestId("patterns-mini-chart-IRCON-falling_wedge")).toBeInTheDocument();
   });
 
-  test("passes candles, trendlines, trend_lines and trendlinesView to buildPatternChartOption", async () => {
+  test("passes candles and boundary trendlines to buildPatternChartOption", async () => {
     const candles = [candle("2026-09-01", 100, 102), candle("2026-09-02", 102, 105)];
     const lineA: Trendline = [
       { t: "2026-09-01", price: 106 },
@@ -155,22 +155,9 @@ describe("PatternMiniChart", () => {
       { t: "2026-09-01", price: 98 },
       { t: "2026-09-02", price: 99 },
     ];
-    const trendLines: TrendLine[] = [
-      {
-        kind: "support",
-        start_date: "2026-09-01",
-        start_price: 98,
-        end_date: "2026-09-02",
-        end_price: 99,
-        slope: 1,
-        touches: 3,
-        span_bars: 2,
-        violations: 0,
-      },
-    ];
-    const hit = makeHit({ candles, trendlines: [lineA, lineB], trend_lines: trendLines });
+    const hit = makeHit({ candles, trendlines: [lineA, lineB] });
 
-    render(() => <PatternMiniChart hit={hit} trendlinesView="support" />);
+    render(() => <PatternMiniChart hit={hit} />);
 
     await waitFor(() => expect(setChartOption).toHaveBeenCalled());
     expect(buildMock).toHaveBeenCalledTimes(1);
@@ -178,18 +165,9 @@ describe("PatternMiniChart", () => {
       candles,
       trendlines: [lineA, lineB],
       hit,
-      standaloneTrendLines: trendLines,
-      trendlinesView: "support",
       compact: true,
     });
     expect(setChartOption).toHaveBeenCalledWith({ mocked: "mini-chart" }, true);
-  });
-
-  test("defaults trendlinesView to both", async () => {
-    const hit = makeHit({ candles: [candle("2026-09-01", 100, 102)] });
-    render(() => <PatternMiniChart hit={hit} />);
-    await waitFor(() => expect(buildMock).toHaveBeenCalled());
-    expect(buildMock).toHaveBeenCalledWith(expect.objectContaining({ trendlinesView: "both" }));
   });
 
   test("filters out empty trendlines before building the option", async () => {

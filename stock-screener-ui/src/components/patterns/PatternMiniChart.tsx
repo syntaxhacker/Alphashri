@@ -1,21 +1,19 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type * as ECharts from "echarts";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
-import type { ChartCandle, PatternHitDTO, TrendLine, Trendline, TrendlinesView } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, Trendline } from "@/types/chartPatterns";
 import { MINI_CHART_HEIGHT } from "@/config/patterns";
 import { buildPatternChartOption, BOUNDARY_COLORS } from "./patternChartOption";
 import { loadEcharts } from "@/utils/loadEcharts";
 
 export interface PatternMiniChartProps {
   hit: PatternHitDTO;
-  trendlinesView?: TrendlinesView;
 }
 
 // Stable empties: the card renders one of these per row, so a fresh `[]`
 // fallback would allocate on every hit without candles / trendlines.
 const NO_CANDLES: ChartCandle[] = [];
 const NO_TRENDLINES: Trendline[] = [];
-const NO_STANDALONE: TrendLine[] = [];
 
 // Start the chart just before its card scrolls into view so it is ready on paint.
 const MINI_CHART_ROOT_MARGIN = "200px";
@@ -40,13 +38,12 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
   );
 
   // Option construction is pure and memoised on the data that shapes it: the
-  // hit (which carries the timeframe) and the trendline view. The visibility
-  // guard is first so an off-screen card never builds an option at all, and
-  // the memo means unrelated parent activity never rebuilds the arrays.
+  // hit (which carries the timeframe) and its boundary trendlines. The
+  // visibility guard is first so an off-screen card never builds an option at
+  // all, and the memo means unrelated parent activity never rebuilds arrays.
   const chartOption = createMemo<Record<string, unknown> | undefined>(() => {
     if (!visible()) return undefined;
     const hit = props.hit;
-    const view = props.trendlinesView;
     const candleWindow = candles();
     const lines = trendlines();
 
@@ -55,8 +52,6 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
         candles: candleWindow,
         trendlines: lines,
         hit,
-        standaloneTrendLines: hit.trend_lines ?? NO_STANDALONE,
-        trendlinesView: view ?? "both",
         compact: true,
       }) as Record<string, unknown>;
     }

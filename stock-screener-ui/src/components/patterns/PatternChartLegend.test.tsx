@@ -54,30 +54,6 @@ function makeHit(): PatternHitDTO {
         { t: "2026-04-03", price: 101 },
       ],
     ],
-    trend_lines: [
-      {
-        kind: "support",
-        start_date: "2026-04-01",
-        start_price: 99,
-        end_date: "2026-04-03",
-        end_price: 101,
-        slope: 1,
-        touches: 3,
-        span_bars: 3,
-        violations: 0,
-      },
-      {
-        kind: "resistance",
-        start_date: "2026-04-01",
-        start_price: 103,
-        end_date: "2026-04-03",
-        end_price: 105,
-        slope: 1,
-        touches: 2,
-        span_bars: 3,
-        violations: 0,
-      },
-    ],
     pivots: [],
     notes: "",
   };
@@ -96,25 +72,6 @@ describe("PatternChartLegend", () => {
     expect(screen.getByText("Falling Wedge")).toBeInTheDocument();
   });
 
-  test("renders TLS/TLR entries when standalone lines are present", () => {
-    const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
-    render(() => <PatternChartLegend lines={lines} />);
-
-    expect(screen.getByTestId("patterns-chart-legend-item-TLS")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-chart-legend-item-TLR")).toBeInTheDocument();
-    expect(screen.getByText("TLS")).toBeInTheDocument();
-    expect(screen.getByText("TLR")).toBeInTheDocument();
-  });
-
-  test("omits TLS/TLR when the view filter hides standalone lines", () => {
-    const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit(), trendlinesView: "none" });
-    render(() => <PatternChartLegend lines={lines} />);
-
-    expect(screen.getByTestId("patterns-chart-legend")).toBeInTheDocument();
-    expect(screen.queryByTestId("patterns-chart-legend-item-TLS")).toBeNull();
-    expect(screen.queryByTestId("patterns-chart-legend-item-TLR")).toBeNull();
-  });
-
   test("renders nothing when there are no lines", () => {
     const { container } = render(() => <PatternChartLegend lines={[]} />);
     expect(screen.queryByTestId("patterns-chart-legend")).toBeNull();
@@ -127,19 +84,19 @@ describe("PatternChartLegend", () => {
     const [hidden, setHidden] = createSignal<ReadonlySet<string>>(new Set());
     render(() => <PatternChartLegend lines={lines} hidden={hidden()} onToggle={onToggle} />);
 
-    const item = screen.getByTestId("patterns-chart-legend-item-TLS");
+    const item = screen.getByTestId("patterns-chart-legend-item-Falling Wedge");
     expect(item).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(item);
-    expect(onToggle).toHaveBeenCalledWith("TLS");
+    expect(onToggle).toHaveBeenCalledWith("Falling Wedge");
 
-    setHidden(new Set(["TLS"]));
-    expect(screen.getByTestId("patterns-chart-legend-item-TLS")).toHaveAttribute("aria-pressed", "false");
+    setHidden(new Set(["Falling Wedge"]));
+    expect(screen.getByTestId("patterns-chart-legend-item-Falling Wedge")).toHaveAttribute("aria-pressed", "false");
   });
 
   test("is display-only without onToggle", () => {
     const { lines } = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
     render(() => <PatternChartLegend lines={lines} />);
-    const item = screen.getByTestId("patterns-chart-legend-item-TLS");
+    const item = screen.getByTestId("patterns-chart-legend-item-Falling Wedge");
     expect(item).not.toHaveAttribute("aria-pressed");
     expect(item.tagName).toBe("SPAN");
   });

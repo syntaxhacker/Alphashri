@@ -2845,10 +2845,6 @@ components:
           - type: string
           - type: 'null'
           title: As Of Date
-        compute_trendlines:
-          default: true
-          title: Compute Trendlines
-          type: boolean
         force:
           default: false
           title: Force
@@ -4245,10 +4241,6 @@ components:
           - type: string
           - type: 'null'
           title: Timeframe
-        trend_lines:
-          items: {}
-          title: Trend Lines
-          type: array
       required:
       - symbol
       title: SymbolChartResponse
@@ -7010,13 +7002,6 @@ paths:
           - type: 'null'
           title: Lookback Bars
       - in: query
-        name: compute_trendlines
-        required: false
-        schema:
-          default: true
-          title: Compute Trendlines
-          type: boolean
-      - in: query
         name: max_52w_gap
         required: false
         schema:
@@ -7245,13 +7230,6 @@ paths:
           - type: integer
           - type: 'null'
           title: Lookback Bars
-      - in: query
-        name: compute_trendlines
-        required: false
-        schema:
-          default: true
-          title: Compute Trendlines
-          type: boolean
       - in: query
         name: max_52w_gap
         required: false
@@ -7595,13 +7573,6 @@ paths:
           - type: integer
           - type: 'null'
           title: Lookback Bars
-      - in: query
-        name: compute_trendlines
-        required: false
-        schema:
-          default: true
-          title: Compute Trendlines
-          type: boolean
       - in: query
         name: detect_patterns
         required: false

@@ -12,9 +12,7 @@ import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternGrid } from "./PatternGrid";
 
 vi.mock("./PatternMiniChart", () => ({
-  PatternMiniChart: ({ trendlinesView }: { trendlinesView?: string }) => (
-    <div data-testid="mini-stub" data-trendlines-view={trendlinesView ?? "both"} />
-  ),
+  PatternMiniChart: () => <div data-testid="mini-stub" />,
 }));
 
 function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
@@ -218,19 +216,6 @@ describe("PatternGrid missing coverage", () => {
     expect(
       screen.queryByTestId("patterns-card-expand-IRCON-falling_wedge"),
     ).not.toBeInTheDocument();
-  });
-
-  test("forwards trendlinesView to every mini chart", () => {
-    const hits = [makeHit({ id: 1, symbol: "AAA" }), makeHit({ id: 2, symbol: "BBB" })];
-    render(() => <PatternGrid hits={hits} onSelect={vi.fn()} trendlinesView="support" />);
-    const stubs = screen.getAllByTestId("mini-stub");
-    expect(stubs).toHaveLength(2);
-    stubs.forEach((stub) => expect(stub).toHaveAttribute("data-trendlines-view", "support"));
-  });
-
-  test("defaults trendlinesView to both", () => {
-    render(() => <PatternGrid hits={[makeHit({ id: 1 })]} onSelect={vi.fn()} />);
-    expect(screen.getByTestId("mini-stub")).toHaveAttribute("data-trendlines-view", "both");
   });
 
   test("renders the 200-hit results limit", () => {

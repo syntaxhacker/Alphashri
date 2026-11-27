@@ -15,7 +15,9 @@ afterEach(() => {
 describe("IntervalMoversTable", () => {
   it("shows empty state when no movers", () => {
     render(() => <IntervalMoversTable movers={[]} />);
-    expect(screen.getByText("Collecting baseline for interval moves...")).toBeInTheDocument();
+    expect(screen.getByTestId("interval-movers-empty")).toHaveTextContent(
+      "First poll establishes the baseline.",
+    );
   });
 
   it("renders mover rows with symbol, previous change, current change, and delta", () => {
@@ -28,6 +30,19 @@ describe("IntervalMoversTable", () => {
     expect(screen.getByText("INFY")).toBeInTheDocument();
     expect(screen.getByText("2.00%")).toBeInTheDocument();
     expect(screen.getByText("3.00%")).toBeInTheDocument();
+  });
+
+  it("activates a decorated interval mover chart link with Space", () => {
+    const movers: InternalStockMover[] = [
+      { symbol: "NSE:RELIANCE", change: 3.0, prev_change: 2.0, delta: 1.0 },
+    ];
+    render(() => <IntervalMoversTable movers={movers} />);
+    const link = screen.getByTestId("interval-mover-NSE:RELIANCE");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/chart/RELIANCE");
+    const click = vi.spyOn(link, "click").mockImplementation(() => {});
+    fireEvent.keyDown(link, { key: " " });
+    expect(click).toHaveBeenCalledTimes(1);
   });
 
   it("displays delta with + prefix for positive values", () => {

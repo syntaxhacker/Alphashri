@@ -26,7 +26,6 @@ describe("PatternsPage fullscreen hit resolution", () => {
       timeframe: "1D",
       candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
       overlays: [],
-      trend_lines: [],
       hits: [],
     });
 
@@ -64,7 +63,6 @@ describe("PatternsPage fullscreen hit resolution", () => {
       timeframe: "1D",
       candles: [],
       overlays: [],
-      trend_lines: [],
       hits: [{ ...cardHit, id: null }],
     });
 

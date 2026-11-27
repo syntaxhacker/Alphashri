@@ -43,6 +43,51 @@ describe("SectorHeatmapControls", () => {
     expect(screen.getByTestId("sector-heatmap-sector-filter")).toBeInTheDocument();
   });
 
+  it("renders terse loading, error and empty evidence beside the sector selector", () => {
+    const { unmount } = render(() => (
+      <SectorHeatmapControls
+        viewMode="stock"
+        onViewModeChange={noop}
+        metric="change_pct"
+        onMetricChange={noop}
+        loading
+        sectorOptions={[]}
+      />
+    ));
+    expect(screen.getByTestId("sector-heatmap-sector-filter-loading")).toHaveTextContent(
+      "Sectors…",
+    );
+    unmount();
+
+    render(() => (
+      <SectorHeatmapControls
+        viewMode="stock"
+        onViewModeChange={noop}
+        metric="change_pct"
+        onMetricChange={noop}
+        error="heatmap request failed"
+        sectorOptions={[]}
+      />
+    ));
+    const error = screen.getByTestId("sector-heatmap-sector-filter-error");
+    expect(error).toHaveTextContent("Sectors unavailable");
+    expect(error).toHaveAttribute("title", "heatmap request failed");
+    cleanup();
+
+    render(() => (
+      <SectorHeatmapControls
+        viewMode="stock"
+        onViewModeChange={noop}
+        metric="change_pct"
+        onMetricChange={noop}
+        sectorOptions={[]}
+      />
+    ));
+    expect(screen.getByTestId("sector-heatmap-sector-filter-empty")).toHaveTextContent(
+      "No sectors yet",
+    );
+  });
+
   it("switches layer through the toggle", () => {
     const onChange = vi.fn();
     render(() => (

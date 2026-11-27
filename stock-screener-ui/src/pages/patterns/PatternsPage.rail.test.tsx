@@ -92,20 +92,17 @@ vi.mock("@/components/patterns/PatternImage", () => ({
   },
 }));
 
-const gridTrendlinesViews = vi.hoisted(() => [] as unknown[]);
-const fullscreenTrendlinesViews = vi.hoisted(() => [] as unknown[]);
 // Records the `overlays` prop per fullscreen render (single-pattern contract:
 // the page always passes an empty list so only the active hit is drawn).
 const fullscreenOverlays = vi.hoisted(() => [] as unknown[]);
 
 // Faithful stubs: preserve the contract testids the page relies on
 // (card buttons incl. expand affordance, fullscreen modal + chart +
-// "No chart data") while recording the `trendlinesView` prop.
+// "No chart data").
 vi.mock("@/components/patterns/PatternGrid", () => ({
   PatternGrid: (props: any) => {
-    gridTrendlinesViews.push(props.trendlinesView ?? "both");
     return (
-      <div data-testid="patterns-grid" data-trendlines-view={props.trendlinesView ?? "both"}>
+      <div data-testid="patterns-grid">
         <For each={props.hits as any[]}>
           {(hit: any) => (
             <div>
@@ -192,7 +189,6 @@ vi.mock("@/components/patterns/PatternSymbolMatrix", () => ({
 
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
   PatternFullscreenView: (props: any) => {
-    fullscreenTrendlinesViews.push(props.trendlinesView ?? "both");
     fullscreenOverlays.push(props.overlays);
     const docked = () => props.docked ?? false;
     const tfs = () =>
@@ -201,10 +197,7 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
         : [{ id: props.timeframe, label: props.timeframe }];
     return (
       <Show when={props.opened}>
-        <div
-          data-testid={docked() ? "patterns-chart-dock" : "patterns-fullscreen-modal"}
-          data-trendlines-view={props.trendlinesView ?? "both"}
-        >
+        <div data-testid={docked() ? "patterns-chart-dock" : "patterns-fullscreen-modal"}>
           <div data-testid="patterns-fullscreen-active-hit">{props.hit?.pattern_name}</div>
           <For each={(props.hits ?? []) as any[]}>
             {(h: any, i: number) => (
@@ -394,13 +387,10 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
       min_base_days: null,
       max_range_pct: null,
       sort: "confidence",
-      trendlines: "both",
     },
     setFilter: vi.fn(),
     resetFilters: vi.fn(),
     applyFilters: vi.fn(),
-    computeTrendlines: true,
-    setComputeTrendlines: vi.fn(),
     customUniverse: "custom",
     selectSymbols: vi.fn(),
     job: null,
@@ -449,8 +439,6 @@ async function pickMultiOption(selectTestId: string, name: string | RegExp) {
 describe("PatternsPage rail-modal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    gridTrendlinesViews.length = 0;
-    fullscreenTrendlinesViews.length = 0;
     fullscreenOverlays.length = 0;
     fetchPatternHit.mockResolvedValue(undefined as never);
     fetchPatternImages.mockResolvedValue({

@@ -1,6 +1,6 @@
 import { createMemo, For } from "solid-js";
 import { SimpleGrid, useMediaQuery } from "@/ui";
-import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
+import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternCard } from "./PatternCard";
 
 export interface PatternGridProps {
@@ -8,7 +8,6 @@ export interface PatternGridProps {
   onSelect: (hit: PatternHitDTO) => void;
   onExpand?: (hit: PatternHitDTO) => void;
   onShowMembers?: (symbol: string) => void;
-  trendlinesView?: TrendlinesView;
   activeHit?: PatternHitDTO | null;
   onSymbolPreview?: (symbol: string) => void;
   onSymbolPreviewEnd?: (symbol: string) => void;
@@ -21,7 +20,6 @@ export function PatternGrid(props: PatternGridProps) {
   const isTablet = useMediaQuery("(min-width: 900px)");
   const cols = createMemo(() => (isWide() ? 4 : isDesktop() ? 3 : isTablet() ? 2 : 1));
 
-  const trendlinesView = () => props.trendlinesView ?? "both";
   const activeIdentity = createMemo(() => {
     const hit = props.activeHit ?? null;
     return hit
@@ -62,7 +60,6 @@ export function PatternGrid(props: PatternGridProps) {
             onClick={props.onSelect}
             onExpand={props.onExpand}
             onShowMembers={props.onShowMembers}
-            trendlinesView={trendlinesView()}
             onSymbolPreview={props.onSymbolPreview}
             onSymbolPreviewEnd={props.onSymbolPreviewEnd}
             onSymbolOpen={props.onSymbolOpen}

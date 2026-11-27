@@ -47,7 +47,6 @@ function urlSyncArgsBase() {
     setUniverse: vi.fn(),
     setTimeframe: vi.fn(),
     setLookbackBars: vi.fn(),
-    setComputeTrendlines: vi.fn(),
     applyFilters: vi.fn(),
   };
 }
@@ -78,7 +77,6 @@ afterEach(() => {
 function makeArgs(overrides: Partial<UsePatternUrlSyncArgs> = {}): UsePatternUrlSyncArgs {
   return {
     ...urlSyncArgsBase(),
-    computeTrendlines: true,
     setTab: vi.fn(),
     ...overrides,
   };

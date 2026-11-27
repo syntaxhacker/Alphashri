@@ -89,12 +89,19 @@ vi.mock("lightweight-charts", () => ({
 
 import {
   COMPACT_INITIAL_BAR_CAP,
+  PRICE_AXIS_FONT_HEIGHT_PX,
+  PRICE_SCALE_BOTTOM_MARGIN,
+  PRICE_SCALE_TOP_MARGIN,
+  PRICE_SCALE_TOP_MARGIN_COMPACT,
   PatternTradingViewChart,
   initialVisibleLogicalRange,
   isCompactChartWidth,
+  isPriceTickInsideViewport,
   layoutIndicatorTags,
   layoutZoneLabel,
+  priceScaleTopMargin,
   suppressCrossMarkerText,
+  topmostVisiblePriceTickY,
   type IndicatorTagCandidate,
   type ZoneLabelCandidate,
 } from "./PatternTradingViewChart";
@@ -143,30 +150,6 @@ function makeHit(): PatternHitDTO {
         { t: "2026-04-01", price: 99 },
         { t: "2026-04-05", price: 103 },
       ],
-    ],
-    trend_lines: [
-      {
-        kind: "support",
-        start_date: "2026-04-01",
-        start_price: 99,
-        end_date: "2026-04-05",
-        end_price: 103,
-        slope: 1,
-        touches: 3,
-        span_bars: 5,
-        violations: 0,
-      },
-      {
-        kind: "resistance",
-        start_date: "2026-04-01",
-        start_price: 103,
-        end_date: "2026-04-05",
-        end_price: 107,
-        slope: 1,
-        touches: 2,
-        span_bars: 5,
-        violations: 0,
-      },
     ],
     pivots: [
       { t: "2026-04-02", price: 103, kind: "high" },
@@ -226,7 +209,7 @@ afterEach(() => {
 });
 
 describe("PatternTradingViewChart", () => {
-  it("creates the chart and draws candles, levels, boundary/TLS-TLR lines and pivots", () => {
+  it("creates the chart and draws candles, boundary lines and pivots", () => {
     render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
 
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
@@ -235,13 +218,14 @@ describe("PatternTradingViewChart", () => {
     expect(options).toMatchObject({ handleScroll: true, handleScale: true });
     expect((options.timeScale as Record<string, unknown>).rightOffset).toBe(12);
     expect(options.rightPriceScale).toMatchObject({
-      scaleMargins: { top: 0.08, bottom: 0.08 },
+      scaleMargins: { top: PRICE_SCALE_TOP_MARGIN, bottom: PRICE_SCALE_BOTTOM_MARGIN },
+      entireTextOnly: true,
     });
 
     const kinds = mocks.chartApi.addSeries.mock.calls.map((c) => c[0]);
     expect(kinds[0]).toBe(mocks.CandlestickSeries);
     expect(kinds).toContain(mocks.HistogramSeries);
-    expect(kinds.filter((k) => k === mocks.LineSeries)).toHaveLength(4);
+    expect(kinds.filter((k) => k === mocks.LineSeries)).toHaveLength(2);
 
     const [candleSeries, volumeSeries] = mocks.createdSeries;
     expect(candleSeries?.setData).toHaveBeenCalledTimes(1);
@@ -272,12 +256,12 @@ describe("PatternTradingViewChart", () => {
     expect(mocks.setMarkers).toHaveBeenCalledWith([]);
   });
 
-  it("hides only the toggled-off line series via hiddenNames", () => {
-    render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} hiddenNames={new Set(["TLS"])} />);
+  it("hides both boundary lines of a toggled-off pattern via hiddenNames", () => {
+    render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} hiddenNames={new Set(["Falling Wedge"])} />);
     const hiddenSeries = mocks.createdSeries.filter((s) =>
       s.applyOptions.mock.calls.some((c) => (c[0] as { visible?: boolean })?.visible === false),
     );
-    expect(hiddenSeries).toHaveLength(1);
+    expect(hiddenSeries).toHaveLength(2);
   });
 
   it("shows every line series when nothing is hidden", () => {
@@ -989,5 +973,38 @@ describe("compact-width helpers", () => {
     expect(compact[1]?.position).toBe("aboveBar");
     expect(compact[1]?.price).toBe(markers[1]?.price);
     expect(suppressCrossMarkerText(compact)).toBe(compact);
+  });
+});
+
+describe("price axis tick stays inside the chart viewport at 390", () => {
+  // Shortest pane in the narrow layout; a 12px tick needs half a font height
+  // of clearance at each edge to be drawn whole.
+  const CHART_HEIGHT_PX = 360;
+  const CLIPPED_EDGE_TICK_Y = 0;
+
+  it("asks lightweight-charts to drop any corner tick it cannot draw whole", () => {
+    render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
+    const options = mocks.createChart.mock.calls[0]?.[1] as {
+      rightPriceScale: { entireTextOnly?: boolean };
+    };
+    expect(options.rightPriceScale.entireTextOnly).toBe(true);
+  });
+
+  it("reserves headroom above the top tick on a 390px chart", () => {
+    expect(priceScaleTopMargin(390)).toBe(PRICE_SCALE_TOP_MARGIN_COMPACT);
+    expect(priceScaleTopMargin(1600)).toBe(PRICE_SCALE_TOP_MARGIN);
+    expect(priceScaleTopMargin(390)).toBeGreaterThan(priceScaleTopMargin(1600));
+    expect(priceScaleTopMargin(390) * CHART_HEIGHT_PX).toBeGreaterThanOrEqual(
+      PRICE_AXIS_FONT_HEIGHT_PX,
+    );
+  });
+
+  it("places the topmost drawn tick inside the pane and rejects the clipped edge", () => {
+    const topTickY = topmostVisiblePriceTickY(CHART_HEIGHT_PX, true);
+    expect(topTickY).toBe(PRICE_AXIS_FONT_HEIGHT_PX / 2);
+    expect(isPriceTickInsideViewport(topTickY, CHART_HEIGHT_PX)).toBe(true);
+    expect(isPriceTickInsideViewport(CLIPPED_EDGE_TICK_Y, CHART_HEIGHT_PX)).toBe(false);
+    expect(topmostVisiblePriceTickY(CHART_HEIGHT_PX, false)).toBe(CLIPPED_EDGE_TICK_Y);
+    expect(isPriceTickInsideViewport(CHART_HEIGHT_PX, CHART_HEIGHT_PX)).toBe(false);
   });
 });

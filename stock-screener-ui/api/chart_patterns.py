@@ -34,7 +34,6 @@ from chart_patterns import candles, config, jobs, store
 from chart_patterns import indicators as indicators_mod
 from chart_patterns import levels as levels_mod
 from chart_patterns import scan as scan_mod
-from chart_patterns import trendlines as trendlines_mod
 from chart_patterns import watch as watch_mod
 from chart_patterns.tags import tags_for
 from chart_patterns.parallel import max_workers as _parallel_max_workers
@@ -590,7 +589,6 @@ def _chart_empty_payload(symbol: str, timeframe: str, *, reason: str, note: str)
         "timeframe": timeframe,
         "candles": [],
         "overlays": [],
-        "trend_lines": [],
         "close_bar_date": None,
         "error": reason,
         "note": note,
@@ -640,7 +638,6 @@ def _stale_chart_fallback(
         "timeframe": timeframe,
         "candles": series,
         "overlays": [],
-        "trend_lines": [],
         "cached": True,
         "stale": True,
         "as_of": as_of,
@@ -1074,23 +1071,13 @@ def _stored_hits(symbol_u: str, timeframe: str, detail: Optional[dict] = None) -
     return hits
 
 
-def _stored_overlays_and_lines(symbol_u: str, timeframe: str, df=None) -> tuple[list, list]:
-    """Stored-scan overlays + fresh stored trend lines. Never raises.
-
-    ``df`` is the frame the chart/card will draw. When given, stored lines are
-    only reused if they were computed from that exact trailing window — the
-    detector signature alone cannot prove the geometry still applies.
-    """
+def _stored_overlays(symbol_u: str, timeframe: str) -> list:
+    """Pattern-boundary trendlines from the stored scan. Never raises."""
     overlays: list = []
-    stored_fresh_lines: list = []
     try:
         detail = store.get_symbol_detail(symbol_u, timeframe)
     except Exception:
         detail = {}
-    try:
-        chart_sig = config.trendline_signature()
-    except Exception:
-        chart_sig = None
     for pattern in (detail.get("patterns", []) if isinstance(detail, dict) else []):
         if pattern.get("trendlines"):
             overlays.append({
@@ -1102,50 +1089,22 @@ def _stored_overlays_and_lines(symbol_u: str, timeframe: str, df=None) -> tuple[
                 "end_date": pattern.get("end_date"),
                 "id": pattern.get("id"),
             })
-        if not stored_fresh_lines and _stored_lines_fresh(pattern, chart_sig, df):
-            stored_fresh_lines = list(pattern.get("trend_lines") or [])
-    return overlays, stored_fresh_lines
+    return overlays
 
 
-def _detect_trend_lines(df, lookback_bars, stored_fresh_lines) -> list:
-    if stored_fresh_lines:
-        return list(stored_fresh_lines)
-    try:
-        _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
-        return [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
-    except Exception:
-        return []
-
-
-def _pattern_block(df, symbol_u: str, timeframe: str, session: str, lookback_bars,
-                   compute_trendlines: bool, stored_fresh_lines) -> dict:
-    """Hits/trend lines for the live chart, pattern-hit-cache aware.
+def _pattern_block(df, symbol_u: str, timeframe: str, session: str) -> dict:
+    """Hits for the live chart, pattern-hit-cache aware.
 
     Shared by the network path and the stale-first path. On a cache hit (same
     IST session) the engine/detector are not re-run. Returns a dict with
-    ``hits``, ``live_overlays``, ``trend_lines`` (``None`` when not computed)
-    and ``cache_hit``. Never raises.
+    ``hits``, ``live_overlays`` and ``cache_hit``. Never raises.
     """
     frame_id = _frame_identity(df)
     cached = _pattern_hit_cache_get(symbol_u, timeframe, session, frame_id)
     if cached is not None:
-        cached_tl = cached.get("trend_lines")
-        tl_ok = False
-        if cached_tl is not None:
-            try:
-                tl_ok = cached.get("trend_lines_sig") == config.trendline_signature()
-            except Exception:
-                tl_ok = True
-        if not compute_trendlines:
-            trend_lines: Optional[list] = []
-        elif tl_ok:
-            trend_lines = list(cached_tl)
-        else:
-            trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
         return {
             "hits": list(cached.get("hits") or []),
             "live_overlays": list(cached.get("live_overlays") or []),
-            "trend_lines": trend_lines,
             "cache_hit": True,
         }
     hits: list = []
@@ -1163,26 +1122,18 @@ def _pattern_block(df, symbol_u: str, timeframe: str, session: str, lookback_bar
         overlay = _live_overlay(record)
         if overlay is not None:
             live_overlays.append(overlay)
-    trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines) if compute_trendlines else None
     return {
         "hits": hits,
         "live_overlays": live_overlays,
-        "trend_lines": trend_lines,
         "cache_hit": False,
     }
 
 
 def _store_pattern_block(symbol_u: str, timeframe: str, session: str, block: dict,
-                         compute_trendlines: bool, frame_id: Optional[str] = None) -> None:
-    try:
-        sig = config.trendline_signature() if compute_trendlines else None
-    except Exception:
-        sig = None
+                         frame_id: Optional[str] = None) -> None:
     _pattern_hit_cache_put(symbol_u, timeframe, session, {
         "hits": list(block["hits"]),
         "live_overlays": list(block["live_overlays"]),
-        "trend_lines": list(block["trend_lines"]) if compute_trendlines and block["trend_lines"] is not None else None,
-        "trend_lines_sig": sig,
     }, frame_id)
 
 
@@ -1487,84 +1438,6 @@ def _slice_candles(df, start_date, end_date, max_bars: int = config.CARD_MAX_BAR
     return _fast_candle_series(window, len(window))
 
 
-def _stored_trend_lines(item) -> Optional[list]:
-    """Scan-time ``trend_lines`` as a list, **including a proven empty one**.
-
-    ``None`` means "no usable stored answer" and the caller must recompute:
-
-    * a missing/non-list ``trend_lines`` was never persisted, and
-    * an empty list only counts when the row carries a ``trend_lines_window``
-      fingerprint — then the scan ran on that exact window and genuinely found
-      no line. "no lines" and "never computed" are otherwise indistinguishable,
-      and re-running the detector for every such card is the strictness that
-      made ``/results`` recompute per item.
-
-    Never raises.
-    """
-    try:
-        stored = item.get("trend_lines")
-    except Exception:
-        return None
-    if not isinstance(stored, list):
-        return None
-    if stored:
-        return stored
-    return [] if _stored_lines_window(item) else None
-
-
-def _stored_lines_sig(item) -> Optional[str]:
-    """Scan-time ``trend_lines_sig`` carried by a result item, else ``None``."""
-    try:
-        sig = item.get("trend_lines_sig")
-    except Exception:
-        return None
-    return str(sig) if isinstance(sig, str) and sig else None
-
-
-def _stored_lines_window(item) -> Optional[str]:
-    """Scan-time ``trend_lines_window`` carried by a result item, else ``None``."""
-    try:
-        window = item.get("trend_lines_window")
-    except Exception:
-        return None
-    return str(window) if isinstance(window, str) and window else None
-
-
-def _stored_lines_fresh(item, current_sig=None, df=None) -> bool:
-    """True when stored ``trend_lines`` may be served for ``df``.
-
-    The detector signature alone cannot prove the stored geometry still
-    matches the frame a card is drawn from, so two gates apply:
-
-    * ``trend_lines_sig`` must equal the current detector settings (a constant
-      change invalidates every stored line), and
-    * when the row carries ``trend_lines_window`` (new scans do), it must be
-      the trailing-window fingerprint of ``df``. Only that exact window
-      reproduces the lines bit-for-bit — and a *proven empty* result is just as
-      reusable as a non-empty one.
-
-    Rows persisted before the window fingerprint existed keep the pre-existing
-    signature-only behaviour when they carry lines, and are recomputed when
-    they do not (an empty list there cannot be told apart from "never ran").
-    ``df=None`` (no frame in hand) also falls back to the signature-only gate.
-    ``current_sig`` lets batch callers compute the detector signature once per
-    request instead of per item.
-    """
-    if _stored_trend_lines(item) is None:
-        return False
-    if current_sig is None:
-        current_sig = config.trendline_signature()
-    if _stored_lines_sig(item) != current_sig:
-        return False
-    window = _stored_lines_window(item)
-    if df is None or window is None:
-        return True
-    try:
-        return trendlines_mod.window_matches(window, df)
-    except Exception:
-        return False
-
-
 def _clamp_to_lookback(df, lookback_bars: Optional[int]):
     """Slice ``df`` to its last ``lookback_bars`` rows; passthrough otherwise.
 
@@ -1748,16 +1621,14 @@ def _cache_setdefault(cache, key, value, lock=None) -> None:
         cache.setdefault(key, value)
 
 
-def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache,
-                   lock=None, current_sig=None, max_bars=None):
-    """Attach a candle window + last close/day change + trend lines to one item.
+def _finalize_item(item, df, *, key, lookback_bars, max_bars=None):
+    """Attach a candle window + last close/day change to one item.
 
     Phase-2 of :func:`_enrich_with_candles`, factored so the SSE stream
     (``GET /results/stream``) reuses the exact per-item logic — a streamed
     item is byte-identical to its batched twin. ``key`` is the
     ``(symbol, timeframe)`` fetch key (``None`` when the item carries no
-    symbol/timeframe); ``tl_cache`` maps keys to detector results. Pass
-    ``lock`` when calling from worker threads (guards the shared caches).
+    symbol/timeframe).
 
     ``max_bars`` caps the returned candle window (``None`` = the full
     ``CHART_MAX_BARS``). Cards pass :data:`chart_patterns.config.CARD_MAX_BARS`:
@@ -1767,12 +1638,7 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
     """
     if isinstance(item, dict):
         item.setdefault("tags", tags_for(str(item.get("symbol") or "")))
-    if current_sig is None:
-        current_sig = config.trendline_signature()
     candle_limit = config.CHART_MAX_BARS if max_bars is None else int(max_bars)
-    stored_lines = (
-        _stored_trend_lines(item) if _stored_lines_fresh(item, current_sig, df) else None
-    )
     frame_id = _frame_identity(df)
     if key is None or frame_id is None:
         # No frame means no close to report. Never keep a value an earlier
@@ -1782,14 +1648,12 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
             item["last_close"] = None
             item["day_change_pct"] = None
             item["close_bar_date"] = None
-            item["trend_lines"] = (stored_lines or []) if compute_trendlines else []
         return item
     # The close, its date, the change and the candles all come from THIS frame.
     # The key carries its identity, so a newer frame can never reuse an older
-    # value — not within this request (tl_cache) and not across requests (the
-    # persistent cache the chart/stored-hit paths also consult). The candle
-    # limit is part of the key: a card (160 bars) and a chart (full) share the
-    # frame but not the series.
+    # value — within this request or across requests. The candle limit is part
+    # of the key: a card (160 bars) and a chart (full) share the frame but not
+    # the series.
     enrich_key = (
         str(key[0]).upper(), str(key[1]), lookback_bars,
         candle_limit, frame_id,
@@ -1804,24 +1668,6 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
         _enrichment_cache_put(enrich_key, cached)
     item["candles"], item["last_close"], item["day_change_pct"], item["close_bar_date"] = cached
     _remember_frame(key, df, item["last_close"], item["day_change_pct"])
-    if not compute_trendlines:
-        item["trend_lines"] = []
-        return item
-    if stored_lines is not None:
-        item["trend_lines"] = stored_lines
-        return item
-    tl_key = (key, frame_id)
-    if tl_key not in tl_cache:
-        try:
-            computed = trendlines_mod.detect_trendlines(df)
-        except Exception:
-            computed = {"support": None, "resistance": None}
-        _cache_setdefault(tl_cache, tl_key, computed, lock)
-    try:
-        res = tl_cache[tl_key] or {}
-        item["trend_lines"] = [v for v in (res.get("support"), res.get("resistance")) if v]
-    except Exception:
-        item["trend_lines"] = []
     return item
 
 
@@ -1881,8 +1727,7 @@ def _fetch_candles_retry(symbol, timeframe, lookback_bars, *, log_failure: bool 
 
 
 def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: Optional[int] = None,
-                          lookback_bars: Optional[int] = None, compute_trendlines: bool = True,
-                          for_cards: bool = False):
+                          lookback_bars: Optional[int] = None, for_cards: bool = False):
     """Attach a real candle window + last close/day change to each result item.
 
     Candles are served from ``candles.fetch_for_timeframe`` (disk-cached), so
@@ -1898,11 +1743,6 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     not read 700 bars, and shipping them was most of the ``/results`` body.
     The chart/detail paths pass ``for_cards=False`` and keep the full series
     unless a caller asks for an explicit cap.
-
-    Items already carrying fresh scan-time ``trend_lines`` (non-empty, a
-    matching ``trend_lines_sig`` *and* a ``trend_lines_window`` that matches
-    the frame's trailing window) keep them; stale, unprovable or blank lines
-    are recomputed with the detector and overwritten.
     """
     if max_bars is None:
         max_bars = config.CARD_MAX_BARS if for_cards else config.CHART_MAX_BARS
@@ -1939,17 +1779,13 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
             for key in ordered_keys:
                 if key not in cache:
                     cache[key] = _fetch_one(key)
-    tl_cache: dict = {}
-    # One detector signature per batch (instead of one rebuild per item).
-    current_sig = config.trendline_signature()
     # Phase 2: per-item enrichment in the original order (clamp, series,
-    # last close/day change, stored-vs-recomputed trendlines) — unchanged.
+    # last close/day change) — unchanged.
     for item in items:
         key = _item_fetch_key(item, default_timeframe)
         _finalize_item(
             item, cache.get(key) if key is not None else None, key=key,
-            lookback_bars=lookback_bars, compute_trendlines=compute_trendlines,
-            tl_cache=tl_cache, current_sig=current_sig, max_bars=max_bars,
+            lookback_bars=lookback_bars, max_bars=max_bars,
         )
     return items
 
@@ -1983,7 +1819,6 @@ class ScanRequest(BaseModel):
     timeframe: str
     force: bool = False
     refresh: bool = False
-    compute_trendlines: bool = True
     # Optional explicit symbol scope. When present, only these symbols are
     # scanned (the job is stored under the reserved ``custom`` universe), so a
     # caller can run detection on a hand-picked list without computing a whole
@@ -2150,7 +1985,6 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
                 detail=f"unknown universe {request.universe!r}. Known: {sorted(_valid_universe_ids())}",
             )
         params = {"force": request.force}
-    params["compute_trendlines"] = request.compute_trendlines
     if request.include_partial_today is not None:
         params["include_partial_today"] = request.include_partial_today
     if request.lookback_bars is not None:
@@ -2293,7 +2127,6 @@ class _ResultsQuery(NamedTuple):
     limit: int
     offset: int
     lookback_bars: Optional[int]
-    compute_trendlines: bool
 
 
 def _results_query(
@@ -2316,7 +2149,6 @@ def _results_query(
     limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
     offset: int = Query(0, ge=0),
     lookback_bars: Optional[int] = Query(None),
-    compute_trendlines: bool = Query(True),
     max_52w_gap: Optional[float] = Query(None),
     min_range_pos: Optional[float] = Query(None),
     from_date: Optional[str] = Query(None),
@@ -2339,7 +2171,6 @@ def _results_query(
         limit=limit,
         offset=offset,
         lookback_bars=lookback_bars,
-        compute_trendlines=compute_trendlines,
     )
 
 
@@ -2436,7 +2267,7 @@ def _iter_completed_results(futs, stop, out):
 
 
 def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
-                           compute_trendlines, out, stop, max_bars=None):
+                           out, stop, max_bars=None):
     """Enrich each item on a bounded pool, enqueueing as results arrive.
 
     Queue protocol: ``("item", sanitized_dict)`` per enriched card,
@@ -2446,9 +2277,7 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
     byte-identical to its ``/results`` twin.
     """
     df_cache: dict = {}
-    tl_cache: dict = {}
     lock = threading.Lock()
-    current_sig = config.trendline_signature()
 
     def _cached_fetch(key):
         with lock:
@@ -2465,9 +2294,7 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
         key = _item_fetch_key(item, default_timeframe)
         df = _cached_fetch(key) if key is not None else None
         return _finalize_item(
-            item, df, key=key, lookback_bars=lookback_bars,
-            compute_trendlines=compute_trendlines, tl_cache=tl_cache, lock=lock,
-            current_sig=current_sig, max_bars=max_bars,
+            item, df, key=key, lookback_bars=lookback_bars, max_bars=max_bars,
         )
 
     try:
@@ -2522,7 +2349,7 @@ async def _drain_stream_queue(out, request, stop):
 
 
 async def _results_sse_events(items, *, default_timeframe, lookback_bars,
-                              compute_trendlines, total, summary, data_through,
+                              total, summary, data_through,
                               request=None, max_bars=None):
     """Async SSE body for ``GET /results/stream`` (also drives the tests).
 
@@ -2550,8 +2377,7 @@ async def _results_sse_events(items, *, default_timeframe, lookback_bars,
         kwargs={
             "items": stream_items, "default_timeframe": default_timeframe,
             "fetch_lb": fetch_lb, "lookback_bars": lookback_bars,
-            "compute_trendlines": compute_trendlines, "out": out, "stop": stop,
-            "max_bars": max_bars,
+            "out": out, "stop": stop, "max_bars": max_bars,
         },
         daemon=True,
     )
@@ -2585,9 +2411,7 @@ async def get_results(query: _ResultsQuery = Depends(_results_query)):
     # Cards are ~300px sparklines, so the series is capped at CARD_MAX_BARS;
     # the chart/detail endpoints keep the full window.
     await run_in_threadpool(_enrich_with_candles, items, query.filters.get("timeframe"),
-                            lookback_bars=query.lookback_bars,
-                            compute_trendlines=query.compute_trendlines,
-                            for_cards=True)
+                            lookback_bars=query.lookback_bars, for_cards=True)
     _strip_risk_fields(items)
     return _json_response({
         "items": items,
@@ -2661,8 +2485,7 @@ async def stream_results(request: Request, query: _ResultsQuery = Depends(_resul
         _strip_risk_fields(items)
         async for frame in _results_sse_events(
             items, default_timeframe=filters.get("timeframe"),
-            lookback_bars=query.lookback_bars,
-            compute_trendlines=query.compute_trendlines, total=total,
+            lookback_bars=query.lookback_bars, total=total,
             summary=summary, data_through=summary.get("data_through"),
             request=request, max_bars=config.CARD_MAX_BARS,
         ):
@@ -2775,15 +2598,14 @@ def _live_overlay(hit: dict) -> Optional[dict]:
         return None
 
 
-def _live_detect_block(df, symbol_u: str, timeframe: str, lookback_bars,
-                       compute_trendlines: bool) -> dict:
+def _live_detect_block(df, symbol_u: str, timeframe: str) -> dict:
     """Pure live detection on a provider frame — no store, no NSE calendar.
 
-    The engine and the trendline detector are price geometry over a normalised
-    UTC OHLCV frame; neither reads the IST session, the NSE holiday calendar or
-    Upstox. That makes the same helpers the India live-chart path uses reusable
-    for a US frame. ``hits`` are tagged ``source="live"`` by
-    :func:`_live_hit_to_dict`. Never raises: a broken frame yields empty lists.
+    The engine is price geometry over a normalised UTC OHLCV frame; it does not
+    read the IST session, the NSE holiday calendar or Upstox. That makes the
+    same helpers the India live-chart path uses reusable for a US frame.
+    ``hits`` are tagged ``source="live"`` by :func:`_live_hit_to_dict`. Never
+    raises: a broken frame yields empty lists.
     """
     hits: list = []
     overlays: list = []
@@ -2812,10 +2634,7 @@ def _live_detect_block(df, symbol_u: str, timeframe: str, lookback_bars,
             overlay = _live_overlay(record)
             if overlay is not None:
                 overlays.append(overlay)
-    trend_lines: list = []
-    if compute_trendlines and df is not None and not getattr(df, "empty", True):
-        trend_lines = _detect_trend_lines(df, lookback_bars, [])
-    return {"hits": hits, "live_overlays": overlays, "trend_lines": trend_lines}
+    return {"hits": hits, "live_overlays": overlays}
 
 
 async def _asof_symbol_chart(
@@ -2823,18 +2642,16 @@ async def _asof_symbol_chart(
     timeframe: str,
     limit: int,
     lookback_bars: Optional[int],
-    compute_trendlines: bool,
     detect_patterns: bool,
     as_of_date: str,
     from_date: Optional[str],
 ) -> dict:
     """Replay chart: the frame is truncated to ``as_of_date`` (IST).
 
-    Stored overlays/trend lines are "now" and never apply to a replay, so
-    they are omitted: ``trend_lines`` are recomputed on the truncated frame
-    and ``overlays``/``hits`` come only from live detection on it (windowed
-    by ``from_date`` when set). ``include_partial_today`` is forced off —
-    a replay frame ends at ``to_dt``, never with a synthetic today bar.
+    Stored overlays are "now" and never apply to a replay, so ``overlays``/``hits``
+    come only from live detection on the truncated frame (windowed by
+    ``from_date`` when set). ``include_partial_today`` is forced off — a replay
+    frame ends at ``to_dt``, never with a synthetic today bar.
     """
     try:
         to_dt = candles.parse_asof_datetime(as_of_date)
@@ -2860,14 +2677,6 @@ async def _asof_symbol_chart(
         df = candles.truncate_frame_to(df, to_dt)
     empty = df is None or getattr(df, "empty", True)
     series = _clamped_candle_series(df, lookback_bars, limit)
-    if not compute_trendlines:
-        trend_lines: list = []
-    else:
-        try:
-            _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars) if not empty else {}
-            trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
-        except Exception:
-            trend_lines = []
     hits: list = []
     overlays: list = []
     if detect_patterns:
@@ -2894,7 +2703,6 @@ async def _asof_symbol_chart(
             "timeframe": timeframe,
             "candles": series,
             "overlays": overlays,
-            "trend_lines": trend_lines,
             "hits": hits,
             "as_of": to_dt.isoformat(),
             "from_date": from_date,
@@ -3260,13 +3068,12 @@ async def _us_symbol_chart(
     as_of_date: Optional[str],
     request: Request,
     detect_patterns: bool = False,
-    compute_trendlines: bool = True,
 ):
     """US chart payload. Returns a JSON response, never touches the NSE stack.
 
     Detection is opt-in (``detect_patterns``): when requested, the pure price
-    engine runs directly on the provider frame and its hits/overlays/trend lines
-    are returned with ``source="live"``. The India-only stored scan, Upstox
+    engine runs directly on the provider frame and its hits/overlays are
+    returned with ``source="live"``. The India-only stored scan, Upstox
     fetch, IST session calendar and NSE holidays are never consulted.
     """
     if as_of_date is not None:
@@ -3412,21 +3219,16 @@ async def _us_symbol_chart(
 
     hits: list = []
     overlays: list = []
-    trend_lines: list = []
     if detect_patterns:
-        block = _live_detect_block(
-            df, symbol_u, timeframe, lookback_bars, compute_trendlines,
-        )
+        block = _live_detect_block(df, symbol_u, timeframe)
         hits = block["hits"]
         overlays = block["live_overlays"]
-        trend_lines = block["trend_lines"]
 
     return _json_response(_with_chart_extras({
         "symbol": symbol_u,
         "timeframe": timeframe,
         "candles": series,
         "overlays": overlays,
-        "trend_lines": trend_lines,
         "hits": hits,
         "market": "usa",
         "feed": _meta("feed", _US_DEFAULT_FEED),
@@ -3521,7 +3323,6 @@ class SymbolChartResponse(BaseModel):
     timeframe: Optional[str] = None
     candles: list = Field(default_factory=list)
     overlays: list = Field(default_factory=list)
-    trend_lines: list = Field(default_factory=list)
     hits: list = Field(default_factory=list)
     as_of: Optional[str] = None
     stale: Optional[bool] = None
@@ -3564,7 +3365,6 @@ async def get_symbol_chart(
     timeframe: str = Query("1D"),
     limit: int = Query(config.CHART_MAX_BARS, ge=1, le=config.CHART_MAX_BARS),
     lookback_bars: Optional[int] = Query(None),
-    compute_trendlines: bool = Query(True),
     detect_patterns: bool = Query(False),
     as_of_date: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None),
@@ -3574,7 +3374,7 @@ async def get_symbol_chart(
     if market == "usa":
         return await _us_symbol_chart(
             symbol, timeframe, limit, lookback_bars, as_of_date, request,
-            detect_patterns, compute_trendlines,
+            detect_patterns,
         )
     if market != "india":
         raise HTTPException(
@@ -3583,7 +3383,7 @@ async def get_symbol_chart(
         )
     if as_of_date is not None:
         replay = await _asof_symbol_chart(
-            symbol, timeframe, limit, lookback_bars, compute_trendlines,
+            symbol, timeframe, limit, lookback_bars,
             detect_patterns, as_of_date, from_date,
         )
         return _json_response(replay)
@@ -3630,24 +3430,16 @@ async def get_symbol_chart(
             # The disk frame is the completed-session base — the same frame
             # detection uses, so it is safe to publish for the matrix.
             _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
-            overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe, df)
-            hits_block = None
+            overlays = _stored_overlays(symbol_u, timeframe)
             if detect_patterns:
-                hits_block = _pattern_block(df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
+                hits_block = _pattern_block(df, symbol_u, timeframe, session)
                 overlays.extend(hits_block["live_overlays"])
-            if hits_block is not None and hits_block["trend_lines"] is not None:
-                trend_lines = hits_block["trend_lines"]
-            elif not compute_trendlines:
-                trend_lines = []
-            else:
-                trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
             display_as_of = candles.frame_last_date(display_df) or as_of
             payload = {
                 "symbol": symbol_u,
                 "timeframe": timeframe,
                 "candles": series,
                 "overlays": overlays,
-                "trend_lines": trend_lines,
                 "cached": True,
                 # Same displayed frame that produced `series`, so the bar date
                 # describes the last candle even when today's tape was appended.
@@ -3678,8 +3470,7 @@ async def get_symbol_chart(
             if detect_patterns:
                 payload["hits"] = list(hits_block["hits"])
                 _store_pattern_block(
-                    symbol_u, timeframe, session, hits_block, compute_trendlines,
-                    _frame_identity(df),
+                    symbol_u, timeframe, session, hits_block, _frame_identity(df),
                 )
             else:
                 # Detection off: the chart must agree with the market table,
@@ -3834,25 +3625,15 @@ async def get_symbol_chart(
     # (``partial_today``); ``_remember_frame`` trims that trailing bar, leaving
     # exactly ``base_df`` — the frame detection used.
     _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
-    overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe, base_df)
-    hits_block = None
+    overlays = _stored_overlays(symbol_u, timeframe)
     if detect_patterns:
-        hits_block = _pattern_block(base_df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
+        hits_block = _pattern_block(base_df, symbol_u, timeframe, session)
         overlays.extend(hits_block["live_overlays"])
-    if hits_block is not None and hits_block["trend_lines"] is not None:
-        trend_lines = hits_block["trend_lines"]
-    elif not compute_trendlines:
-        trend_lines = []
-    else:
-        # Reuse fresh scan-time lines so fullscreen agrees with the cards;
-        # stale lines (detector changed) fall through to the recompute.
-        trend_lines = _detect_trend_lines(base_df, lookback_bars, stored_fresh_lines)
     payload = {
         "symbol": symbol_u,
         "timeframe": timeframe,
         "candles": series,
         "overlays": overlays,
-        "trend_lines": trend_lines,
         "close_bar_date": _close_bar_date(display_df),
     }
     # Every successful chart answer carries the same freshness keys — a plain
@@ -3873,8 +3654,7 @@ async def get_symbol_chart(
     if detect_patterns:
         payload["hits"] = list(hits_block["hits"])
         _store_pattern_block(
-            symbol_u, timeframe, session, hits_block, compute_trendlines,
-            _frame_identity(base_df),
+            symbol_u, timeframe, session, hits_block, _frame_identity(base_df),
         )
     else:
         # Detection off: serve the stored scan hits so the chart matches the

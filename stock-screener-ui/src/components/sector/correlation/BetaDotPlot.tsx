@@ -1,6 +1,10 @@
 import { For, createMemo } from "solid-js";
-import { alpha, CHART_CURRENT, CHART_NEGATIVE, CHART_POSITIVE, TEXT_MUTED } from "@/ui/palette";
+import { alpha, CHART_CURRENT, TEXT_MUTED } from "@/ui/palette";
 import { betaRows, type CorrelationSector } from "./model";
+
+/** Marks occupy part of the track; the rest is the direct-label gutter. */
+const PLOT_SPAN = 0.72;
+const LABEL_GAP_PX = 8;
 
 /** Lollipop domain: keep 1.0 inside it and leave room for the direct label. */
 function betaDomain(values: number[]): { min: number; max: number } {
@@ -22,7 +26,7 @@ export function BetaDotPlot(props: {
   );
   const pct = (beta: number) => {
     const { min, max } = domain();
-    return ((beta - min) / (max - min)) * 100;
+    return ((beta - min) / (max - min)) * PLOT_SPAN * 100;
   };
   const railPct = () => pct(1);
 
@@ -32,11 +36,14 @@ export function BetaDotPlot(props: {
       data-theme={props.isDark ? "dark" : "light"}
       class="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-auto"
     >
-      <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 px-1">
-        <span class="text-ui-micro font-semibold text-fin-text">
+      <div
+        data-testid="correlation-beta-header"
+        class="flex flex-col items-start gap-0.5 px-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-x-2"
+      >
+        <span class="min-w-0 text-ui-micro font-semibold text-fin-text">
           Beta vs Benchmark · {props.benchmark}
         </span>
-        <span class="inline-flex items-center gap-1 text-ui-micro text-fin-text-muted">
+        <span class="inline-flex min-w-0 items-center gap-1 whitespace-nowrap text-ui-micro text-fin-text-muted">
           <span
             aria-hidden="true"
             class="inline-block h-3 w-0 border-l border-dashed"
@@ -48,7 +55,7 @@ export function BetaDotPlot(props: {
 
       <div class="grid min-w-0 grid-cols-[minmax(64px,1fr)_minmax(0,1.8fr)] gap-1 px-1">
         <span />
-        <span class="relative h-3" aria-hidden="true">
+        <span class="relative h-3">
           <span
             data-testid="correlation-beta-rail-label"
             class="absolute -translate-x-1/2 text-ui-micro text-fin-text-muted"
@@ -65,7 +72,6 @@ export function BetaDotPlot(props: {
             const beta = sector.beta_vs_index;
             const dot = () => pct(beta);
             const rail = () => railPct();
-            const above = beta >= 1;
             const stemLeft = () => Math.min(dot(), rail());
             const stemWidth = () => Math.abs(dot() - rail());
             return (
@@ -78,8 +84,9 @@ export function BetaDotPlot(props: {
                 <span class="truncate text-ui-micro text-fin-text" title={sector.name}>
                   {sector.name}
                 </span>
-                <span class="relative h-4 min-w-0" aria-hidden="true">
+                <span class="relative h-4 min-w-0">
                   <span
+                    aria-hidden="true"
                     data-testid={`correlation-beta-rail-${index()}`}
                     class="absolute inset-y-0 border-l border-dashed"
                     style={{
@@ -88,18 +95,17 @@ export function BetaDotPlot(props: {
                     }}
                   />
                   <span
+                    aria-hidden="true"
                     data-testid={`correlation-beta-stem-${index()}`}
                     class="absolute top-1/2 h-px -translate-y-1/2"
                     style={{
                       left: `${stemLeft()}%`,
                       width: `${stemWidth()}%`,
-                      "background-color": alpha(
-                        above ? CHART_POSITIVE : CHART_NEGATIVE,
-                        0.8,
-                      ),
+                      "background-color": alpha(TEXT_MUTED, 0.8),
                     }}
                   />
                   <span
+                    aria-hidden="true"
                     data-testid={`correlation-beta-dot-${index()}`}
                     class="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border"
                     style={{
@@ -111,7 +117,7 @@ export function BetaDotPlot(props: {
                   <span
                     data-testid={`correlation-beta-value-${index()}`}
                     class="absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-mono text-ui-micro tabular-nums text-fin-text"
-                    style={{ left: `calc(${dot()}% + 9px)` }}
+                    style={{ left: `calc(${dot()}% + ${LABEL_GAP_PX}px)` }}
                   >
                     {beta.toFixed(2)}
                   </span>

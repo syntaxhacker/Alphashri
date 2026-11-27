@@ -6,12 +6,27 @@ import { IconUsers } from "../screener/icons";
 import { SymbolLink } from "../common/SymbolLink";
 import { useSymbolDock } from "../common/symbolDockContext";
 import type { RotationPeriod, RotationRow } from "../../types/rotation";
-import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
+import { getPnLTextColor } from "../../utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage, clickOnSpace } from "./sectorUtils";
+import { formatReturn, returnTone } from "./rotation/returnVisuals";
 import { ROTATION_STATUS_LABELS, ROTATION_STATUS_COLORS_PANEL } from "./rotationStatus";
 import { displaySymbol } from "@/config/tvSymbols";
 import { chartHrefForSymbol } from "../common/symbolDockContext";
 
 const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
+
+type MetricTone = "success" | "error" | "muted";
+
+function metricTone(value: number): MetricTone {
+  const tone = returnTone(value);
+  return tone === "dimmed" ? "muted" : tone;
+}
+
+/** Zero bars are neutral: a green stub would read as a gain. */
+function returnColor(value: number): string {
+  if (!Number.isFinite(value) || value === 0) return TEXT_MUTED;
+  return value > 0 ? POSITIVE : NEGATIVE;
+}
 
 // Decorated feed symbols (NSE:RELIANCE, BRK.B) need a canonical chart href;
 // plain tickers render through the shared dock button.
@@ -120,7 +135,7 @@ export function RotationDetail(props: RotationDetailProps) {
           <Box
             className="grid grid-cols-4 gap-1 px-2 py-1"
           >
-            <Metric label="1M" value={formatPercentage(monthly())} tone={getPnLTextColor(monthly())} />
+            <Metric label="1M" value={formatReturn(monthly(), 2)} tone={metricTone(monthly())} />
             <Metric label="RS" value={row()!.rs_1m.toFixed(2)} tone={getPnLTextColor(row()!.rs_1m)} />
             <Metric
               label="Breadth"
@@ -151,16 +166,20 @@ export function RotationDetail(props: RotationDetailProps) {
                       className="flex h-7 w-full items-end justify-center"
                     >
                       <Box
+                        data-testid={`rotation-detail-bar-${p}`}
+                        data-zero={value === 0 ? "true" : "false"}
                         className="w-3 rounded-t-[2px] opacity-90"
-                        style={{ height: `${height}px`, "background-color": value >= 0 ? POSITIVE : NEGATIVE }}
+                        style={{ height: `${height}px`, "background-color": returnColor(value) }}
                       />
                     </Box>
                     <Text className="text-ui-micro leading-none" style={{ color: TEXT_MUTED }}>{p}</Text>
                     <Text
+                      data-testid={`rotation-detail-return-${p}`}
+                      data-zero={value === 0 ? "true" : "false"}
                       className="font-mono text-ui-micro leading-none tabular-nums"
-                      style={{ color: getPnLTextColor(value) }}
+                      style={{ color: returnColor(value) }}
                     >
-                      {value.toFixed(1)}
+                      {formatReturn(value, 1)}
                     </Text>
                   </Box>
                 );
@@ -200,6 +219,8 @@ export function RotationDetail(props: RotationDetailProps) {
                     <Box
                       component="a"
                       href={chartHrefForSymbol(mover.symbol, props.market)}
+                      data-testid={`rotation-mover-${mover.symbol}`}
+                      onKeyDown={clickOnSpace}
                       className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
                     >
                       <Text truncate className="text-ui-micro font-semibold">

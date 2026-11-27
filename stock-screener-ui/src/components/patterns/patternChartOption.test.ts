@@ -280,8 +280,7 @@ describe("buildPatternChartOption performance", () => {
   it("builds the full option for 714 daily candles in under 20ms (median of 20)", () => {
     // Realistic fullscreen dock chart: 714 daily candles, naive engine
     // timestamps (which never exact-match the ISO candle axis, so every point
-    // exercises the nearest lookup), 15 sibling overlays, 24 pivots, 6
-    // standalone TLS/TLR lines.
+    // exercises the nearest lookup), 15 sibling overlays and 24 pivots.
     const candles: ChartCandle[] = [];
     const start = new Date("2023-01-02T09:15:00+05:30").getTime();
     let price = 100;
@@ -299,17 +298,6 @@ describe("buildPatternChartOption performance", () => {
         t: naiveAt(20 + k * 28),
         price: 100 + k,
         kind: (k % 2 === 0 ? "high" : "low") as "high" | "low",
-      })),
-      trend_lines: Array.from({ length: 6 }, (_, k) => ({
-        kind: (k % 2 === 0 ? "support" : "resistance") as "support" | "resistance",
-        start_date: candles[k * 10]!.t.slice(0, 10),
-        start_price: 90 + k * 2,
-        end_date: candles[600 + k * 5]!.t.slice(0, 10),
-        end_price: 110 + k * 2,
-        slope: 0.1,
-        touches: 3,
-        span_bars: 100,
-        violations: 0,
       })),
     };
     const overlays = Array.from({ length: 15 }, (_, k) => ({

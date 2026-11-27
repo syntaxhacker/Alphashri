@@ -409,11 +409,6 @@ async function showGrid(page: Page) {
 }
 
 /** Apply the staged filter draft (edits sit in a draft until Filter is clicked). */
-async function openAdvanced(page: Page) {
-  const adv = page.locator('[data-testid="patterns-filter-advanced"]');
-  if ((await adv.getAttribute("aria-expanded")) !== "true") await adv.click();
-}
-
 async function applyFilters(page: Page) {
   await page.locator('[data-testid="patterns-filters-done"]').click();
   await expect(page.locator('[data-testid="patterns-filter-modal"]')).toBeHidden();
@@ -725,69 +720,6 @@ test.describe("Chart Patterns page", () => {
     await expect(page.locator('[data-testid="patterns-lookback-select"]')).toContainText("250");
   });
 
-  test("TLS/TLR toggle hides standalone trendlines and syncs compute_trendlines=0", async ({ page }) => {
-    await page.setViewportSize({ width: 900, height: 900 });
-    // Last-registered handler wins: enrich the chart payload with standalone
-    // support/resistance lines so the toggle has series to hide.
-    await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
-      const url = new URL(route.request().url());
-      const parts = url.pathname.split("/");
-      const symbol = decodeURIComponent(parts[parts.indexOf("symbol") + 1]);
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          symbol,
-          timeframe: url.searchParams.get("timeframe") || "1D",
-          candles: candlesFor(symbol),
-          overlays: [],
-          trend_lines: [
-            { kind: "support", start_date: "2026-08-05", start_price: 105, end_date: "2026-08-20", end_price: 110, slope: 0.3, touches: 4, span_bars: 15, violations: 0 },
-            { kind: "resistance", start_date: "2026-08-05", start_price: 120, end_date: "2026-08-20", end_price: 118, slope: -0.1, touches: 3, span_bars: 15, violations: 1 },
-          ],
-        }),
-      });
-    });
-
-    const card = page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]');
-    await expect(card).toBeVisible();
-    await card.click();
-    const modal = page.locator('[data-testid="patterns-fullscreen-modal"]');
-    await expect(modal).toBeVisible();
-    await expect(page.locator('[data-testid="patterns-tv-chart"]')).toBeVisible();
-
-    await expect.poll(async () => fullscreenLegendNames(page), { timeout: 15000 }).toContain("TLS");
-    await expect.poll(async () => fullscreenLegendNames(page), { timeout: 15000 }).toContain("TLR");
-
-    // The fullscreen modal covers the toolbar toggle, so close it first.
-    await page.keyboard.press("Escape");
-    await expect(modal).toBeHidden();
-
-    const resultsWithoutTrendlines = page.waitForResponse(
-      (resp) =>
-        resp.url().includes("/api/chart-patterns/results") &&
-        resp.url().includes("compute_trendlines=0"),
-    );
-    // The switch's label sits under the sticky results toolbar at this
-    // viewport, so a pointer click is intercepted. Activate the real switch
-    // through the keyboard instead (same user-visible toggle, no force click).
-    const toggle = page.getByRole("switch", { name: "TLS/TLR" });
-    await toggle.focus();
-    await toggle.press("Space");
-    await expect(page.locator('[data-testid="patterns-compute-trendlines"]')).not.toBeChecked();
-    await resultsWithoutTrendlines;
-    await expect(page).toHaveURL(/compute_trendlines=0/);
-
-    // Reopen with computation off: standalone lines stay hidden.
-    await card.click();
-    await expect(modal).toBeVisible();
-    await expect(page.locator('[data-testid="patterns-tv-chart"]')).toBeVisible();
-
-    expect(
-      (await fullscreenLegendNames(page)).filter((name) => name === "TLS" || name === "TLR"),
-    ).toHaveLength(0);
-  });
-
   test("custom symbol scope drives a Scan N symbols action", async ({ page }) => {
     const scope = page.locator('[data-testid="patterns-scan-scope"] [data-testid="patterns-symbol-filter"]');
     const scanButton = page.locator('[data-testid="patterns-scan-again"]');
@@ -817,38 +749,6 @@ test.describe("Chart Patterns page", () => {
     await scanButton.click();
     const body = JSON.parse((await scanPost).postData() ?? "{}") as { symbols?: string[] };
     expect(body.symbols ?? []).toEqual(expect.arrayContaining(["IRCON", "TCS"]));
-  });
-
-  test("filters modal offers Both/TLS only/TLR only/None trendline views", async ({ page }) => {
-    await openFilters(page);
-    await openAdvanced(page);
-    const select = page.locator('[data-testid="patterns-filter-trendlines"]');
-    await expect(select).toBeVisible();
-    const trendlines = select.locator("select");
-    await expect(trendlines).toHaveCount(1);
-    // This Select renders a native <select>, so its options are not a popup:
-    // assert the offered choices directly rather than popup visibility.
-    for (const label of ["Both", "TLS only", "TLR only", "None"]) {
-      await expect(trendlines.getByRole("option", { name: label, exact: true })).toHaveCount(1);
-    }
-    await expect(trendlines.locator("option")).toHaveText(["Both", "TLS only", "TLR only", "None"]);
-
-    await trendlines.selectOption({ label: "TLR only" });
-    await expect(trendlines.locator("option:checked")).toHaveText("TLR only");
-    // Trendline edits are staged in a draft: apply them with the Filter button.
-    await applyFilters(page);
-    await expect(page).toHaveURL(/trendlines=resistance/);
-    await expect(page.getByTestId("patterns-applied-filter-trendlines")).toContainText("TLR only");
-
-    await openFilters(page);
-    await openAdvanced(page);
-    await select.locator("select").selectOption({ label: "None" });
-    await expect(select.locator("select option:checked")).toHaveText("None");
-    await applyFilters(page);
-    await expect(page).toHaveURL(/trendlines=none/);
-    await expect(page.getByTestId("patterns-applied-filter-trendlines")).toContainText("Hidden");
-
-    await expect(page.locator('[data-testid="patterns-filter-modal"]')).toBeHidden();
   });
 
   test("applied-filter chips reflect the active filters and remove one at a time", async ({ page }) => {

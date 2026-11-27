@@ -41,8 +41,6 @@ function props(): ResultsToolbarProps {
     setLookbackBars: noop,
     scanReplay: noop,
     replayAsOf: () => null,
-    computeTrendlines: () => false,
-    setComputeTrendlines: noop,
     view: () => "matrix",
     changeView: noop,
     universe: () => "nifty500",

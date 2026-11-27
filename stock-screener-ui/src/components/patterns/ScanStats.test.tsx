@@ -93,6 +93,21 @@ describe("ScanStats", () => {
     expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("—");
   });
 
+  test("bull/bear counts are real focusable buttons with names that match their visible number", () => {
+    const onSelect = vi.fn();
+    render(() => <ScanStats summary={SUMMARY} onSelect={onSelect} />);
+    const bull = screen.getByTestId("patterns-stat-bullish");
+    const bear = screen.getByTestId("patterns-stat-bearish");
+    expect(bull.tagName).toBe("BUTTON");
+    expect(bear.tagName).toBe("BUTTON");
+    expect(bull).toHaveAccessibleName("Filter to bullish patterns (7)");
+    expect(bear).toHaveAccessibleName("Filter to bearish patterns (3)");
+    bull.click();
+    bear.click();
+    expect(onSelect).toHaveBeenNthCalledWith(1, "bullish");
+    expect(onSelect).toHaveBeenNthCalledWith(2, "bearish");
+  });
+
   test("shows the relative age of the last scan", () => {
     const twelveMinAgo = new Date(Date.now() - 12 * 60_000).toISOString();
     render(() => <ScanStats summary={{ ...SUMMARY, last_scan_at: twelveMinAgo }} />);

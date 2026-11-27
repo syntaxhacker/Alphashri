@@ -1,6 +1,6 @@
 import { For, createMemo } from "solid-js";
 import { alpha, CHART_NEGATIVE, CHART_POSITIVE, CHART_TOP3 } from "@/ui/palette";
-import { formatPercentage } from "../../../utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage } from "../sectorUtils";
 import { signed, strengthRows, type CorrelationSector } from "./model";
 
 function Metric(props: {
@@ -48,6 +48,9 @@ export function RelativeStrengthBoard(props: {
           const rs5 = sector.relative_strength_5d;
           const rs1 = sector.relative_strength_1m;
           const rs3 = sector.relative_strength_3m;
+          // A return that prints 0.00% must not keep the red/green tone of a
+          // sub-basis-point float.
+          const tone = (value: number) => Number(value.toFixed(2));
           return (
             <div
               data-testid={`correlation-rs-row-${index()}`}
@@ -80,20 +83,20 @@ export function RelativeStrengthBoard(props: {
                 <Metric
                   label="5D"
                   value={formatPercentage(rs5, 2, true)}
-                  positive={rs5 > 0}
-                  negative={rs5 < 0}
+                  positive={tone(rs5) > 0}
+                  negative={tone(rs5) < 0}
                 />
                 <Metric
                   label="1M"
                   value={formatPercentage(rs1, 2, true)}
-                  positive={rs1 > 0}
-                  negative={rs1 < 0}
+                  positive={tone(rs1) > 0}
+                  negative={tone(rs1) < 0}
                 />
                 <Metric
                   label="3M"
                   value={formatPercentage(rs3, 2, true)}
-                  positive={rs3 > 0}
-                  negative={rs3 < 0}
+                  positive={tone(rs3) > 0}
+                  negative={tone(rs3) < 0}
                 />
                 <Metric label="Beta" value={sector.beta_vs_index.toFixed(2)} />
                 <Metric

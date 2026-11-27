@@ -154,7 +154,6 @@ test.describe("Pattern chart close freshness (KAYNES)", () => {
           candles: fixture.candles,
           hits: fixture.hits,
           overlays: [],
-          trend_lines: [],
         }),
       });
     });

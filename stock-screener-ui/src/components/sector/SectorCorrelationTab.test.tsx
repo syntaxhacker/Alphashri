@@ -2,11 +2,11 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createRoot } from "solid-js";
-import { cleanup, render, screen, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { useColorScheme } from "@/ui";
 import type { SectorCorrelationResponse } from "../../types/sector";
 
-const { fixture, tanStackRendered, fetchMock } = vi.hoisted(() => {
+const { fixture, tanStackRendered, fetchMock, store, listeners, notifyStore } = vi.hoisted(() => {
   const data: SectorCorrelationResponse = {
     sectors: [
       {
@@ -65,23 +65,41 @@ const { fixture, tanStackRendered, fetchMock } = vi.hoisted(() => {
     sector_names: ["IT", "BANK", "ENERGY", "PHARMA", "METAL"],
     last_updated: "2026-11-16T10:00:00+05:30",
   };
+  const listeners = new Set<() => void>();
+  const store = { lookbackDays: 90 };
+  const notifyStore = () => {
+    for (const listener of listeners) listener();
+  };
   return {
     fixture: data,
     tanStackRendered: vi.fn(),
     fetchMock: vi.fn(async () => data),
+    store,
+    listeners,
+    notifyStore,
   };
 });
 
 vi.mock("../../state/sectorCorrelation", () => ({
   market: "india",
-  lookbackDays: 90,
+  get lookbackDays() {
+    return store.lookbackDays;
+  },
   data: fixture,
   isLoading: false,
   error: null,
   fetchCorrelationData: (...args: unknown[]) => fetchMock(...args),
   setMarket: vi.fn(),
-  setLookbackDays: vi.fn(),
-  subscribe: () => () => {},
+  setLookbackDays: vi.fn((days: number) => {
+    store.lookbackDays = days;
+    notifyStore();
+  }),
+  subscribe: (callback: () => void) => {
+    listeners.add(callback);
+    return () => {
+      listeners.delete(callback);
+    };
+  },
 }));
 
 // ECharts needs a real canvas; the heatmap is a boundary, not the contract here.
@@ -105,6 +123,7 @@ function setScheme(scheme: "light" | "dark") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  store.lookbackDays = 90;
 });
 
 afterEach(() => {
@@ -166,25 +185,52 @@ describe("SectorCorrelationTab layout", () => {
 
     const grid = screen.getByTestId("sector-correlation-grid");
     expect(grid).toHaveClass("grid-cols-1");
-    expect(grid).toHaveClass("xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]");
+    expect(grid).toHaveClass("xl:grid-cols-2");
+    expect(grid).toHaveClass("items-start");
     expect(grid.className).not.toContain("lg:grid-cols-2");
     expect(grid.className).not.toContain("h-[400px]");
-    const rightColumn = grid.children[1] as HTMLElement;
-    expect(rightColumn).toHaveClass("xl:grid-rows-2");
-    expect(rightColumn).toHaveClass("xl:h-full");
+    expect(grid.className).not.toContain("h-[560px]");
 
-    for (const panel of [
-      screen.getByTestId("sector-correlation-heatmap"),
-      screen.getByTestId("sector-beta-chart"),
-      screen.getByTestId("rotation-timeline"),
-    ]) {
+    // The matrix owns the full row at every width; the two ranked boards share
+    // the next row only at xl, so the 10-column matrix never gets a 1.1fr clip.
+    const matrixPanel = screen.getByTestId("sector-correlation-heatmap");
+    expect(matrixPanel).toHaveClass("min-w-0");
+    expect(matrixPanel).toHaveClass("xl:col-span-2");
+    expect(matrixPanel.className).not.toContain("xl:h-full");
+    expect(matrixPanel.style.height).toBe("");
+    for (const id of ["sector-beta-chart", "rotation-timeline"]) {
+      const panel = screen.getByTestId(id);
       expect(panel).toHaveClass("min-w-0");
-      expect(panel).toHaveClass("xl:h-full");
+      expect(panel).toHaveClass("h-[320px]");
       expect(panel.className).not.toMatch(/w-\[\d{4}px\]/);
     }
     expect(screen.getByTestId("relative-strength-table")).toHaveClass("min-w-0");
     expect(screen.getByTestId("correlation-rs-board").className).toContain("min-w-0");
     expect(screen.getByTestId("correlation-rs-row-0").className).toContain("grid-cols-[32px_minmax(0,1fr)]");
+  });
+});
+
+describe("SectorCorrelationTab lookback coherence", () => {
+  test("the default 90 is a real option and the selector follows store changes", () => {
+    render(() => <SectorCorrelationTab />);
+
+    const segment = screen.getByTestId("lookback-segment");
+    const select = within(segment).getByRole("combobox");
+    expect(select).toHaveValue("90");
+    expect(within(segment).getByRole("option", { selected: true })).toHaveTextContent("3M");
+    const values = within(segment)
+      .getAllByRole("option")
+      .map((option) => (option as HTMLOptionElement).value);
+    expect(values).toContain("90");
+    expect(values).not.toContain("66");
+
+    // Select is a native <select> listening on `input`; `change` alone did not
+    // reach the store in happy-dom.
+    fireEvent.input(select, { target: { value: "132" } });
+    expect(store.lookbackDays).toBe(132);
+    expect(fetchMock).toHaveBeenCalled();
+    expect(select).toHaveValue("132");
+    expect(within(segment).getByRole("option", { selected: true })).toHaveTextContent("6M");
   });
 });
 
@@ -200,6 +246,25 @@ describe("SectorCorrelationTab ranked boards", () => {
     expect(board.querySelector(".rotate-45")).toBeNull();
     expect(screen.getByTestId("correlation-matrix-header-0")).toHaveAttribute("title", "IT");
     expect(screen.getByTestId("correlation-matrix-cell-0-0")).toHaveAttribute("data-diagonal", "true");
+  });
+
+  test("matrix panel ends at the last row instead of stretching to the grid cell", () => {
+    render(() => <SectorCorrelationTab />);
+
+    const panel = screen.getByTestId("sector-correlation-heatmap");
+    const board = screen.getByTestId("correlation-matrix-board");
+    const scroll = screen.getByTestId("correlation-matrix-scroll");
+    const grid = screen.getByTestId("correlation-matrix-grid");
+
+    expect(screen.getByTestId("sector-correlation-grid")).toHaveClass("items-start");
+    expect(panel.style.height).toBe("");
+    expect(board.className).not.toContain("flex-1");
+    expect(scroll.className).not.toContain("flex-1");
+    // No filler row or spacer follows the data: the bottom-right cell is last.
+    expect(grid.lastElementChild).toBe(screen.getByTestId("correlation-matrix-cell-4-4"));
+    const content = panel.querySelector("[data-compact-card-content]");
+    expect(content?.children).toHaveLength(2);
+    expect(content?.lastElementChild?.children).toHaveLength(1);
   });
 
   test("renders the relative-strength board without a TanStack table", () => {
