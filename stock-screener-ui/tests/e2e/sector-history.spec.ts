@@ -166,16 +166,24 @@ test.describe("Sector History", () => {
     await page.goto("/sector?tab=history");
     await expect(page.getByTestId("sector-history-risk-table")).toBeVisible();
 
-    // Mirror the evidence capture: scroll the risk panel to the bottom, then
-    // prove the lowest row ends inside the viewport with room to spare.
-    await page
-      .getByTestId("sector-history-risk-panel")
-      .evaluate((node) => node.scrollIntoView({ block: "end", inline: "nearest" }));
+    // Mirror the evidence capture: the lowest row must be reachable inside the
+    // 1000px viewport. Scroll the row itself — the panel can be taller than the
+    // scrollport, so aligning the panel's bottom does not guarantee that.
     const lastRow = page.getByTestId(/^sector-history-risk-row-/).last();
-    await expect(lastRow).toBeVisible();
-    const box = await lastRow.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.y + box!.height).toBeLessThan(990);
+    // Scroll the overview to its real bottom (not to the row's edge): the
+    // container's trailing padding then leaves the last row above the fold.
+    // Re-apply while late SVG/font layout changes the scroll extent.
+    await expect
+      .poll(async () => {
+        await lastRow.evaluate((node) => {
+          for (let el = node.parentElement; el; el = el.parentElement) {
+            if (el.scrollHeight > el.clientHeight + 1) el.scrollTop = el.scrollHeight;
+          }
+        });
+        const box = await lastRow.boundingBox();
+        return box ? box.y + box.height : Number.POSITIVE_INFINITY;
+      })
+      .toBeLessThan(990);
   });
 
   test("refetches with market and years params and updates rendered data", async ({ page }) => {

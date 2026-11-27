@@ -13,11 +13,9 @@ import {
 } from "./helpers/agriMocks";
 import {
   formatAgriPrice,
-  formatArrivals,
   formatChangePct,
 } from "../../src/config/agri";
 import {
-  seasonality,
   summariseEda,
   type AgriEdaPoint,
 } from "../../src/pages/agri/agriEda";
@@ -43,10 +41,6 @@ const SCREENSHOT_MODES = [
   "rolling",
   "seasonality",
 ] as const;
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
 const COLUMNS = [
   "Commodity",
   "State",
@@ -82,6 +76,12 @@ async function openAgri(page: Page, query = "") {
   await expect(page.locator('[data-testid="agri-chart"] canvas')).toBeVisible();
 }
 
+/** Quotes live in the on-demand Data view, not the default Overview. */
+async function openDataView(page: Page) {
+  await page.getByTestId("agri-view-data").click();
+  await expect(page.getByTestId("agri-data-view")).toBeVisible();
+}
+
 function expectPngSize(file: string, width: number, height: number) {
   const header = readFileSync(file).subarray(0, 24);
   expect(header.subarray(12, 16).toString("ascii")).toBe("IHDR");
@@ -93,25 +93,18 @@ function expectPngSize(file: string, width: number, height: number) {
 async function expectEdaSummary(page: Page, params: Record<string, string> = {}) {
   const series = agriPricesPayload(params).series as AgriEdaPoint[];
   const summary = summariseEda(series);
-  const months = seasonality(series).months;
-  const best = months.length ? months.reduce((a, b) => (b.avg > a.avg ? b : a)) : null;
-  const worst = months.length ? months.reduce((a, b) => (b.avg < a.avg ? b : a)) : null;
-
-  const eda = page.getByTestId("agri-eda-summary");
-  await expect(eda).toBeVisible();
+  // The six-card EDA wall was folded into the chart caption; the caption is
+  // now the single statement of trend, modal CV and session count.
+  const caption = page.getByTestId("agri-chart-panel");
+  await expect(caption).toContainText("How to read: bold = modal ₹/quintal");
   if (summary.trendPct != null) {
-    await expect(eda).toContainText(formatChangePct(summary.trendPct));
+    await expect(caption).toContainText(`${formatChangePct(summary.trendPct)} window`);
   }
   if (summary.volatilityPct != null) {
-    await expect(eda).toContainText(new RegExp(`${summary.volatilityPct.toFixed(1)}%`));
+    await expect(caption).toContainText(`modal CV ${summary.volatilityPct.toFixed(1)}%`);
   }
-  if (best) await expect(eda).toContainText(MONTHS[best.month - 1]);
-  if (worst) await expect(eda).toContainText(MONTHS[worst.month - 1]);
-  if (summary.arrivalsCorrelation != null) {
-    await expect(eda).toContainText(summary.arrivalsCorrelation.toFixed(2));
-  }
-  await expect(eda).toContainText(new RegExp(`\\b${summary.outlierCount}\\b`));
-  await expect(eda).toContainText("%");
+  await expect(caption).toContainText(new RegExp(`n=\\d+ sessions`));
+  await expect(page.getByTestId("agri-eda-summary")).toHaveCount(0);
 }
 
 test("agri fixture keeps the 173-day hole, null MSP and source strata", () => {
@@ -146,9 +139,10 @@ test.describe("Agri prices redesign", () => {
   }) => {
     await openAgri(page);
 
-    await expect(page.getByTestId("agri-chart-panel")).toContainText("Modal price — Onion");
+    await expect(page.getByTestId("agri-chart-panel")).toContainText("Price focus — Onion");
     await expect(page.getByTestId("agri-freshness")).toContainText("42 mandis");
-    await expect(page.getByTestId("agri-kpi-head")).toContainText("Prices ₹/quintal · arrivals qtl");
+    await expect(page.getByTestId("agri-kpi-head")).toContainText("Mandi snapshot");
+    await expect(page.getByTestId("agri-kpi-head")).toContainText("₹/quintal");
 
     const kpis = agriPricesPayload({ commodity: "onion", range: "6m" }).kpis;
     await expect(page.getByTestId("agri-kpis")).toContainText("₹/quintal");
@@ -160,12 +154,12 @@ test.describe("Agri prices redesign", () => {
     await expect(page.getByTestId("agri-kpi-chg1m")).toContainText(formatChangePct(kpis.chg_1m_pct));
     await expect(page.getByTestId("agri-kpi-chg6m")).toContainText(formatChangePct(kpis.chg_6m_pct));
     await expect(page.getByTestId("agri-kpi-markets")).toContainText(String(kpis.market_count));
-    await expect(page.getByTestId("agri-kpi-arrivals")).toContainText(formatArrivals(kpis.arrivals_qtl));
-    // The official daily feed publishes no arrivals and no verified MSP.
-    await expect(page.getByTestId("agri-kpi-arrivals")).toContainText("—");
-    await expect(page.getByTestId("agri-kpi-msp")).toContainText(formatAgriPrice(kpis.msp));
-    await expect(page.getByTestId("agri-kpi-msp")).toContainText("No MSP notified");
+    // The official daily feed publishes no arrivals and no verified MSP, so
+    // those KPIs are omitted rather than shown as fabricated zero/dash values.
+    await expect(page.getByTestId("agri-kpi-arrivals")).toHaveCount(0);
+    await expect(page.getByTestId("agri-kpi-msp")).toHaveCount(0);
 
+    await openDataView(page);
     await expect(page.getByTestId("agri-quotes-table")).toBeVisible();
     for (const column of COLUMNS) {
       await expect(page.getByRole("columnheader", { name: column })).toBeVisible();
@@ -225,6 +219,7 @@ test.describe("Agri prices redesign", () => {
 
   test("quotes panel discloses the total quote count", async ({ page }) => {
     await openAgri(page);
+    await openDataView(page);
     await expect(page.getByTestId("agri-table-panel")).toContainText(/showing\s+2\s+of\s+3,?942/i);
   });
 
@@ -244,7 +239,7 @@ test.describe("Agri prices redesign", () => {
       commodity: "wheat",
     });
     await expect(page).toHaveURL(/[?&]group=cereals/);
-    await expect(page.getByTestId("agri-chart-panel")).toContainText("Modal price — Wheat");
+    await expect(page.getByTestId("agri-chart-panel")).toContainText("Price focus — Wheat");
   });
 
   test("range presets 1M and 6M drive the request and the active button", async ({ page }) => {
@@ -325,6 +320,7 @@ test.describe("Agri prices redesign", () => {
     await expect(page).toHaveURL(/[?&]state=Maharashtra/);
     await expect(page).toHaveURL(/[?&]district=Nashik/);
     await expect(page).toHaveURL(/[?&]market=Lasalgaon/);
+    await openDataView(page);
     await expect(page.getByTestId("agri-quotes-table")).toContainText("Lasalgaon");
   });
 
@@ -335,10 +331,12 @@ test.describe("Agri prices redesign", () => {
     await expect(page.getByTestId("agri-loading")).toHaveCount(0);
 
     await expect(page.getByTestId("agri-chart-empty")).toBeVisible();
-    await expect(page.getByTestId("agri-table-empty")).toBeVisible();
     await expect(page.getByTestId("agri-chart")).toHaveCount(0);
-    await expect(page.getByTestId("agri-quotes-table")).toHaveCount(0);
     await expect(page.getByTestId("agri-warnings")).toContainText("No rows in the cache");
+
+    await openDataView(page);
+    await expect(page.getByTestId("agri-table-empty")).toBeVisible();
+    await expect(page.getByTestId("agri-quotes-table")).toHaveCount(0);
   });
 
   test("500 shows an error alert and retry recovers the page", async ({ page }) => {
@@ -350,6 +348,7 @@ test.describe("Agri prices redesign", () => {
     const before = handle.pricesCalls.length;
     await page.getByTestId("agri-error-retry").click();
     await expect(page.getByTestId("agri-error")).toHaveCount(0);
+    await openDataView(page);
     await expect(page.getByTestId("agri-quotes-table")).toBeVisible();
     expect(handle.pricesCalls.length).toBeGreaterThan(before);
   });
@@ -370,7 +369,7 @@ test.describe("Agri prices redesign", () => {
     await expect(page.getByTestId("agri-commodity-select").locator("select")).toHaveValue("wheat");
     await expect(page.getByTestId("agri-range-1m")).toHaveClass(/font-semibold/);
     await expect(page.getByTestId("agri-mode-supplyDemand")).toHaveClass(/font-semibold/);
-    await expect(page.getByTestId("agri-chart-panel")).toContainText("Modal price — Wheat");
+    await expect(page.getByTestId("agri-chart-panel")).toContainText("Price focus — Wheat");
     await expect.poll(() => handle.pricesCalls.at(-1)?.params).toMatchObject({
       commodity: "wheat",
       range: "1m",

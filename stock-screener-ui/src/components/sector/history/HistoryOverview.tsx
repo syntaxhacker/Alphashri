@@ -54,7 +54,7 @@ export function HistoryOverview(props: HistoryOverviewProps) {
   return (
     <Box
       data-testid="sector-history-overview"
-      className="flex flex-1 min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto p-2 scroll-pb-4"
+      className="flex flex-1 min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto p-2 pb-6 scroll-pb-6"
     >
       <HistoryPanel
         testId="sector-history-rank-panel"

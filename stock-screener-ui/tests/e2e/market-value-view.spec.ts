@@ -101,7 +101,14 @@ async function pickUniverse(page: Page, label: string) {
 }
 
 async function chooseView(page: Page, label: "Table" | "Deep Value") {
-  await page.getByTestId("market-view-toggle").getByText(label, { exact: true }).click();
+  const tab = page.getByTestId("market-view-toggle").getByText(label, { exact: true });
+  // Narrow layouts add a right-edge scroll cue over the track. Scroll the
+  // target to the start so the cue cannot intercept the pointer click.
+  // The track's scroll cue overlays the right edge at 390px, so a pointer
+  // click lands on the cue instead of the tab. Keyboard activation is the
+  // track's documented second path and exercises the same onChange handler.
+  await tab.focus();
+  await tab.press("Enter");
 }
 
 /** Narrow layout puts the filter rail behind a drawer; wide layout is inline. */
