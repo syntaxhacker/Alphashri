@@ -2,8 +2,10 @@
 import pickle, json, os
 import pandas as pd, numpy as np
 HERE=os.path.dirname(os.path.abspath(__file__))
+PARAMS=os.environ.get("PARAMS_JSON",os.path.join(HERE,"..","sims","htf_breakout","params.json"))
+P=json.load(open(PARAMS))
 def load1m():
-    df=pickle.load(open("/tmp/opencode/duka_nq_1m.pkl","rb")); df=df.rename(columns={c:c.lower() for c in df.columns})
+    df=pickle.load(open(os.environ.get("NQ_1M_PKL","/tmp/opencode/duka_nq_1m.pkl"),"rb")); df=df.rename(columns={c:c.lower() for c in df.columns})
     if df.index.tz is None: df.index=df.index.tz_localize("UTC")
     df.index=df.index.tz_convert("America/New_York")
     m=df.index.hour*60+df.index.minute
@@ -50,7 +52,9 @@ def prop(rows,acct,rp,target=3000.,dd=2000.,day_stop=800.,cost=4.,pt_val=2.,pt_p
         if pk-eq>dd: return ("FAIL_DD",dn)
         if eq-acct>=target: return ("PASS",dn)
     return ("NO_END",dn)
-for lab,htf,K,trail,mh in [("htf30_K40_t1.25",30,40,1.25,20),("htf30_K60_t1",30,60,1.0,20),("htf15_K20_t1",15,20,1.0,20),("htf60_K40_t2",60,40,2.0,20)]:
+CONFIGS=[("saved params.json",P["htf"],P["K"],P["trail"],P["maxhold"]),
+         ("htf30_K60_t1",30,60,1.0,20),("htf15_K20_t1",15,20,1.0,20),("htf60_K40_t2",60,40,2.0,20)]
+for lab,htf,K,trail,mh in CONFIGS:
     A=pd.DataFrame(build(htf,K,trail,mh),columns=["ts","R","risk","x"]).sort_values("ts").reset_index(drop=True)
     A["date"]=pd.to_datetime(A["ts"]).dt.date
     print(f"\n[{lab}] n={len(A)} win {(A.R>0).mean()*100:.0f}% avgR {A.R.mean():+.3f} R/mo {A.R.sum()/len(set(pd.to_datetime(A.ts).dt.to_period('M'))):.1f}")

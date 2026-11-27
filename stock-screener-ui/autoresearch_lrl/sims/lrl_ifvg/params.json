@@ -1,0 +1,21 @@
+{
+  "tf": 1,
+  "buf": 3.0,
+  "maxdist": 70.0,
+  "disp_body": 0.45,
+  "atr_mult": 1.2,
+  "fvg_min": 3.0,
+  "fvg_max_atr": 3.0,
+  "look_disp": 5,
+  "entry_win": 5,
+  "sl_buf": 0.0,
+  "horizon": 240,
+  "exit": "time",
+  "trail": 0.25,
+  "fixed_R": 2.0,
+  "time_bars": 60,
+  "be": 1.0,
+  "sess_start": 570,
+  "sess_end": 690,
+  "trend": "none"
+}
