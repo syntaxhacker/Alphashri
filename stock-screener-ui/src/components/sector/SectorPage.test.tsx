@@ -492,6 +492,20 @@ describe("SectorPage", () => {
     expect(dockOpen).toHaveBeenCalledWith("RELIANCE", "chart", "india");
   });
 
+  it("activates a decorated Top Gainer chart link with Space", async () => {
+    mockFetchSectorPerformance.mockResolvedValue({
+      ...mockResponse,
+      top_stock_movers: [{ symbol: "NSE:RELIANCE", change: 1.2 }],
+    });
+    renderWithDock();
+    const link = await screen.findByTestId("sector-top-stock-NSE:RELIANCE");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/chart/RELIANCE");
+    const click = vi.spyOn(link, "click").mockImplementation(() => {});
+    fireEvent.keyDown(link, { key: " " });
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
   it("stacks four sections in order with no tab bar", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
     render(() => <SectorPage />);

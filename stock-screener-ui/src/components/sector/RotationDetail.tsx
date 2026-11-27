@@ -7,7 +7,7 @@ import { SymbolLink } from "../common/SymbolLink";
 import { useSymbolDock } from "../common/symbolDockContext";
 import type { RotationPeriod, RotationRow } from "../../types/rotation";
 import { getPnLTextColor } from "../../utils/ui-helpers";
-import { formatSectorPercentage as formatPercentage } from "./sectorUtils";
+import { formatSectorPercentage as formatPercentage, clickOnSpace } from "./sectorUtils";
 import { formatReturn, returnTone } from "./rotation/returnVisuals";
 import { ROTATION_STATUS_LABELS, ROTATION_STATUS_COLORS_PANEL } from "./rotationStatus";
 import { displaySymbol } from "@/config/tvSymbols";
@@ -219,6 +219,8 @@ export function RotationDetail(props: RotationDetailProps) {
                     <Box
                       component="a"
                       href={chartHrefForSymbol(mover.symbol, props.market)}
+                      data-testid={`rotation-mover-${mover.symbol}`}
+                      onKeyDown={clickOnSpace}
                       className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
                     >
                       <Text truncate className="text-ui-micro font-semibold">
