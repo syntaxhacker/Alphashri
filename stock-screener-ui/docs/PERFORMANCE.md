@@ -90,6 +90,10 @@ script's docstring. Report medians, never a single run.
 | [`stock-screener-ui/scripts/perf/bench_screener_52w.py`](../scripts/perf/bench_screener_52w.py) | 52W screener read path with counted upstream reads; capture/verify/bench modes | `python scripts/perf/bench_screener_52w.py --mode bench3` |
 | [`stock-screener-ui/scripts/perf/bench_screener_52w_meta.py`](../scripts/perf/bench_screener_52w_meta.py) | 52W rationale/summary call counts + response parity over mixed/empty/skeleton fixtures | `python scripts/perf/bench_screener_52w_meta.py --compare <baseline.json>` (run `--capture <baseline.json>` first) |
 | [`stock-screener-ui/scripts/perf/bench_dashboard_sparks.py`](../scripts/perf/bench_dashboard_sparks.py) | Dashboard spark fan-out with a fixed-latency fetch stub | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_dashboard_sparks.py` |
+| [`stock-screener-ui/scripts/perf/bench_value_scan.py`](../scripts/perf/bench_value_scan.py) | Value-scan scoring parity/counts/wall on a 2,000-row fixture | `python scripts/perf/bench_value_scan.py wall --out wall.json` |
+| [`stock-screener-ui/scripts/perf/bench_options_walls.py`](../scripts/perf/bench_options_walls.py) | Options-wall payload/counts/time on a deterministic tape | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_options_walls.py time` |
+| [`stock-screener-ui/scripts/perf/bench_sector_themes.py`](../scripts/perf/bench_sector_themes.py) | Theme aggregation parity/counts/time | `python scripts/perf/bench_sector_themes.py time` |
+| [`stock-screener-ui/scripts/perf/bench_cache_stats.py`](../scripts/perf/bench_cache_stats.py) | Cache-stats command-count/parity probe | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_cache_stats.py` |
 
 ## 2026-11-26 backend/DB performance loop
 
