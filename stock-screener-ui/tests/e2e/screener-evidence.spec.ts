@@ -16,6 +16,7 @@ import {
   setupScreenerEvidenceMocks,
 } from "../mocks/screenerEvidence";
 import { collectConsoleErrors } from "./helpers/flowsB";
+import { waitForSettled } from "./helpers/evidenceFast";
 
 const EVIDENCE = process.env.SCREENSHOT_EVIDENCE === "1";
 const TABLE_ROWS = '[data-testid="screener-table"] tbody tr';
@@ -63,7 +64,7 @@ for (const [width, height] of [
       expect(layout.headers).toContain("sector");
     }
 
-    await page.waitForLoadState("networkidle");
+    await waitForSettled(page, TABLE_ROWS);
     await page.screenshot({
       path: `${process.env.SCREENER_EVIDENCE_DIR ?? "docs/screenshots/app"}/screener-${width}.png`,
       fullPage: true,
