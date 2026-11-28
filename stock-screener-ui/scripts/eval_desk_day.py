@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from common.numbers import nan_guarded_float  # noqa: E402
 from api.reports_api.nifty import (  # noqa: E402
     compute_max_pain,
     compute_pcr,
@@ -33,11 +34,8 @@ OUTDIR = ROOT / "reports" / "OPTIONS_PAPER_SIM"
 
 
 def _f(v):
-    try:
-        v = float(v)
-    except (TypeError, ValueError):
-        return None
-    return v if v == v else None
+    # Tape fields use None as the missing marker, not nan_guarded_float's 0.0.
+    return nan_guarded_float(v, None)
 
 
 def load(date: str) -> list[dict]:
