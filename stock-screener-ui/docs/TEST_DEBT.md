@@ -28,9 +28,10 @@ changed-test runner and timing pipeline.
 
 ## Fixed clusters
 
-These were burned down in the 2026-11-22 audit. Counts are from `changelog/`
-and `docs/PERFORMANCE_LOG_2026-11-22.md` where stated; otherwise from commit
-messages.
+These were burned down in the 2026-11-22 audit, plus the event-radar cluster
+re-verified on 2026-11-28. Counts are from `changelog/` and
+`docs/PERFORMANCE_LOG_2026-11-22.md` where stated; otherwise from commit
+messages or a fresh local run (event radar).
 
 | Cluster | Count | What changed |
 | --- | --- | --- |
@@ -39,6 +40,7 @@ messages.
 | ORB / config / DB stale expectations | **14 → 0 failures** (204 tests) | Updated ORB signal defaults, config-loader and DB-model expectations in the same commit (`9f355659`). |
 | Correlation cache isolation | fixed (count not itemised) | `tests/test_correlation.py` isolated to a tmp `CACHE_DIR` with patched time; no shared cache bleed between tests (commit `83db695f`, `test: isolate correlation cache tests to tmp`). |
 | Frontend changed-test zero selection | fixed (guard, not a count) | The changed-test runner now diffs against the PR base and **fails when zero tests are selected**; previously an empty selection passed silently (commit `23c65d47`, `ci: diff frontend changed tests against the pr base`). |
+| Event-radar missing fixtures | **319 → 0 failures** (319 tests) | Restored tracked recorded-shape fixtures (EDGAR EFTS/ROIV 8-K, Yahoo RSS, TV scanner, ORCL 8-day 1-min tape) plus `.gitignore` negations in commit `14f2625a` (2026-11-23, "restore symbol aliases and event-radar fixtures"), which also pinned the New York offset instead of a hardcoded `-04:00`. Re-verified 2026-11-28: **319 passed** under the exact full-sweep marker expression. Fixture drift only — no assertion weakened, no production change. |
 
 ## Remaining clusters (rough counts — re-measure before quoting)
 
@@ -50,7 +52,6 @@ bugs.
 | --- | --- | --- |
 | Broker / bot DB `SessionLocal` isolation | `tests/` broker + bot modules; shared in-memory SQLite / `SessionLocal` fixtures | **~30** (estimate) |
 | Symbol aliases missing gitignored data | tests relying on symbol-alias data under gitignored local paths | **~30** (estimate) |
-| Event-radar missing fixtures | `tests/api/test_event_radar/`; missing local fixtures/data | **~13** (estimate) |
 | Week52 cache property | `tests/` week52 cache property tests | **~11** (estimate) |
 | Misc API / date / source drift | assorted API tests, date/session assumptions, source-name drift | **remaining** (unquantified) |
 
