@@ -492,22 +492,11 @@ def curvature_sign(coeffs: Sequence[float]) -> int:
 
 
 def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    from trading.indicators import atr_first_bar
+
     if df is None or len(df) == 0:
         return pd.Series(dtype=float)
-    high = df["high"].to_numpy(dtype=float)
-    low = df["low"].to_numpy(dtype=float)
-    close = df["close"].to_numpy(dtype=float)
-    prev = np.empty_like(close)
-    prev[0] = np.nan
-    prev[1:] = close[:-1]
-    # ``np.fmax`` skips NaN like pandas ``max(axis=1, skipna=True)``: the first
-    # bar has no previous close, so its true range is just ``high - low``.
-    tr = np.fmax.reduce(
-        [high - low, np.abs(high - prev), np.abs(low - prev)]
-    )
-    return pd.Series(tr, index=df.index).ewm(
-        alpha=1.0 / max(period, 1), adjust=False, min_periods=1
-    ).mean()
+    return atr_first_bar(df["high"], df["low"], df["close"], period, full=True)
 
 
 def atr_value(df: pd.DataFrame, period: int = 14) -> float:
