@@ -17,7 +17,6 @@ import uuid as uuid_module
 from pathlib import Path
 from typing import Generator, Optional, Dict, List
 from datetime import datetime, timedelta
-from dataclasses import dataclass
 from unittest.mock import Mock, patch, MagicMock
 
 import pytest
@@ -361,24 +360,6 @@ def template_strategy(db: Session) -> StrategyConfig:
     return s
 
 @pytest.fixture
-def user_strategy(db: Session, template_strategy: StrategyConfig) -> StrategyConfig:
-    s = StrategyConfig(
-        name="my_custom_orb",
-        strategy_type="ORB",
-        parent_id=template_strategy.id,
-        is_template=False,
-        is_active=True,
-        or_minutes=30,
-        sl_pct=0.35,
-        tp_pct=1.5,
-        max_positions=5,
-    )
-    db.add(s)
-    db.commit()
-    db.refresh(s)
-    return s
-
-@pytest.fixture
 def multiple_strategies(db: Session) -> List[StrategyConfig]:
     strategies = []
     for i in range(3):
@@ -420,42 +401,6 @@ def test_bot(db: Session, multiple_strategies: List[StrategyConfig]) -> BotConfi
         )
     db.commit()
     return bot
-
-@pytest.fixture
-def running_bot(db: Session, test_bot: BotConfig) -> Dict:
-    return {
-        "id": test_bot.id,
-        "name": test_bot.name,
-        "running": True,
-        "pid": 12345,
-        "status": {
-            "bot_id": test_bot.id,
-            "bot_name": test_bot.name,
-            "running": True,
-            "pid": 12345,
-            "portfolio": {
-                "initial_capital": 1000000,
-                "cash": 950000,
-                "capital_used": 50000,
-                "total_pnl": 500,
-                "total_pnl_pct": 0.05,
-            },
-            "strategies": {},
-            "positions": [],
-        }
-    }
-
-
-@pytest.fixture
-def trade_journal(tmp_path) -> Path:
-    journal_dir = tmp_path / "journals" / "1"
-    journal_dir.mkdir(parents=True)
-    from unittest.mock import MagicMock
-    journal = MagicMock()
-    journal.journal_dir = str(journal_dir)
-    journal.user_id = 1
-    journal.trades = []
-    return journal
 
 @pytest.fixture
 def sample_trades() -> List[Dict]:
@@ -519,51 +464,6 @@ def sample_trades() -> List[Dict]:
 
 
 @pytest.fixture
-def mock_signal_data():
-    return [
-        {
-            "symbol": "RELIANCE",
-            "signal_type": "LONG_ENTRY",
-            "price": 2500.0,
-            "stop_loss": 2490.0,
-            "take_profit": 2530.0,
-            "or_high": 2495.0,
-            "or_low": 2480.0,
-            "or_range_pct": 0.6,
-            "timestamp": datetime.now().isoformat(),
-        },
-        {
-            "symbol": "TCS",
-            "signal_type": "LONG_ENTRY",
-            "price": 3800.0,
-            "stop_loss": 3785.0,
-            "take_profit": 3845.0,
-            "or_high": 3790.0,
-            "or_low": 3770.0,
-            "or_range_pct": 0.53,
-            "timestamp": datetime.now().isoformat(),
-        },
-    ]
-
-@dataclass
-class MockPosition:
-    symbol: str
-    quantity: int
-    entry_price: float
-    current_price: float
-    side: str = "BUY"
-    unrealized_pnl: float = 0.0
-    unrealized_pnl_pct: float = 0.0
-
-@pytest.fixture
-def mock_positions() -> List[MockPosition]:
-    return [
-        MockPosition(symbol="RELIANCE", quantity=100, entry_price=2500.0, current_price=2525.0, unrealized_pnl=2500.0, unrealized_pnl_pct=1.0),
-        MockPosition(symbol="TCS", quantity=50, entry_price=3800.0, current_price=3785.0, unrealized_pnl=-750.0, unrealized_pnl_pct=-0.39),
-    ]
-
-
-@pytest.fixture
 def mock_portfolio_state():
     return {
         "initial_capital": 1000000.0,
@@ -580,55 +480,4 @@ def mock_portfolio_state():
         "daily_pnl_pct": 0.175,
         "daily_trades": 2,
         "trades": 2,
-    }
-
-@pytest.fixture
-def mock_bot_snapshot(test_bot: BotConfig):
-    return {
-        'timestamp': datetime.now().isoformat(),
-        'bot_id': test_bot.id,
-        'bot_name': test_bot.name,
-        'running': True,
-        'portfolio': {
-            'initial_capital': 1000000,
-            'cash': 950000,
-            'capital_used': 50000,
-            'position_value': 50000,
-            'total_value': 1000000,
-            'total_pnl': 500,
-            'total_pnl_pct': 0.05,
-            'realized_pnl': 0,
-            'unrealized_pnl': 500,
-            'total_positions': 1,
-            'daily_pnl': 500,
-        },
-        'strategies': {
-            '1': {
-                'id': 1,
-                'name': 'ORB Conservative',
-                'status': 'running',
-                'signals_generated': 5,
-                'trades_executed': 1,
-                'portfolio_status': {
-                    'strategy_id': 1,
-                    'strategy_name': 'ORB Conservative',
-                    'capital_used': 50000,
-                    'positions_count': 1,
-                    'total_pnl': 500,
-                },
-                'scan_items': [],
-            }
-        },
-        'positions': [
-            {
-                'symbol': 'TEST',
-                'quantity': 50,
-                'entry_price': 1000,
-                'current_price': 1010,
-                'unrealized_pnl': 500,
-                'strategy_id': 1,
-                'strategy_name': 'ORB Conservative',
-            }
-        ],
-        'scan_items': [],
     }

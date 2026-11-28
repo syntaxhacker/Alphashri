@@ -6,10 +6,9 @@ import pytest
 import uuid
 import json
 import bcrypt
-from pathlib import Path
 from datetime import datetime
 from typing import Generator
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -18,7 +17,7 @@ from fastapi.testclient import TestClient
 from db.database import Base, get_db
 from db.models import User, BotConfig, StrategyConfig
 from fastapi import FastAPI
-from api.auth import hash_password, get_current_user
+from api.auth import get_current_user
 from tests.helpers.db import import_all_models
 
 
@@ -221,19 +220,6 @@ def test_user(test_db):
 
 
 @pytest.fixture
-def test_user_id(test_user):
-    """Return test user ID."""
-    return test_user.id
-
-
-@pytest.fixture
-def test_user_uuid(test_user):
-    """Return test user UUID."""
-    return test_user.uuid
-
-
-
-@pytest.fixture
 def test_strategy(test_db):
     """Create a test strategy in test database."""
     strategy = StrategyConfig(
@@ -252,13 +238,6 @@ def test_strategy(test_db):
 
 
 @pytest.fixture
-def test_strategy_uuid(test_strategy):
-    """Return test strategy UUID."""
-    return test_strategy.uuid
-
-
-
-@pytest.fixture
 def test_bot(test_db, test_user):
     """Create a test bot in test database."""
     bot = BotConfig(
@@ -272,13 +251,6 @@ def test_bot(test_db, test_user):
     test_db.commit()
     test_db.refresh(bot)
     return bot
-
-
-@pytest.fixture
-def test_bot_uuid(test_bot):
-    """Return test bot UUID."""
-    return test_bot.uuid
-
 
 
 @pytest.fixture
@@ -422,17 +394,6 @@ def sample_bot_data():
         "max_total_positions": 10,
         "max_total_capital_pct": 0.80
     }
-
-
-@pytest.fixture
-def sample_strategy_data(test_strategy_uuid):
-    """Sample strategy allocation data."""
-    return {
-        "strategy_id": test_strategy_uuid,
-        "max_positions": 3,
-        "capital_allocation_pct": 0.40
-    }
-
 
 
 @pytest.fixture
