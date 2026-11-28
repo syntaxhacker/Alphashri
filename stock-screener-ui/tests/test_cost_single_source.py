@@ -12,12 +12,61 @@ intentionally diverges.
 """
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from backtest import costs
 
 PROJECT = Path(__file__).resolve().parent.parent
+
+
+def _reset_config_row(monkeypatch):
+    """Run the paper reset-config handler against a mock DB row."""
+    from api.paper import endpoints
+
+    row = MagicMock()
+    session = MagicMock()
+    session.query.return_value.filter.return_value.first.return_value = row
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=session)
+    ctx.__exit__ = MagicMock(return_value=False)
+    monkeypatch.setattr(endpoints, "SessionLocal", lambda: ctx)
+    endpoints.reset_strategy_config_endpoint(name="orb_default", user=MagicMock())
+    return row
+
+
+class TestPaperResetConfigDefaults:
+    def test_rate_defaults_are_canonical_objects(self, monkeypatch):
+        """Reset must read the fee schedule, not restate its literals."""
+        names = (
+            "BROKERAGE_PCT", "MIN_BROKERAGE", "STT_PCT", "EXCHANGE_CHARGES_PCT",
+            "SEBI_FEE_PCT", "STAMP_DUTY_PCT", "GST_PCT",
+        )
+        sentinels = {name: object() for name in names}
+        for name, value in sentinels.items():
+            monkeypatch.setattr(costs, name, value)
+
+        row = _reset_config_row(monkeypatch)
+
+        assert row.brokerage_pct is sentinels["BROKERAGE_PCT"]
+        assert row.min_brokerage is sentinels["MIN_BROKERAGE"]
+        assert row.stt_pct is sentinels["STT_PCT"]
+        assert row.exchange_pct is sentinels["EXCHANGE_CHARGES_PCT"]
+        assert row.sebi_pct is sentinels["SEBI_FEE_PCT"]
+        assert row.stamp_pct is sentinels["STAMP_DUTY_PCT"]
+        assert row.gst_pct is sentinels["GST_PCT"]
+
+    def test_rate_defaults_match_canonical_values(self, monkeypatch):
+        row = _reset_config_row(monkeypatch)
+
+        assert row.brokerage_pct == costs.BROKERAGE_PCT
+        assert row.min_brokerage == costs.MIN_BROKERAGE
+        assert row.stt_pct == costs.STT_PCT
+        assert row.exchange_pct == costs.EXCHANGE_CHARGES_PCT
+        assert row.sebi_pct == costs.SEBI_FEE_PCT
+        assert row.stamp_pct == costs.STAMP_DUTY_PCT
+        assert row.gst_pct == costs.GST_PCT
 
 
 class TestCanonicalRateDefaults:
