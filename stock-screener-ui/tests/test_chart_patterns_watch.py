@@ -656,6 +656,16 @@ def _near52w_frame(n=30, start=90.0, step=0.3, vol_start=1000.0, vol_step=100.0)
     )
 
 
+def _recording_near52w_fetch(calls):
+    """Fetch seam that records requested symbols and serves a rising frame."""
+
+    def fake_fetch(sym, tf):
+        calls.append(sym)
+        return _near52w_frame()
+
+    return fake_fetch
+
+
 @pytest.fixture
 def near52w_env(monkeypatch, tmp_path):
     """Isolated computed arm: tmp disk cache, fixed session, fake universe."""
@@ -919,11 +929,9 @@ def test_near52w_arm_cache_reused_and_session_invalidates(monkeypatch, near52w_e
 
     calls: list = []
 
-    def fake_fetch(sym, tf):
-        calls.append(sym)
-        return _near52w_frame()
-
-    monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(
+        candles, "fetch_for_timeframe", _recording_near52w_fetch(calls)
+    )
 
     first = watch_mod.arm("near_52w", universe="nifty500")
     assert [r["symbol"] for r in first] == ["AAA"]
@@ -1035,11 +1043,9 @@ def test_near52w_detect_cache_reused_across_scopes(monkeypatch, near52w_env):
 
     calls: list = []
 
-    def fake_fetch(sym, tf):
-        calls.append(sym)
-        return _near52w_frame()
-
-    monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(
+        candles, "fetch_for_timeframe", _recording_near52w_fetch(calls)
+    )
     monkeypatch.setattr(universes, "get_universe", lambda uid: ["AAA"])
 
     first = watch_mod.arm("near_52w", universe="nifty500")
@@ -1058,11 +1064,9 @@ def test_near52w_detect_cache_version_bump_recomputes(monkeypatch, near52w_env):
 
     calls: list = []
 
-    def fake_fetch(sym, tf):
-        calls.append(sym)
-        return _near52w_frame()
-
-    monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(
+        candles, "fetch_for_timeframe", _recording_near52w_fetch(calls)
+    )
     monkeypatch.setattr(universes, "get_universe", lambda uid: ["AAA"])
 
     watch_mod.arm("near_52w", universe="nifty500")

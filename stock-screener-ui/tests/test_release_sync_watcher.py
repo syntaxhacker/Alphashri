@@ -60,6 +60,41 @@ def _stub_freshness(monkeypatch, pointers: dict[str, sync.RefreshPointer], appli
     return run_sync
 
 
+def _stub_sync_loop(monkeypatch, env: dict[str, str], *, cancel_after: int):
+    """Stub the async loop seams shared by the release-sync task tests."""
+    delays: list[float] = []
+    ticks: list[str] = []
+
+    async def fake_sleep(seconds):
+        delays.append(float(seconds))
+        if len(delays) == cancel_after:
+            raise asyncio.CancelledError()
+
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    def fake_sync_once():
+        ticks.append("tick")
+        return "current"
+
+    async def run():
+        await watcher.release_sync_task()
+        return "exited"
+
+    monkeypatch.setattr(
+        watcher,
+        "asyncio",
+        SimpleNamespace(
+            CancelledError=asyncio.CancelledError,
+            sleep=fake_sleep,
+            to_thread=fake_to_thread,
+        ),
+    )
+    _stub_env(monkeypatch, env)
+    monkeypatch.setattr(watcher, "sync_once", fake_sync_once)
+    return delays, ticks, run
+
+
 class TestLatest52wAsOf:
     def test_max_52w_date_across_releases_ignores_agri_and_other_names(
         self, monkeypatch: pytest.MonkeyPatch
@@ -390,36 +425,7 @@ class TestSyncOnce:
 
 class TestReleaseSyncTask:
     def test_startup_delay_then_poll_and_clean_cancel(self, monkeypatch: pytest.MonkeyPatch):
-        delays: list[float] = []
-        ticks: list[str] = []
-
-        async def fake_sleep(seconds):
-            delays.append(float(seconds))
-            if len(delays) == 3:
-                raise asyncio.CancelledError()
-
-        async def fake_to_thread(func, *args, **kwargs):
-            return func(*args, **kwargs)
-
-        def fake_sync_once():
-            ticks.append("tick")
-            return "current"
-
-        monkeypatch.setattr(
-            watcher,
-            "asyncio",
-            SimpleNamespace(
-                CancelledError=asyncio.CancelledError,
-                sleep=fake_sleep,
-                to_thread=fake_to_thread,
-            ),
-        )
-        _stub_env(monkeypatch, {})
-        monkeypatch.setattr(watcher, "sync_once", fake_sync_once)
-
-        async def run():
-            await watcher.release_sync_task()
-            return "exited"
+        delays, ticks, run = _stub_sync_loop(monkeypatch, {}, cancel_after=3)
 
         assert asyncio.run(run()) == "exited"
         assert delays == [30.0, 900.0, 900.0]
@@ -428,43 +434,15 @@ class TestReleaseSyncTask:
     def test_disabled_flag_skips_sync_and_honours_overrides(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        delays: list[float] = []
-        ticks: list[str] = []
-
-        async def fake_sleep(seconds):
-            delays.append(float(seconds))
-            if len(delays) == 2:
-                raise asyncio.CancelledError()
-
-        async def fake_to_thread(func, *args, **kwargs):
-            return func(*args, **kwargs)
-
-        def fake_sync_once():
-            ticks.append("tick")
-            return "current"
-
-        monkeypatch.setattr(
-            watcher,
-            "asyncio",
-            SimpleNamespace(
-                CancelledError=asyncio.CancelledError,
-                sleep=fake_sleep,
-                to_thread=fake_to_thread,
-            ),
-        )
-        _stub_env(
+        delays, ticks, run = _stub_sync_loop(
             monkeypatch,
             {
                 "RELEASE_SYNC_ENABLED": "0",
                 "RELEASE_SYNC_STARTUP_DELAY_SEC": "5",
                 "RELEASE_SYNC_POLL_SEC": "600",
             },
+            cancel_after=2,
         )
-        monkeypatch.setattr(watcher, "sync_once", fake_sync_once)
-
-        async def run():
-            await watcher.release_sync_task()
-            return "exited"
 
         assert asyncio.run(run()) == "exited"
         assert delays == [5.0, 600.0]
@@ -483,42 +461,14 @@ class TestReleaseSyncTask:
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, startup, poll, invalid
     ):
         """P3: a parse failure used to spin forever without awaiting."""
-        delays: list[float] = []
-        ticks: list[str] = []
-
-        async def fake_sleep(seconds):
-            delays.append(float(seconds))
-            if len(delays) == 2:
-                raise asyncio.CancelledError()
-
-        async def fake_to_thread(func, *args, **kwargs):
-            return func(*args, **kwargs)
-
-        def fake_sync_once():
-            ticks.append("tick")
-            return "current"
-
-        monkeypatch.setattr(
-            watcher,
-            "asyncio",
-            SimpleNamespace(
-                CancelledError=asyncio.CancelledError,
-                sleep=fake_sleep,
-                to_thread=fake_to_thread,
-            ),
-        )
-        _stub_env(
+        delays, ticks, run = _stub_sync_loop(
             monkeypatch,
             {
                 "RELEASE_SYNC_STARTUP_DELAY_SEC": startup,
                 "RELEASE_SYNC_POLL_SEC": poll,
             },
+            cancel_after=2,
         )
-        monkeypatch.setattr(watcher, "sync_once", fake_sync_once)
-
-        async def run():
-            await watcher.release_sync_task()
-            return "exited"
 
         assert asyncio.run(run()) == "exited"
         assert delays == [30.0, 900.0]

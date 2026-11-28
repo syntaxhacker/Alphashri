@@ -453,7 +453,9 @@ class TestHttpCaching:
     def test_cache_control_uses_open_ttl(self, client, chain_builder):
         response = client.get("/api/options/analytics/NIFTY")
         assert response.status_code == 200
-        assert response.headers["Cache-Control"] == "private, max-age=45"
+        assert response.headers["Cache-Control"] == (
+            f"private, max-age={int(oa.ANALYTICS_TTL_OPEN_SEC)}"
+        )
 
     def test_cache_control_uses_closed_ttl(self, client, chain_builder, monkeypatch):
         async def closed_now():
@@ -462,7 +464,9 @@ class TestHttpCaching:
         monkeypatch.setattr(oa, "_session_state_now", closed_now)
         response = client.get("/api/options/analytics/NIFTY")
         assert response.status_code == 200
-        assert response.headers["Cache-Control"] == "private, max-age=60"
+        assert response.headers["Cache-Control"] == (
+            f"private, max-age={int(oa.ANALYTICS_TTL_CLOSED_SEC)}"
+        )
 
     def test_etag_present_and_stable_across_warm_reads(self, client, chain_builder):
         first = client.get("/api/options/analytics/NIFTY")
@@ -493,7 +497,9 @@ class TestHttpCaching:
         assert revalidated.status_code == 304
         assert revalidated.text == ""
         assert revalidated.headers["ETag"] == etag
-        assert revalidated.headers["Cache-Control"] == "private, max-age=45"
+        assert revalidated.headers["Cache-Control"] == (
+            f"private, max-age={int(oa.ANALYTICS_TTL_OPEN_SEC)}"
+        )
         assert len(chain_builder["calls"]) == calls_before
 
     @pytest.mark.parametrize("candidate", ["*", "weak"])

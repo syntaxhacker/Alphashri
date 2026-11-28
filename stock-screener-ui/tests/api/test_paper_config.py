@@ -13,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from unittest.mock import patch, MagicMock, PropertyMock
 import pytest
 
+from backtest import costs
+
 
 def _make_config_data(**overrides):
     """Build a StrategyConfigData with optional field overrides."""
@@ -35,13 +37,13 @@ def _make_config_data(**overrides):
         max_trade_value=100000,
         cooldown_minutes=30,
         max_distance_from_or_pct=1.5,
-        brokerage_pct=0.0003,
-        min_brokerage=20,
-        stt_pct=0.00025,
-        exchange_pct=0.0000297,
-        sebi_pct=0.000001,
-        stamp_pct=0.00003,
-        gst_pct=0.18,
+        brokerage_pct=costs.BROKERAGE_PCT,
+        min_brokerage=costs.MIN_BROKERAGE,
+        stt_pct=costs.STT_PCT,
+        exchange_pct=costs.EXCHANGE_CHARGES_PCT,
+        sebi_pct=costs.SEBI_FEE_PCT,
+        stamp_pct=costs.STAMP_DUTY_PCT,
+        gst_pct=costs.GST_PCT,
     )
     defaults.update(overrides)
     return StrategyConfigData(**defaults)
@@ -58,8 +60,10 @@ def _make_mock_config_row(**overrides):
         max_daily_loss_pct=0.02, max_total_exposure_pct=0.50,
         risk_per_trade_pct=0.01, min_trade_value=5000, max_trade_value=100000,
         cooldown_minutes=30, max_distance_from_or_pct=1.5,
-        brokerage_pct=0.0003, min_brokerage=20, stt_pct=0.00025,
-        exchange_pct=0.0000297, sebi_pct=0.000001, stamp_pct=0.00003, gst_pct=0.18,
+        brokerage_pct=costs.BROKERAGE_PCT, min_brokerage=costs.MIN_BROKERAGE,
+        stt_pct=costs.STT_PCT, exchange_pct=costs.EXCHANGE_CHARGES_PCT,
+        sebi_pct=costs.SEBI_FEE_PCT, stamp_pct=costs.STAMP_DUTY_PCT,
+        gst_pct=costs.GST_PCT,
         entry_threshold_pct=3.0, enable_trailing_stop=False, trailing_stop_pct=3.0,
         trailing_activation_pct=2.0, max_holding_days=30, cooldown_days=30,
         enable_filters=False, pivot_type="classic", breakout_buffer_pct=0.3,
@@ -365,11 +369,11 @@ class TestResetStrategyConfig:
         assert mock_row.max_trade_value == 100000
         assert mock_row.cooldown_minutes == 30
         assert mock_row.max_distance_from_or_pct == 1.5
-        assert mock_row.brokerage_pct == 0.0003
-        assert mock_row.min_brokerage == 20
-        assert mock_row.stt_pct == 0.00025
-        assert mock_row.exchange_pct == 0.0000297
-        assert mock_row.sebi_pct == 0.000001
-        assert mock_row.stamp_pct == 0.00003
-        assert mock_row.gst_pct == 0.18
+        assert mock_row.brokerage_pct == costs.BROKERAGE_PCT
+        assert mock_row.min_brokerage == costs.MIN_BROKERAGE
+        assert mock_row.stt_pct == costs.STT_PCT
+        assert mock_row.exchange_pct == costs.EXCHANGE_CHARGES_PCT
+        assert mock_row.sebi_pct == costs.SEBI_FEE_PCT
+        assert mock_row.stamp_pct == costs.STAMP_DUTY_PCT
+        assert mock_row.gst_pct == costs.GST_PCT
         mock_session.commit.assert_called_once()

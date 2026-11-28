@@ -244,7 +244,10 @@ class TestChunkedFlush:
 
         pending = {}
         for i in range(600):
-            batch.queue_range(pending, f"S{i}", {"high": float(i)}, flush_every=500)
+            batch.queue_range(
+                pending, f"S{i}", {"high": float(i)},
+                flush_every=batch.DB_FLUSH_EVERY,
+            )
         batch.flush_pending(pending)
 
         assert calls == [500, 100]

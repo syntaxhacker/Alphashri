@@ -43,7 +43,7 @@ def test_latch_expires_after_ttl(monkeypatch):
     fyers_data.note_auth_failure()
     base = _time.time()
     monkeypatch.setattr(fyers_data.time, "time", lambda: base + 10_000)
-    assert fyers_data.auth_failed(ttl=900) is False
+    assert fyers_data.auth_failed(ttl=fyers_data._AUTH_TTL_SEC) is False
 
 
 @pytest.mark.parametrize(
