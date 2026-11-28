@@ -1,7 +1,7 @@
 {
   "feature": "chart-dock-sr",
   "route": "/screener?tab=market&view=movers (1600 dock) and /chart/POWERGRID (390)",
-  "head": "b5a5fb9d04319f74d37cb68c971d30c5c4fab0ee",
+  "head": "39f3c5d7",
   "viewports": [
     1600,
     390

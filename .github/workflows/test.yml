@@ -264,7 +264,9 @@ jobs:
           cd stock-screener-ui
           mkdir -p perf
           BASE="${{ github.event.pull_request.base.sha }}"
-          mapfile -t FILES < <(git diff --relative --name-only "$BASE...HEAD" -- 'src' | grep -E '\.(test|spec)\.(ts|tsx)$' || true)
+          # --diff-filter=d excludes deleted test files: a deleted test cannot run,
+          # so a deletion-only PR must not trip the "changed but ran 0 tests" guard.
+          mapfile -t FILES < <(git diff --relative --name-only --diff-filter=d "$BASE...HEAD" -- 'src' | grep -E '\.(test|spec)\.(ts|tsx)$' || true)
           if [ ${#FILES[@]} -eq 0 ]; then
             echo "no changed frontend test files; full unit suite runs on PR-to-main/nightly"
             exit 0
@@ -276,7 +278,7 @@ jobs:
         run: |
           cd stock-screener-ui
           BASE="${{ github.event.pull_request.base.sha }}"
-          mapfile -t FILES < <(git diff --relative --name-only "$BASE...HEAD" -- 'src' | grep -E '\.(test|spec)\.(ts|tsx)$' || true)
+          mapfile -t FILES < <(git diff --relative --name-only --diff-filter=d "$BASE...HEAD" -- 'src' | grep -E '\.(test|spec)\.(ts|tsx)$' || true)
           if [ ${#FILES[@]} -eq 0 ]; then
             echo "no changed frontend test files; guard passed"
             exit 0
