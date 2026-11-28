@@ -3,12 +3,14 @@ Tests for PATCH /positions/{id} and DELETE/PATCH /trades/{id} with validation, 4
 """
 import json
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from unittest.mock import patch, MagicMock
 
 import bcrypt
 import pytest
 from fastapi.testclient import TestClient
+
+from config import IST
 
 
 def _fast_hash(password: str) -> str:
@@ -16,7 +18,6 @@ def _fast_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=4)).decode("utf-8")
 
 
-IST = timezone(timedelta(hours=5, minutes=30))
 TEST_PASSWORD_PARTS = ("Te", "st", "123", "!Aa")
 
 

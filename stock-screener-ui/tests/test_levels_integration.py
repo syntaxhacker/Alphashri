@@ -38,6 +38,7 @@ from market_levels.detectors import walls as walls_detector
 from market_levels.fusion import fuse_levels
 from market_levels.registry import DETECTORS, clear_registry, list_specs
 from trading.pivot_utils import calculate_pivot_points
+from tests.helpers.levels_fixtures import SR_CLOSES
 
 SYMBOL = "NIFTY"
 TIMEFRAME = "1D"
@@ -85,7 +86,7 @@ _WALL_FIELDS = (
     ("call_walls", "call"),
     ("put_walls", "put"),
 )
-_SR_UNIT = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
+_SR_UNIT = SR_CLOSES
 
 # Exact oracle values for this fixed fixture. These pin the expected output:
 # dropping a source or narrowing a kind set must fail, not merely stay a subset.

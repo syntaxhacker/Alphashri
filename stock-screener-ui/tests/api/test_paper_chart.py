@@ -1,9 +1,9 @@
 import pytest
 import pandas as pd
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 
-IST = timezone(timedelta(hours=5, minutes=30))
+from config import IST
 
 
 @pytest.fixture

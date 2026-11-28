@@ -1411,10 +1411,6 @@ def _seed_prev_hit(job_id: str, symbol: str = "AAA", source_sig=None,
     store.save_hits(job_id, [hit])
 
 
-def _market_open(monkeypatch):
-    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
-
-
 def test_consecutive_runs_second_run_detects_zero(cp_store, monkeypatch):
     """Run 1 detects; run 2 on an unchanged frame reuses every stored hit."""
     _market_open(monkeypatch)

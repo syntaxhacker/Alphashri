@@ -10,14 +10,13 @@ import json
 import shutil
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pytest
 
 from india_board.scripts import signal_emitters as se
 from india_board.scripts import signal_log
 
-IST = ZoneInfo("Asia/Kolkata")
+IST = se.IST
 DAY = "2026-09-28"  # a Monday
 DAY_DT = datetime(2026, 9, 28, 14, 5, tzinfo=IST)
 _REAL_NIFTY = (

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
 import pytest
@@ -17,6 +17,7 @@ os.environ.setdefault("CI_MODE", "1")
 
 from api_server_fastapi import app  # noqa: E402
 from api.options_paper import service  # noqa: E402
+from config import IST  # noqa: E402
 from db.models.option_snapshot import OptionChainSnapshot  # noqa: E402
 from db.models.options_paper import OptionPaperLeg, OptionPaperPosition  # noqa: E402
 from db.models.trade import Trade  # noqa: E402
@@ -31,7 +32,6 @@ UNDERLYING = "IRFC"
 EXPIRY = "2026-11-23"
 DAY = "2026-11-18"
 ENTRY_TS = f"{DAY}T09:47:00+05:30"
-IST = timezone(timedelta(hours=5, minutes=30))
 BASE = datetime(2026, 11, 20, 9, 15, tzinfo=IST)
 
 
