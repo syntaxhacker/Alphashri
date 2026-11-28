@@ -8,6 +8,7 @@ sloping segment into a horizontal level.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any
 
 from chart_patterns import features
@@ -70,7 +71,7 @@ def _float_param(params: dict, name: str, default: float, low: float) -> float:
 
 def _params(ctx: dict[str, Any]) -> dict:
     raw = ctx.get("trendline_params", ctx.get("params"))
-    return raw if isinstance(raw, dict) else {}
+    return raw if isinstance(raw, Mapping) else {}
 
 
 def _point_records(points, frame, session) -> list[dict]:

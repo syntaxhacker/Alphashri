@@ -8,6 +8,7 @@ deferred to ``detect`` so importing the contract never pulls in the API layer.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any, Optional
 
 from market_levels import (
@@ -60,7 +61,7 @@ def detect(ctx: dict[str, Any]) -> tuple[Level, ...]:
     levels: list[Level] = []
     for field, kind in _FIELD_KIND.items():
         block = gex.get(field)
-        if not isinstance(block, dict):
+        if not isinstance(block, Mapping):
             continue
         price = _price(block)
         if price is None:

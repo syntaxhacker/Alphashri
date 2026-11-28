@@ -1,19 +1,53 @@
 """Tests for trading.symbol_aliases.
 
-Conventions: pure unit tests, no network, no DB writes. Instrument data is
-monkeypatched; one optional test validates curated targets against the local
-SQLite file read-only and skips when the file is absent (CI).
+Conventions: pure unit tests, no network, no production DB writes. Both the
+alias file and the instrument universe are local tmp fixtures, so the module
+runs identically in CI where the gitignored local data is absent.
 """
 
+import json
 import re
 import sqlite3
-from pathlib import Path
 
 import pytest
 
 import trading.symbol_aliases as sa
 
-INSTR = frozenset({
+# Fixture-only copy of the curated map; the loader is exercised on this file
+# rather than on the developer's data/symbol_aliases.json.
+ALIASES = {
+    "PTC": "PTCIL",
+    "PTC02": "PTCIL",
+    "PTC03": "PTC",
+    "WI11": "WHEELS",
+    "UAM": "UNIMECH",
+    "Z": "ETERNAL",
+    "IA04": "INDIGO",
+    "OC03": "PAYTM",
+    "JIL01": "JSWINFRA",
+    "NII02": "COFORGE",
+    "PF14": "POLICYBZR",
+    "MT15": "MTARTECH",
+    "ST20": "STLTECH",
+    "CGC01": "CROMPTON",
+    "GH03": "MEDANTA",
+    "MP22": "MANKIND",
+    "MSW": "MSUMI",
+    "HGE": "HCG",
+    "YHT": "YATHARTH",
+    "SWS": "SWSOLAR",
+    "RE07": "RAJESHEXPO",
+    "PFR": "ABFRL",
+    "BPI02": "BERGEPAINT",
+    "LFH": "LTF",
+    "HFC": "HFCL",
+    "Motherson Sumi Wiring India": "MSUMI",
+    "Sterlite Technologies": "STLTECH",
+}
+
+# Fixture-only NSE_EQ universe, independent of the alias map: adding a target
+# not listed here must fail the validation test.
+NSE_EQ_SYMBOLS = frozenset({
     "RELIANCE", "TCS", "PTCIL", "PTC", "WHEELS", "UNIMECH", "ETERNAL",
     "INDIGO", "PAYTM", "JSWINFRA", "COFORGE", "POLICYBZR", "MTARTECH",
     "STLTECH", "CROMPTON", "MEDANTA", "MANKIND", "MSUMI", "HCG",
@@ -22,10 +56,38 @@ INSTR = frozenset({
 })
 
 
+@pytest.fixture(autouse=True)
+def alias_data(tmp_path, monkeypatch):
+    """Load aliases from a tmp file: the checked-in/local one is not required."""
+    path = tmp_path / "symbol_aliases.json"
+    path.write_text(json.dumps({"aliases": ALIASES}), encoding="utf-8")
+    monkeypatch.setattr(sa, "_ALIAS_PATH", path)
+    sa.clear_cache()
+    yield path
+    sa.clear_cache()
+
+
+@pytest.fixture()
+def nse_eq_db(tmp_path):
+    """Minimal read-only instrument DB replacing the gitignored local one."""
+    path = tmp_path / "instruments.db"
+    con = sqlite3.connect(path)
+    try:
+        con.execute("CREATE TABLE instruments (trading_symbol TEXT, segment TEXT)")
+        con.executemany(
+            "INSERT INTO instruments (trading_symbol, segment) VALUES (?, ?)",
+            [(symbol, "NSE_EQ") for symbol in NSE_EQ_SYMBOLS],
+        )
+        con.commit()
+    finally:
+        con.close()
+    return path
+
+
 @pytest.fixture()
 def strict(monkeypatch):
     """Deterministic instrument set, resolver cache reset."""
-    monkeypatch.setattr(sa, "_fetch_instruments", lambda: (INSTR, True))
+    monkeypatch.setattr(sa, "_fetch_instruments", lambda: (NSE_EQ_SYMBOLS, True))
     sa.clear_cache()
     yield
     sa.clear_cache()
@@ -129,22 +191,14 @@ def test_alias_map_hygiene(strict):
     assert "X" not in sa.alias_map()
 
 
-def test_alias_targets_exist_in_nse_eq():
-    """Curated targets must be real NSE_EQ symbols (read-only, skips w/o DB)."""
-    db_path = Path(__file__).resolve().parent.parent / "db" / "alphashri.db"
-    if not db_path.exists():
-        pytest.skip("no local DB file")
-    try:
-        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    except Exception as exc:
-        pytest.skip(f"cannot open DB read-only: {exc}")
+def test_alias_targets_exist_in_nse_eq(nse_eq_db):
+    """Curated targets must be present in the NSE_EQ universe fixture."""
+    con = sqlite3.connect(f"file:{nse_eq_db}?mode=ro", uri=True)
     try:
         inst = {r[0] for r in con.execute(
             "SELECT UPPER(trading_symbol) FROM instruments "
             "WHERE segment='NSE_EQ'")}
     finally:
         con.close()
-    if not inst:
-        pytest.skip("no instruments in local DB")
     missing = [t for t in sa.alias_map().values() if t not in inst]
     assert not missing, f"alias targets missing from NSE_EQ: {missing}"

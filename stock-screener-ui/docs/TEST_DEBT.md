@@ -28,10 +28,10 @@ changed-test runner and timing pipeline.
 
 ## Fixed clusters
 
-These were burned down in the 2026-11-22 audit, plus the event-radar cluster
-re-verified on 2026-11-28. Counts are from `changelog/` and
-`docs/PERFORMANCE_LOG_2026-11-22.md` where stated; otherwise from commit
-messages or a fresh local run (event radar).
+These were burned down in the 2026-11-22 audit, with a 2026-11-28 follow-up
+that re-verified the event-radar cluster (**319 passed**). Counts are from
+`changelog/` and `docs/PERFORMANCE_LOG_2026-11-22.md` where stated; otherwise
+from commit messages or a freshly measured local run (noted in the row).
 
 | Cluster | Count | What changed |
 | --- | --- | --- |
@@ -41,6 +41,17 @@ messages or a fresh local run (event radar).
 | Correlation cache isolation | fixed (count not itemised) | `tests/test_correlation.py` isolated to a tmp `CACHE_DIR` with patched time; no shared cache bleed between tests (commit `83db695f`, `test: isolate correlation cache tests to tmp`). |
 | Frontend changed-test zero selection | fixed (guard, not a count) | The changed-test runner now diffs against the PR base and **fails when zero tests are selected**; previously an empty selection passed silently (commit `23c65d47`, `ci: diff frontend changed tests against the pr base`). |
 | Event-radar missing fixtures | **319 → 0 failures** (319 tests) | Restored tracked recorded-shape fixtures (EDGAR EFTS/ROIV 8-K, Yahoo RSS, TV scanner, ORCL 8-day 1-min tape) plus `.gitignore` negations in commit `14f2625a` (2026-11-23, "restore symbol aliases and event-radar fixtures"), which also pinned the New York offset instead of a hardcoded `-04:00`. Re-verified 2026-11-28: **319 passed** under the exact full-sweep marker expression. Fixture drift only — no assertion weakened, no production change. |
+| Week52 cache property | **3 → 0 failures (11 passed, freshly measured 2026-11-28)** | `tests/api/test_paper_52w_cache.py`: the endpoint imports `UpstoxAPI` from `upstox_trader.config_and_utils.upstox_api`, but the tests patched `free_indian_apis.UpstoxAPI`, so the mock never applied — the route hit the real API, returned empty frames (`high_52w == 0`) and wrote cache files into the repo's `experiments/data/52w_cache/`. Re-pointed the four patch targets to the module the route actually imports, made the `cache_dir` fixture autouse so every test (including the endpoint cases) writes to `tmp_path`, and made `test_write_and_read_past_date` exercise a real past session (stale `cached_at`) instead of today's date. No production code changed. `CI_MODE=1 <task-venv>/python -m pytest tests/api/test_paper_52w_cache.py -q -o addopts=""` → **11 passed** (was 3 failed / 8 passed); broader week52 sweep (`tests/test_week52_*.py tests/test_52w_*.py tests/api/test_paper_52w_cache.py`) → **414 passed**. |
+
+### Burn-down 2026-11-28 (CI-debt lane 1)
+
+- **Risk-manager RR** — `test_risk_manager.py` updated to the live contract: `min_rr_ratio` was deliberately removed (commit `58bc6efb`, migration `2026_05_05`); a 0.4 RR trade is now sized/validated with RR reported, not rejected.
+- **Watch F&O / ETF tags** — `test_chart_patterns_watch.py` gained a local `tag_instruments` fixture so tag assertions no longer depend on the gitignored `nse_instruments.json` (absent in CI → empty tags).
+- **Partial-today synthetic bar** — `TestPartialToday` pins `_is_trading_day=True`; production intentionally skips the bar on weekends/holidays (commit `84efd0fb`), so the fixed tape fixture now runs deterministically.
+
+### Burn-down 2026-11-28 (symbol aliases)
+
+- **Symbol aliases missing gitignored data** — `tests/test_symbol_aliases.py` now loads a tmp `symbol_aliases.json` and validates targets against a tmp NSE_EQ instrument DB via local fixtures. Previously the module depended on the local alias file (absent → 31 failed / 17 passed) and the target check skipped when `db/alphashri.db` was missing. **49 passed, 0 failures, 0 skips** with the alias file forced absent; no production code changed.
 
 ## Remaining clusters (rough counts — re-measure before quoting)
 
@@ -51,8 +62,6 @@ bugs.
 | Cluster | Owner / area | Rough count |
 | --- | --- | --- |
 | Broker / bot DB `SessionLocal` isolation | `tests/` broker + bot modules; shared in-memory SQLite / `SessionLocal` fixtures | **~30** (estimate) |
-| Symbol aliases missing gitignored data | tests relying on symbol-alias data under gitignored local paths | **~30** (estimate) |
-| Week52 cache property | `tests/` week52 cache property tests | **~11** (estimate) |
 | Misc API / date / source drift | assorted API tests, date/session assumptions, source-name drift | **remaining** (unquantified) |
 
 These are the *named* clusters; the sum is deliberately not asserted as the
