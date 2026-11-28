@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import date as _date, datetime
 from pathlib import Path
 
+from common.numbers import to_float
 from scripts import desk_common
 from scripts import upstox_common
 
@@ -216,15 +217,7 @@ def load_tape(d: str | _date) -> list[Tick]:
     return ticks
 
 
-def _f(value, default: float = 0.0) -> float:
-    """Finite float or the default — never raises."""
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return default
-    if out != out or out in (float("inf"), float("-inf")):
-        return default
-    return out
+_f = to_float
 
 
 def parse_daily_candles(payload) -> list[dict]:

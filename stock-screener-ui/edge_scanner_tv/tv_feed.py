@@ -29,6 +29,8 @@ from typing import Callable
 
 import pandas as pd
 
+from common.numbers import nan_guarded_float
+
 from .markets import MarketSpec, normalize_symbol, to_yf_symbol
 from .tv_universe import fetch_snapshots
 
@@ -297,12 +299,4 @@ def subscribe_minute_bars_once(
     return bars
 
 
-def _f(value, default: float = 0.0) -> float:
-    try:
-        if value is None:
-            return default
-        import math
-        num = float(value)
-        return default if math.isnan(num) else num
-    except (TypeError, ValueError):
-        return default
+_f = nan_guarded_float

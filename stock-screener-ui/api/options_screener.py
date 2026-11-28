@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 import config
 from api.options import fetch_upstox, get_instrument_key
+from common.numbers import strict_float
 
 logger = logging.getLogger("options_screener")
 
@@ -95,14 +96,7 @@ _MOMENTUM_CACHE: dict[str, tuple[float, dict]] = {}
 _SNAPSHOT_CACHE: dict[str, tuple[float, dict]] = {}
 
 
-def _f(value, default: float = 0.0) -> float:
-    if value is None or isinstance(value, bool):
-        return default
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return default
-    return out if math.isfinite(out) else default
+_f = strict_float
 
 
 def _today() -> date:

@@ -1,10 +1,10 @@
 """One home for the reporting backend's safe numeric parsing.
 
 ``api/reports_api`` grew a private ``_f`` / ``_safe_float`` / ``_safe_int`` in
-almost every module, each with slightly different semantics (some defaulted
-to ``0.0`` and rejected non-finite values, some defaulted to ``None`` and
-kept ``inf``). The helpers below are the canonical definitions; modules
-import them instead of re-implementing the casts.
+almost every module, each with slightly different semantics. ``safe_float``
+now delegates to the canonical finite-or-default rule in ``common.numbers``;
+only the int and nullable-keep-inf casts still live here because no canonical
+helper covers their contract.
 
 Contract:
 
@@ -20,19 +20,14 @@ Contract:
 
 from __future__ import annotations
 
-import math
 from typing import Any, Optional
+
+from common.numbers import to_float
 
 __all__ = ["safe_float", "safe_int", "safe_opt_float"]
 
 
-def safe_float(value: Any, default: float = 0.0) -> float:
-    """``float(value)`` or ``default``; NaN/inf fall back to ``default``."""
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return default
-    return out if math.isfinite(out) else default
+safe_float = to_float
 
 
 def safe_int(value: Any, default: int = 0) -> int:
