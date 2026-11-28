@@ -16,6 +16,10 @@ import {
   SURFACE_ALT,
   TEXT,
   TEXT_MUTED,
+  VIZ_BG,
+  VIZ_DOWN,
+  VIZ_TEXT,
+  VIZ_UP,
   WARNING,
 } from "@/ui/palette";
 import { compositeOver, contrastRatio, parseColor, pickTextColor } from "@/utils/contrast";
@@ -103,6 +107,21 @@ describe("contrast — WCAG maths", () => {
     const putTint = compositeOver(OI_PUT, SURFACE, 0.14);
     expect(contrastRatio(TEXT, callTint)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(TEXT, putTint)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+});
+
+describe("contrast — RelVolView 1D change ink clears AA", () => {
+  const ONE_D_CHANGE_CASES: ContrastCase[] = [
+    { label: "RelVolView 1D VIZ_UP ink on VIZ_BG", fg: VIZ_UP, bg: VIZ_BG, min: AA_TEXT },
+    { label: "RelVolView 1D VIZ_DOWN ink on VIZ_BG", fg: VIZ_DOWN, bg: VIZ_BG, min: AA_TEXT },
+    { label: "RelVolView 1D VIZ_TEXT ink on VIZ_BG", fg: VIZ_TEXT, bg: VIZ_BG, min: AA_TEXT },
+  ];
+
+  it.each(ONE_D_CHANGE_CASES)("$label", ({ fg, bg, min }: ContrastCase) => {
+    const ratio = contrastRatio(fg, bg);
+    expect(ratio, `${fg} on ${bg} = ${ratio.toFixed(2)}:1, need >= ${min}:1`).toBeGreaterThanOrEqual(
+      min,
+    );
   });
 });
 

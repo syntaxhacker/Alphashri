@@ -1174,9 +1174,24 @@ components:
         declines:
           title: Declines
           type: integer
+        median_pos_52w:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Median Pos 52W
         name:
           title: Name
           type: string
+        near_high_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Near High Pct
+        near_low_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Near Low Pct
         slug:
           anyOf:
           - type: string
@@ -8242,6 +8257,52 @@ paths:
       summary: Debug Instruments
       tags:
       - symbols
+  /api/levels/{symbol}:
+    get:
+      description: 'Additive read of the LevelBook for a symbol: returns the fused support/resistance zones and confirmed trendline segments plus the current spot. The endpoint only wraps the existing ``market_levels.build_level_book`` service and never mutates or replaces the 52W screener columns, the original chart S/R, or any other consumer output.'
+      operationId: levels_for_symbol_api_levels__symbol__get
+      parameters:
+      - in: path
+        name: symbol
+        required: true
+        schema:
+          title: Symbol
+          type: string
+      - description: Registered timeframe id, e.g. 1D (default), 1h, 15m.
+        in: query
+        name: timeframe
+        required: false
+        schema:
+          default: 1D
+          description: Registered timeframe id, e.g. 1D (default), 1h, 15m.
+          title: Timeframe
+          type: string
+      - description: Limit the candle window passed to the detectors.
+        in: query
+        name: lookback_bars
+        required: false
+        schema:
+          anyOf:
+          - minimum: 1
+            type: integer
+          - type: 'null'
+          description: Limit the candle window passed to the detectors.
+          title: Lookback Bars
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Fused LevelBook S/R + trendline for a symbol
+      tags:
+      - levels
   /api/market-ticker:
     get:
       description: 'Get all market ticker data.
@@ -14099,6 +14160,8 @@ tags:
   name: chart
 - description: Candlestick pattern detection, scans and timeframes.
   name: chart-patterns
+- description: Additive fused LevelBook S/R and trendline levels (read-only).
+  name: levels
 - description: Paper portfolio, positions, trades and order simulation.
   name: Paper Trading
 - description: Server-sent live price stream for open paper positions.

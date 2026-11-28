@@ -135,6 +135,31 @@ describe("MarketMapView — one Size by control, ranked tiles", () => {
     await renderMap(() => <MarketMapView rows={[]} />);
     expect(order()).toBe("");
     expect(screen.queryByTestId("market-map-legend")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-map-empty")).toHaveTextContent("No stocks to map");
+  });
+
+  test("the canvas is an image named by both the size and colour metrics", async () => {
+    await renderMap(() => (
+      <MarketMapView rows={[row("A", 100, 55)]} sizeBy="market_cap" colorBy="rsi" />
+    ));
+    const canvas = screen.getByTestId("market-map-canvas");
+    expect(canvas).toHaveAttribute("role", "img");
+    expect(canvas).toHaveAccessibleName(/Market Cap/);
+    expect(canvas).toHaveAccessibleName(/RSI/);
+  });
+
+  test("the legend wraps and folds the size/clamp notes into a title below sm", async () => {
+    await renderMap(() => <MarketMapView rows={[row("A", 100, 55)]} />);
+    const legend = screen.getByTestId("market-map-legend");
+    expect(legend.className).toContain("flex-wrap");
+    expect(legend.className).toContain("h-auto");
+    expect(legend.className).toContain("min-h-8");
+    expect(legend.className.split(/\s+/)).not.toContain("h-8");
+    expect(legend.getAttribute("title")).toContain("size: Day Change");
+    const sizeNote = screen.getByTestId("market-map-size-note");
+    expect(sizeNote.className).toContain("hidden");
+    expect(sizeNote.className).toContain("sm:inline");
+    expect(screen.getByTestId("market-map-color-range")).toBeInTheDocument();
   });
 
   test("day change is the default sizing metric", async () => {
@@ -544,18 +569,53 @@ describe("market view vocabulary", () => {
 });
 
 describe("visualization registry", () => {
-  test("VIS_OPTIONS registers the flat heatmap and the nested sector treemap", () => {
-    expect(VIS_OPTIONS.map((o) => o.value)).toEqual(["heatmap", "sector"]);
-    expect(VIS_OPTIONS.map((o) => o.label)).toEqual(["Heatmap", "Sector treemap"]);
+  test("VIS_OPTIONS registers all eleven modes in display order with their exact labels", () => {
+    expect(VIS_OPTIONS.map((o) => o.value)).toEqual([
+      "heatmap",
+      "sector",
+      "themes",
+      "flow",
+      "range52",
+      "sector52",
+      "rsiadx",
+      "trend",
+      "relvol",
+      "sectorperiod",
+      "corrmatrix",
+    ]);
+    expect(VIS_OPTIONS.map((o) => o.label)).toEqual([
+      "Heatmap",
+      "Sector treemap",
+      "Themes",
+      "Money flow",
+      "52W range",
+      "Sector 52W",
+      "RSI × ADX",
+      "Trend alignment",
+      "Relative volume",
+      "Sector × period",
+      "Correlation",
+    ]);
     const defaultMode: VisMode = VIS_OPTIONS[0]!.value;
     expect(defaultMode).toBe("heatmap");
   });
 
-  test("every registered viz has a renderer, including the nested sector map", () => {
+  test("every registered viz has a renderer, including all seven new views", () => {
     for (const option of VIS_OPTIONS) {
       expect(VIS_RENDERERS[option.value]).toBeTypeOf("function");
     }
-    expect(VIS_RENDERERS.sector).toBeTypeOf("function");
+    for (const mode of [
+      "range52",
+      "sector52",
+      "rsiadx",
+      "trend",
+      "relvol",
+      "sectorperiod",
+      "corrmatrix",
+    ] as const) {
+      expect(VIS_RENDERERS[mode], `${mode} has no renderer`).toBeTypeOf("function");
+    }
+    expect(VIS_RENDERERS.flow, "flow has no renderer").toBeTypeOf("function");
   });
 
   test("the default viz renders the heatmap implementation", async () => {
@@ -603,7 +663,11 @@ describe("robust colour domain in the flat map", () => {
     expect(legend).not.toHaveTextContent("12026");
     const range = screen.getByTestId("market-map-color-range");
     expect(range).toHaveTextContent("≤");
-    expect(screen.getByTestId("market-map-color-clamp-note")).toHaveTextContent(/saturat/i);
+    const clampNote = screen.getByTestId("market-map-color-clamp-note");
+    expect(clampNote).toHaveTextContent(/saturat/i);
+    expect(clampNote.className).toContain("hidden");
+    expect(clampNote.className).toContain("sm:inline");
+    expect(legend.getAttribute("title")).toContain("saturates past bounds");
   });
 });
 
@@ -656,6 +720,48 @@ describe("MarketMapView — legend honesty audit", () => {
     expect(direction).toHaveTextContent("low → high");
     expect(direction).toHaveTextContent(/position in range/i);
     expect(direction).toHaveTextContent(/not gain\/loss/i);
+  });
+});
+
+/** P2-04: at 390 the legend must show the semantic notes, not only a tooltip. */
+describe("MarketMapView — narrow legend keeps notes visible at 390", () => {
+  const noFixedClamp = (node: HTMLElement) => {
+    const classes = node.className.split(/\s+/);
+    expect(classes).not.toContain("w-24");
+    expect(classes).not.toContain("max-w-24");
+    expect(classes).not.toContain("truncate");
+    expect(classes).not.toContain("whitespace-nowrap");
+  };
+
+  test("direction and colour meaning are visible text, not just a title", async () => {
+    await renderMap(() => <MarketMapView rows={[row("A", 100, 55), row("B", 200, 70)]} />);
+    const narrow = screen.getByTestId("market-map-narrow-notes");
+    const classes = narrow.className.split(/\s+/);
+    expect(classes).toContain("sm:hidden"); // visible at 390, hidden at 1600
+    expect(classes).not.toContain("hidden");
+    noFixedClamp(narrow);
+    expect(narrow.textContent).toContain("low → high");
+    expect(narrow.textContent).toContain("position in range, not gain/loss");
+    expect(screen.getByTestId("market-map-color-range")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-map-color-clamp-note-narrow")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-map-legend").getAttribute("title")).toContain("position in range");
+  });
+
+  test("the literal clamp phrase is visible beside the ≥ glyph when clamped", async () => {
+    const rows = [
+      { ...row("VIVIDEL", 100, 55), change: -43 },
+      { ...row("FLAT", 120, 55), change: 0 },
+      { ...row("MELSTAR", 140, 55), change: 12026 },
+    ];
+    await renderMap(() => <MarketMapView rows={rows} />);
+    expect(screen.getByTestId("market-map-color-range")).toHaveTextContent("≥");
+    const narrow = screen.getByTestId("market-map-narrow-notes");
+    const clamp = screen.getByTestId("market-map-color-clamp-note-narrow");
+    noFixedClamp(narrow);
+    noFixedClamp(clamp);
+    expect(narrow.textContent).toContain("saturates past bounds");
+    expect(clamp.textContent?.trim()).toBe("saturates past bounds");
+    expect(clamp.getAttribute("title")).toBeNull();
   });
 });
 

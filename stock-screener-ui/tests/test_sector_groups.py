@@ -127,7 +127,12 @@ def test_response_shape(groups_client):
     assert data["market"] == "india"
     assert "last_updated" in data
     for g in data["groups"]:
-        assert set(g) == {"name", "change", "stock_count", "advances", "declines", "slug"}
+        assert set(g) == {
+            "name", "change", "stock_count", "advances", "declines", "slug",
+            "near_high_pct", "near_low_pct", "median_pos_52w",
+        }
+        for field in ("near_high_pct", "near_low_pct", "median_pos_52w"):
+            assert g[field] is None or isinstance(g[field], (int, float))
 
 
 def test_dedupes_duplicate_names(groups_client):

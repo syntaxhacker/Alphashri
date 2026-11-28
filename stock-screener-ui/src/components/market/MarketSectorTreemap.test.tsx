@@ -84,7 +84,9 @@ async function renderTreemap(rows: MarketRow[], onSymbolClick = vi.fn(), sizeBy?
       <MarketSectorTreemap rows={rows} onSymbolClick={onSymbolClick} sizeBy={sizeBy} />
     </UIProvider>
   ));
-  await vi.waitFor(() => expect(captured.option).toBeTruthy());
+  // With no drawable tiles the canvas is not mounted, so no ECharts option is
+  // ever produced — waiting for one there would hang the empty-state tests.
+  if (rows.length > 0) await vi.waitFor(() => expect(captured.option).toBeTruthy());
   return onSymbolClick;
 }
 
@@ -347,8 +349,89 @@ describe("MarketSectorTreemap — legend honesty audit", () => {
     expect(direction).toHaveTextContent(/not gain\/loss/i);
   });
 
+  test("(d) the legend wraps inside the panel at 390 instead of overflowing it", async () => {
+    await renderTreemap(outlierRows(), vi.fn(), "perf_1m");
+    const legend = screen.getByTestId("market-sector-map-legend");
+    expect(legend).toHaveClass("flex-wrap");
+    expect(legend).toHaveClass("h-auto");
+    expect(legend).toHaveClass("min-h-8");
+    expect(legend).toHaveClass("py-1");
+    expect(legend.className).not.toContain("whitespace-nowrap");
+    expect(legend.className).not.toMatch(/(^|\s)h-8(\s|$)/);
+
+    const direction = screen.getByTestId("market-sector-map-color-direction");
+    expect(direction.className).toContain("hidden");
+    expect(direction.className).toContain("sm:inline");
+    expect(direction.getAttribute("title") ?? "").toContain("low → high");
+
+    // The numeric range stays visible and wraps as its own row if needed.
+    const range = screen.getByTestId("market-sector-map-color-range");
+    expect(range.className).toContain("flex-wrap");
+    expect(range).toHaveTextContent("≤");
+    expect(range).toHaveTextContent("≥");
+
+    // Below sm the explanatory text is still reachable through the container title.
+    const title = legend.getAttribute("title") ?? "";
+    expect(title).toContain("size: 1M Return");
+    expect(title).toContain("position in range");
+    expect(title).toContain("saturates past bounds");
+  });
+
   test("(b) both treemaps hide the legend when there are no rows", async () => {
     await renderTreemap([]);
     expect(screen.queryByTestId("market-sector-map-legend")).not.toBeInTheDocument();
+  });
+
+  /** P2-04: the 390px legend carries the same notes the flat map shows. */
+  test("(d) the narrow legend shows direction and colour meaning as visible text", async () => {
+    await renderTreemap([row("A", "Energy", -5), row("B", "IT", 5)]);
+    const narrow = screen.getByTestId("market-sector-map-narrow-notes");
+    const classes = narrow.className.split(/\s+/);
+    expect(classes).toContain("sm:hidden"); // visible at 390, hidden at 1600
+    expect(classes).not.toContain("hidden");
+    expect(classes).not.toContain("w-24");
+    expect(classes).not.toContain("max-w-24");
+    expect(classes).not.toContain("truncate");
+    expect(narrow.textContent).toContain("low → high");
+    expect(narrow.textContent).toContain("position in range, not gain/loss");
+    expect(screen.queryByTestId("market-sector-map-color-clamp-note-narrow")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-sector-map-legend").getAttribute("title")).toContain("position in range");
+  });
+
+  test("(e) the narrow legend shows the literal clamp phrase beside the ≥ glyph", async () => {
+    await renderTreemap(outlierRows(), vi.fn(), "perf_1m");
+    expect(screen.getByTestId("market-sector-map-color-range")).toHaveTextContent("≥");
+    const narrow = screen.getByTestId("market-sector-map-narrow-notes");
+    const clamp = screen.getByTestId("market-sector-map-color-clamp-note-narrow");
+    expect(narrow.className.split(/\s+/)).not.toContain("w-24");
+    expect(clamp.className.split(/\s+/)).not.toContain("w-24");
+    expect(narrow.textContent).toContain("saturates past bounds");
+    expect(clamp.textContent?.trim()).toBe("saturates past bounds");
+    expect(clamp.getAttribute("title")).toBeNull();
+  });
+
+  test("(empty) zero rows show a readable message and no canvas", async () => {
+    await renderTreemap([]);
+    const empty = screen.getByTestId("market-sector-map-empty");
+    expect(empty).toBeInTheDocument();
+    expect(empty).toHaveTextContent("No sector data in the current filter.");
+    expect(screen.queryByTestId("market-sector-map-canvas")).not.toBeInTheDocument();
+  });
+
+  test("(empty) one row shows the canvas and no empty message", async () => {
+    await renderTreemap([row("A", "Energy", 3)]);
+    expect(screen.queryByTestId("market-sector-map-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-sector-map-canvas")).toBeInTheDocument();
+  });
+
+  test("(empty) the message wraps at 390 with no clipping or fixed width", async () => {
+    await renderTreemap([]);
+    const empty = screen.getByTestId("market-sector-map-empty");
+    expect(empty.className).not.toContain("overflow-hidden");
+    expect(empty.className).toContain("min-w-0");
+    expect(empty.className).not.toMatch(/(?:^|\s)(?:w|max-w)-\d/);
+    expect(empty.className).not.toContain("w-[");
+    const message = empty.querySelector("span") as HTMLElement;
+    expect(message.className).not.toContain("whitespace-nowrap");
   });
 });

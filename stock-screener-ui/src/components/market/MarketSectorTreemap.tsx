@@ -62,12 +62,18 @@ function SectorTreemapCanvas(props: {
   onSymbolClick?: (symbol: string) => void;
   onSizeChange?: (width: number, height: number) => void;
   testId: string;
+  emptyTestId: string;
 }) {
   let chartEl: HTMLDivElement | undefined;
   let chart: any = null;
   let disposed = false;
   let resizeFrame = 0;
   let observer: ResizeObserver | null = null;
+
+  // No usable sector tiles means the canvas would be blank. Derive this from
+  // the built option so rows filtered out by an unusable size metric count as
+  // empty too, not just a literally empty `rows` array.
+  const hasTiles = createMemo(() => (props.option.series[0].data ?? []).length > 0);
 
   const colorDomain = createMemo(() => marketColorDomain(props.stocks, props.metric));
 
@@ -143,28 +149,54 @@ function SectorTreemapCanvas(props: {
 
   return (
     <Box className="flex-1 min-w-0 min-h-0 flex flex-col" data-testid={props.testId}>
-      <Box className="flex-1 w-full flex p-2" style={{ "min-height": "320px" }}>
-        <div
-          ref={(el) => (chartEl = el)}
-          data-testid={`${props.testId}-canvas`}
-          style={{ height: "100%", width: "100%" }}
-        />
-      </Box>
-      <Show when={props.stocks.length > 0}>
+      <Show
+        when={hasTiles()}
+        fallback={
+          <Box
+            className="flex-1 min-w-0 min-h-0 flex items-center justify-center p-4"
+            data-testid={props.emptyTestId}
+          >
+            <Text span size="sm" c={palette.VIZ_MUTED}>
+              No sector data in the current filter.
+            </Text>
+          </Box>
+        }
+      >
+        <Box className="flex-1 w-full flex p-2" style={{ "min-height": "320px" }}>
+          <div
+            ref={(el) => (chartEl = el)}
+            data-testid={`${props.testId}-canvas`}
+            style={{ height: "100%", width: "100%" }}
+          />
+        </Box>
+      </Show>
+      <Show when={hasTiles() && props.stocks.length > 0}>
+        {/* Below sm the notes move into a compact two-line band inside the
+            legend; at sm and up they sit inline. The numeric range and the
+            scale semantics stay visible at both widths. */}
         <Box
-          className="flex items-center gap-2 px-2 h-8 flex-shrink-0 border-t border-fin-border"
+          className="flex flex-wrap items-center gap-2 px-2 py-1 h-auto min-h-8 flex-shrink-0 border-t border-fin-border"
+          title={`size: ${sizeMetric().label} · ${MARKET_COLOR_SCALE_NOTE}${
+            colorDomain().clampedLow || colorDomain().clampedHigh ? " · saturates past bounds" : ""
+          }`}
           data-testid={`${props.testId}-legend`}
         >
           <Text size="xs" fw={600} data-testid={`${props.testId}-color-label`}>
             {colorMetric().label}
           </Text>
-          <Text size="xs" c="dimmed" className="whitespace-nowrap">
+          <Text size="xs" c="dimmed" className="hidden sm:inline" title={`size: ${sizeMetric().label}`}>
             size: {sizeMetric().label}
           </Text>
-          <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid={`${props.testId}-color-direction`}>
+          <Text
+            size="xs"
+            c="dimmed"
+            className="hidden sm:inline"
+            title={MARKET_COLOR_SCALE_NOTE}
+            data-testid={`${props.testId}-color-direction`}
+          >
             {MARKET_COLOR_SCALE_NOTE}
           </Text>
-          <Box className="flex items-center gap-2" data-testid={`${props.testId}-color-range`}>
+          <Box className="flex flex-wrap items-center gap-2" data-testid={`${props.testId}-color-range`}>
             <Box
               className="size-3 rounded"
               style={{
@@ -210,12 +242,36 @@ function SectorTreemapCanvas(props: {
             <Text
               size="xs"
               c="dimmed"
-              className="whitespace-nowrap"
+              className="hidden sm:inline"
+              title="saturates past bounds"
               data-testid={`${props.testId}-color-clamp-note`}
             >
               saturates past bounds
             </Text>
           </Show>
+          <Box
+            className="sm:hidden flex flex-wrap w-full h-auto gap-1"
+            data-testid={`${props.testId}-narrow-notes`}
+          >
+            <Text
+              size="xs"
+              c="dimmed"
+              className="w-full"
+              data-testid={`${props.testId}-color-direction-narrow`}
+            >
+              {MARKET_COLOR_SCALE_NOTE}
+            </Text>
+            <Show when={colorDomain().clampedLow || colorDomain().clampedHigh}>
+              <Text
+                size="xs"
+                c="dimmed"
+                className="w-full"
+                data-testid={`${props.testId}-color-clamp-note-narrow`}
+              >
+                saturates past bounds
+              </Text>
+            </Show>
+          </Box>
         </Box>
       </Show>
     </Box>
@@ -342,7 +398,11 @@ export function MarketSectorTreemap(props: VisRenderProps) {
       </ToolbarRow>
 
       <Show when={!expanded()}>
-        <SectorTreemapCanvas {...canvasProps()} testId="market-sector-map" />
+        <SectorTreemapCanvas
+          {...canvasProps()}
+          testId="market-sector-map"
+          emptyTestId="market-sector-map-empty"
+        />
       </Show>
 
       <Show when={expanded()}>
@@ -379,7 +439,11 @@ export function MarketSectorTreemap(props: VisRenderProps) {
                 {built().stockCount} stocks · {built().sectorCount} sectors
               </Text>
             </ToolbarRow>
-            <SectorTreemapCanvas {...canvasProps()} testId="market-sector-map-full" />
+            <SectorTreemapCanvas
+              {...canvasProps()}
+              testId="market-sector-map-full"
+              emptyTestId="market-sector-map-full-empty"
+            />
           </Box>
         </Modal>
       </Show>
