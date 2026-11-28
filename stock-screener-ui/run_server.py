@@ -18,7 +18,7 @@ import uvicorn
 import config  # Verify config can be imported
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8765))
+    port = config.PORT
     host = os.environ.get("HOST", "0.0.0.0")
     
     print(f"Starting server on {host}:{port}")

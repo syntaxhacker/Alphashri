@@ -4,10 +4,27 @@ Utilities for backtest strategies.
 import os
 from typing import Optional, Tuple
 
+import config as root_config
+
+
+def _resolve_api_key() -> Optional[str]:
+    return (
+        root_config.UPSTOX_API_KEY
+        or os.getenv("UPSTOX_API_KEY")
+        or os.getenv("UPSTOX_CLIENT_ID")
+    )
+
+
+def _resolve_api_secret() -> Optional[str]:
+    return (
+        root_config.UPSTOX_API_SECRET
+        or os.getenv("UPSTOX_API_SECRET")
+        or os.getenv("UPSTOX_CLIENT_SECRET")
+    )
+
 
 def _get_api_credentials() -> Tuple[Optional[str], Optional[str]]:
-    key = os.getenv("UPSTOX_API_KEY") or os.getenv("UPSTOX_CLIENT_ID")
-    secret = os.getenv("UPSTOX_API_SECRET") or os.getenv("UPSTOX_CLIENT_SECRET")
+    key, secret = _resolve_api_key(), _resolve_api_secret()
     if not key or not secret:
         return None, "UPSTOX_API_KEY and UPSTOX_API_SECRET environment variables are not set"
     return key, secret
@@ -20,7 +37,7 @@ def get_upstox_client_from_db(quiet: bool = True):
     if not _api_key:
         return None, _error
 
-    _api_secret = os.getenv("UPSTOX_API_SECRET") or os.getenv("UPSTOX_CLIENT_SECRET")
+    _api_secret = _resolve_api_secret()
     if not _api_secret:
         return None, "UPSTOX_API_SECRET environment variable is not set"
 
@@ -53,7 +70,7 @@ def get_upstox_client_with_token(access_token: str, quiet: bool = True):
     if not _api_key:
         return None, _error
 
-    _api_secret = os.getenv("UPSTOX_API_SECRET") or os.getenv("UPSTOX_CLIENT_SECRET")
+    _api_secret = _resolve_api_secret()
     if not _api_secret:
         return None, "UPSTOX_API_SECRET environment variable is not set"
 
@@ -81,7 +98,6 @@ from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 import pandas as pd
 
-import config as root_config
 IST = root_config.IST
 
 # Nautilus imports are done inside the functions that need them, so that
