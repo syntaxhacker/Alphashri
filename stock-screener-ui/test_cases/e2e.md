@@ -638,8 +638,6 @@
 - [ ] **ExitReasonBadge missing cases**: FORCE_CLOSE, TRAILING_STOP, MAX_HOLDING, NEW_52W_HIGH — all show as raw gray text
 - [ ] **52W daily data caching** — fetches 400 days per chart request, no caching (performance impact on all chart E2E tests)
 - [ ] **`_filter_to_date_or_recent` timezone bug** — known production issue affecting trade history date filtering
-- [ ] **TradingAgents auth**: `get_current_user` dependency has compatibility issues — not covered by E2E auth tests for chat/analyze endpoints
-- [ ] **Analysis speed**: Multi-agent analysis takes 60-120s — stream E2E tests may need longer timeouts
 - [ ] **bots spec skipped tests**: `@smoke should display list of bots` and `@smoke should show bot status for each bot` skipped due to CI timeout
 - [ ] **multi-strategy spec skipped tests**: All tests skipped (signal generators, scan items, watchlists, positions, chart levels)
 - [ ] **Notification panel tests**: 2 of 4 tests skipped (notif-open-btn interactions)

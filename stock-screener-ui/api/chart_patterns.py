@@ -2519,7 +2519,7 @@ def _sse_event(name: str, payload) -> str:
 
     ``sse_starlette`` does NOT auto-serialize dicts, so every payload goes
     through :func:`json.dumps` explicitly (same discipline as
-    ``api/paper/live_stream.py`` and the trading-agents stream).
+    ``api/paper/live_stream.py``).
     """
     return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
 

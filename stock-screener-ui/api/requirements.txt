@@ -34,8 +34,6 @@ rookiepy>=0.2.0
 openai>=1.0.0
 preciz @ git+https://github.com/syntaxhacker/preciz-agent.git@cli-sdk
 fastembed>=0.4.0
-langchain-litellm>=0.6.0
-langchain-openrouter>=0.2.0
 
 # Testing
 pytest>=7.0.0

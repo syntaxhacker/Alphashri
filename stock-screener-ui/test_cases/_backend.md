@@ -194,7 +194,6 @@
 
 ## Security (test_security.py)
 - [x] auth required on protected endpoints
-- [x] no auth on trading_agents chat/analyze/stream
 - [x] token validation works
 
 ## SL/TP Pipeline (test_sl_tp_pipeline.py)

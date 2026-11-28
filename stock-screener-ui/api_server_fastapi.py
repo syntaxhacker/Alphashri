@@ -1459,8 +1459,6 @@ _include_api("api.debug_api", "router", "debug", msg="✅ Debug API loaded at /a
 
 _include_api("api.correlation", "router", "correlation", msg="✅ Correlation API loaded at /api/correlation")
 
-_include_api("api.trading_agents", "router", "TradingAgents", msg="✅ TradingAgents API loaded at /api/trading-agents")
-
 _include_api("api.poc_nq", "router", "POC NQ", msg="✅ POC NQ API loaded at /api/poc/nq")
 
 _include_api("api.screener_api.dashboard", "router", "screener dashboard", msg="✅ Screener Dashboard API loaded at /api/screener/dashboard")

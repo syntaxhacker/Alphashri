@@ -142,11 +142,6 @@ Storybook is live and checked in via its config (`.storybook/main.ts`, `.storybo
 - **Dependencies**: `../requirements.txt` (root) + `api/requirements.txt` (API-specific)
 - **Note**: `nautilus-trader` is **no longer a dependency** (removed 2026-11-22). Backtests run on the pure-Python engine in `backtest/sim/`; `BACKTEST_ENGINE=nautilus` is opt-in A/B and requires reinstalling the package.
 - **`start.sh`**: auto-activates `.venv` before starting uvicorn; always use `./start.sh` to run both services. Logs saved to `logs/alphashri.log`.
-- **Start with DeepSeek**: pass env vars inline to use DeepSeek for TradingAgents analysis:
-  ```bash
-  DEEPSEEK_API_KEY=sk-xxx OPENAI_API_KEY=sk-xxx OPENAI_BASE_URL=https://api.deepseek.com ./start.sh
-  ```
-  Or add keys to `.env` or `.env.dev` — `config.py` auto-loads them via `load_dotenv()`.
 - **Test login**: email `qa@test.com` / password `qa123`
 - **Get token for curl**:
   ```bash
@@ -154,18 +149,8 @@ Storybook is live and checked in via its config (`.storybook/main.ts`, `.storybo
     -H 'Content-Type: application/json' \
     -d '{"email":"qa@test.com","password":"qa123"}' | python3 -c "import json,sys; print(json.load(sys.stdin).get('access_token',''))"
   )
-  curl -H "Authorization: Bearer $TOKEN" http://localhost:8765/api/trading-agents/health
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8765/api/health
   ```
-
-## TradingAgents Chat Bot
-- **Chat endpoint** (`/api/trading-agents/chat`): Conversational AI using DeepSeek via LiteLLM. Uses function calling to detect stock analysis requests. Returns `should_analyze` field when a stock ticker is detected.
-- **Analyze endpoint** (`/api/trading-agents/analyze`): Runs full multi-agent analysis (market, news, fundamentals analysts) via TradingAgents framework. Takes 60-120s. First call slow, subsequent calls served from file cache.
-- **Stream endpoint** (`/api/trading-agents/stream/{ticker}`): SSE streaming with progress, tool_call, report, and complete events. Uses `json.dumps()` for data serialization (critical: sse_starlette 3.4.1 does NOT auto-serialize dicts to JSON — must call `json.dumps()` manually).
-- **File cache**: Results stored at `experiments/data/analysis_cache/{TICKER}_{DATE}.json` with 24h TTL. Checked by both analyze and stream endpoints before running analysis.
-- **Providers**: Chat uses OpenRouter free model (`openai/gpt-oss-20b:free`) if DeepSeek key not available. Analysis uses DeepSeek via LiteLLM (`deepseek/deepseek-chat`).
-- **No auth required** on chat, analyze, and stream endpoints (get_current_user had compatibility issues with this router). Conversation history endpoints use hardcoded user_id=3.
-- **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
-- **No UI consumer**: the Chat Popup (`ChatPopup.tsx`, its `Markdown.tsx` renderer and tests) was removed on 2026-11-21 — these endpoints are currently called only by curl/tests, so a missing caller is expected.
 
 ## Tailwind 4 Financial Theme Rules
 Single source is `src/ui/palette.ts`; `src/tailwind.css` mirrors it (guarded by `theme-single-source.test.ts`).
@@ -1031,7 +1016,5 @@ Use this when fixing CI on an open PR or merging a release:
 - **52W daily data caching** — fetches 400 days per chart request with no caching
 - **52W range batch progress in admin UI**: Scheduled compute was removed — the admin route is the only local orchestrator; an on-demand Full refresh refreshes the full NSE_EQ universe (~5-15 min at 3 workers × 0.35s delay), so the progress bar is visible during that window. Use the admin panel's "Clear cache + DB" then "Run batch" with Full refresh to trigger it; release freshness otherwise comes from the automatic watcher.
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
-- **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
-- **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
 - **TypeScript is clean.** `bun run typecheck` (TypeScript 7 native) reports **0 errors**; `bun run typecheck:ratchet` also reports 0. CI gates both. Do not reintroduce the old bare `npx tsc --noEmit | grep -c` check (it measured help output). Type-aware lint is report-only: `bun run lint:types` (138 warnings at the 2026-11-22 baseline, not a PR gate).
 - **Index Report chart focus (LEVEL 1/2)** — specified in [docs/INDEX_REPORT_REDESIGN.md](./docs/INDEX_REPORT_REDESIGN.md) but not built. The walls card is now 5-column and 216px (was 475px single-column), so the chart is visible; the drawer and focus mode are still pending.
