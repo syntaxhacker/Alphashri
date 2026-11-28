@@ -56,6 +56,7 @@ from market_levels.registry import (
     register,
 )
 from tests import test_levels_integration as integration_mod
+from tests.helpers.market_levels_public_api import EXPECTED_PUBLIC_API
 from tests.api.test_options_levels import _gex_row, _terse
 from tests.test_levels_fusion import _level as _fused_level
 from tests.test_levels_options_parity import ROWS, _side_of as _raw_side_of
@@ -245,34 +246,6 @@ def test_evidence_is_copied_per_instance_and_object_is_frozen():
         first.price = 101.0
     book = LevelBook(SYMBOL, TIMEFRAME, AS_OF, SPOT, (first,))
     assert book.schema_version == LEVEL_SCHEMA_VERSION
-
-
-EXPECTED_PUBLIC_API = {
-    "LEVEL_SCHEMA_VERSION",
-    "SUPPORT",
-    "RESISTANCE",
-    "PIVOT",
-    "FUEL",
-    "WALL",
-    "MAX_PAIN",
-    "TRENDLINE",
-    "PRICE_ACTION",
-    "GEX",
-    "OI",
-    "SESSION",
-    "Level",
-    "LevelBook",
-    "level_id",
-    "DetectorSpec",
-    "DETECTORS",
-    "register",
-    "iter_detectors",
-    "list_specs",
-    "clear_registry",
-    "SOURCE_PRECEDENCE",
-    "fuse_levels",
-    "build_level_book",
-}
 
 
 def test_public_all_is_unique_resolvable_and_matches_public_surface():

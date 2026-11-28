@@ -1,10 +1,11 @@
 import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 
+import config
 from db.models import Trade, Position
 
-IST = timezone(timedelta(hours=5, minutes=30))
+IST = config.IST
 
 
 @pytest.mark.unit

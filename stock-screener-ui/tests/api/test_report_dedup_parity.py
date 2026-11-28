@@ -24,6 +24,7 @@ from api.options_math import put_call
 from api.reports_api import nifty, options_report
 from api.reports_api import chain10s
 from api.reports_api._walls import as_report_walls
+from tests.helpers.chain_rows import full_chain_rows as _full_rows
 
 SPOT = 1400.0
 
@@ -35,27 +36,6 @@ _CHAIN = [
     {"strike": 1420.0, "ce": {"oi": 500, "volume": 30, "gamma": 0.001},
      "pe": {"oi": 200, "volume": 15, "gamma": 0.001}},
 ]
-
-
-def _full_rows(base: float = 23500.0, n: int = 21) -> list[dict]:
-    """Parsed-chain shape (greeks + prev_oi) accepted by ``_compute_live``."""
-    rows = []
-    for i in range(n):
-        strike = float(base - (n // 2) * 50 + i * 50)
-        ce_oi, pe_oi = 10_000 + i, 8_000 + i
-        rows.append({
-            "strike": strike,
-            "ce": {"ltp": 10.0 + i, "oi": ce_oi, "prev_oi": ce_oi - 500,
-                   "volume": 100, "delta": 0.4, "gamma": 0.002,
-                   "iv": 12.0, "oi_change": 500,
-                   "sentiment": {"type": "Neutral"}},
-            "pe": {"ltp": 20.0 + i, "oi": pe_oi, "prev_oi": pe_oi - 400,
-                   "volume": 90, "delta": -0.4, "gamma": 0.002,
-                   "iv": 13.0, "oi_change": 400,
-                   "sentiment": {"type": "Neutral"}},
-        })
-    return rows
-
 
 
 def test_both_report_wall_helpers_are_the_shared_projection():
