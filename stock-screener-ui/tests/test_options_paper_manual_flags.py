@@ -122,6 +122,9 @@ class TestTheTrailProtectsBelowTheBreakevenTrigger:
         }]}))
         monkeypatch.setattr(manual, "_load_triggers", lambda: [])
         monkeypatch.setattr(manual, "_save_triggers", lambda ts: None)
+        # Booking needs the `options-paper setup` DB account, absent in tests.
+        monkeypatch.setattr(manual.book, "record_trades",
+                            lambda trades, run_as=None: {"inserted": len(trades)})
         tk = Tick(t=__import__("datetime").datetime(2026, 10, 30, 12, 45),
                   spot=23_100.0, atm_strike=23_100.0, ce_ltp=99.0, pe_ltp=0.0,
                   ce_iv=12.0, pe_iv=12.0, expiry="2026-10-27",

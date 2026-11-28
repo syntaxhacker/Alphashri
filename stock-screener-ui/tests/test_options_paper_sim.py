@@ -21,6 +21,38 @@ from options_paper.tape import Tick
 HAVE_PANEL = bool(panel.contract_index())
 
 
+@pytest.fixture()
+def _synthetic_panel(monkeypatch):
+    """Stub the gitignored parquet panel so sim tests need no research data.
+
+    ``panel.index_day`` / ``panel.sessions`` read a recorded parquet series that
+    is absent in CI; the chart code only needs a small coherent index to stay
+    honest about its window and payoff math.
+    """
+    import pandas as pd
+
+    times = pd.date_range("2026-09-15 09:15", periods=90, freq="1min",
+                          tz="Asia/Kolkata")
+    idx = pd.DataFrame(
+        {"open": [23500.0 + i for i in range(90)],
+         "high": [23501.0 + i for i in range(90)],
+         "low": [23499.0 + i for i in range(90)],
+         "close": [23500.0 + i for i in range(90)]},
+        index=times,
+    )
+
+    def fake_index_day(day):
+        d = day if isinstance(day, date) else date.fromisoformat(str(day))
+        return idx[idx.index.date == d]
+
+    monkeypatch.setattr(sim.panel, "index_day", fake_index_day)
+    monkeypatch.setattr(sim.panel, "contract_close",
+                        lambda *a, **k: pd.Series(dtype=float))
+    sessions = tuple(date(2026, 9, d) for d in range(14, 19))
+    monkeypatch.setattr(sim, "candidate_sessions", lambda: sessions)
+    return sessions
+
+
 def test_black76_put_call_parity():
     f, k, t, sig, r = 23500.0, 23500.0, 14 / 365, 0.12, 0.065
     c = G.black76(f, k, t, sig, "CE", r)
@@ -188,7 +220,7 @@ def test_build_screen_empty_is_safe():
     json.dumps(screen)
 
 
-def test_build_screen_has_no_nan_in_json():
+def test_build_screen_has_no_nan_in_json(_synthetic_panel):
     import json
     tr = _mk_trade()
     ticks = []
@@ -311,7 +343,7 @@ def test_iv_delta_hold_time_uses_real_strike_marks():
     assert tr.entry_premium == pytest.approx(fill.chain[int(tr.strike)][leg], abs=0.02)
 
 
-def test_by_strategy_net_points_matches_trades():
+def test_by_strategy_net_points_matches_trades(_synthetic_panel):
     """Regression: the per-strategy table must expose net_points (template key)."""
     tr = _mk_trade()
     tr2 = _mk_trade(entry=datetime(2026, 9, 15, 11, 0),
@@ -367,9 +399,7 @@ def test_trade_chart_includes_payoff(monkeypatch):
     assert ch["payoff"]["strike"] == 23500.0
 
 
-def test_choose_week_reproducible_and_bounded():
-    if not sim.candidate_sessions():
-        pytest.skip("no priced sessions")
+def test_choose_week_reproducible_and_bounded(_synthetic_panel):
     a = sim.choose_week(seed=1977)
     b = sim.choose_week(seed=1977)
     assert a == b and len(a) >= 4

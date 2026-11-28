@@ -119,6 +119,22 @@ def _daily_df() -> pd.DataFrame:
     )
 
 
+def _daily_rows(symbol: str) -> list[list]:
+    """Raw Upstox daily candles for the pivots/baseline path.
+
+    Pivots no longer come from ``fetch_candles_for_timeframe``: the report
+    fetches them through ``_fetch_daily_rows``, so that is the seam to stub.
+    """
+    spot = SPOTS[symbol.upper()]
+    today = datetime.now(config.IST).date()
+    rows = []
+    for back in (2, 1, 0):
+        day = today - timedelta(days=back)
+        rows.append([f"{day.isoformat()}T00:00:00+05:30", spot * 0.99,
+                     spot * (1.0 + 0.01 * back), spot * 0.98, spot, 1000, 0.0])
+    return rows
+
+
 def _tape_row(symbol: str) -> dict:
     return {
         "t": f"{_today()}T09:20:00+05:30",
@@ -168,9 +184,13 @@ def mocked_live(monkeypatch):
             return _daily_df()
         return _intraday_df(symbol.upper())
 
+    async def fake_daily_rows(sym, today):
+        return _daily_rows(sym)
+
     monkeypatch.setattr(opr, "get_expiries", fake_expiries)
     monkeypatch.setattr(opr, "get_option_chain", fake_chain)
     monkeypatch.setattr(opr, "fetch_candles_for_timeframe", fake_candles)
+    monkeypatch.setattr(opr, "_fetch_daily_rows", fake_daily_rows)
 
     # The symbol tape the reference/structure blocks read.
     for symbol in SYMBOLS:
