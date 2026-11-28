@@ -1,12 +1,9 @@
 import uuid
-from datetime import date, datetime, timezone
-from typing import Optional
+from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, Float, Boolean,
-    ForeignKey, Table, UniqueConstraint, Index, Date,
+    Column, Integer, String, DateTime, Float, Boolean, ForeignKey,
 )
-from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from ..database import Base
