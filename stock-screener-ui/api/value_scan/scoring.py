@@ -511,6 +511,7 @@ def score_row(
     has_pe = available("pe")
     has_pb = available("pb")
     has_ps = available("ps")
+    has_off_high = available("off_52w_high")
 
     vals = _parsed_values(row, _SCORE_KEYS)
     pe = vals["price_earnings_ttm"]
@@ -710,7 +711,7 @@ def score_row(
         "rev_yoy": has_rev,
         "eps_yoy": has_eps,
         "de": has_de,
-        "off_52w_high": True,
+        "off_52w_high": has_off_high,
     }
     return out
 

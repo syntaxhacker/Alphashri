@@ -2,6 +2,7 @@
 
 from bisect import bisect_right
 
+import api.value_scan.filters as filters
 import api.value_scan.scoring as scoring
 from api.value_scan.scoring import (
     ScoreConfig,
@@ -145,6 +146,31 @@ def test_peer_medians_prefilter_frame():
     # NaN counts as missing too.
     med3 = peer_medians([make_row(price_earnings_ttm=float("nan")), make_row(price_earnings_ttm=14.0)])
     assert med3["Technology"]["pe"] == 14.0
+
+
+def test_off_52w_high_availability_tracks_bucket_coverage():
+    # 1 of 8 peers carries close/high -> 12.5% < MIN_METRIC_COVERAGE.
+    low_rows = [make_row(close=None, price_52_week_high=None) for _ in range(7)]
+    low_rows.append(make_row())
+    low_peers = peer_medians(low_rows)
+    assert low_peers["__cov__"]["Technology"]["off_52w_high"] < scoring.MIN_METRIC_COVERAGE
+
+    scored = score_row(make_row(), low_peers)
+    assert scored["_avail"]["off_52w_high"] is False
+    gate = {"off_52w_high_pct_min": 0.25}
+    # a percentile that would fail the gate is ignored when the bucket lacks the metric
+    failing = dict(scored, _pct={**scored["_pct"], "off_52w_high": 0.01})
+    assert filters._passes(failing, gate) is True
+    # the same percentile does exclude the row once the metric is available
+    available = dict(failing, _avail={**failing["_avail"], "off_52w_high": True})
+    assert filters._passes(available, gate) is False
+
+    # ~100% coverage keeps the flag on and the gate active.
+    normal_peers = peer_medians([make_row() for _ in range(4)])
+    normal = score_row(make_row(), normal_peers)
+    assert normal_peers["__cov__"]["Technology"]["off_52w_high"] == 1.0
+    assert normal["_avail"]["off_52w_high"] is True
+    assert filters._passes(dict(normal, _pct={**normal["_pct"], "off_52w_high": 0.01}), gate) is False
 
 
 def test_empty_frame_and_absolute_fallback():
