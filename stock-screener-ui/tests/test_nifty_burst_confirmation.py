@@ -99,12 +99,12 @@ def run_bursts(tmp_path, monkeypatch):
     return run
 
 
-def _build_case():
+def _build_case(spot: float = 25000.0):
     """A +20K call build: ATM premium up, same-strike premium up, spot up."""
     return {
         "ce_oi": [1000.0, 1000.0, 1000.0, 1000.0, 21000.0],
         "ce_ltp": [120.0, 120.0, 120.0, 120.0, 126.0],
-        "spot": [25000.0, 25000.0, 25000.0, 25000.0, 25010.0],
+        "spot": [spot] * 4 + [spot + 10.0],
     }
 
 
@@ -297,16 +297,8 @@ def run_generic_bursts(tmp_path, monkeypatch):
     oh._SLIM_CACHE.clear()
 
 
-def _generic_build():
-    return {
-        "ce_oi": [1000.0, 1000.0, 1000.0, 1000.0, 21000.0],
-        "ce_ltp": [120.0, 120.0, 120.0, 120.0, 126.0],
-        "spot": [84000.0, 84000.0, 84000.0, 84000.0, 84010.0],
-    }
-
-
 def test_generic_unconfirmed_when_same_strike_premium_conflicts(run_generic_bursts):
-    b = run_generic_bursts(**_generic_build(), chain_ltp=[120.0] * 5)
+    b = run_generic_bursts(**_build_case(spot=GEN_SPOT), chain_ltp=[120.0] * 5)
     assert b["flow"] == "unconfirmed"
     assert b["fuel_state"] is None
     assert b["signal"] is None
@@ -318,7 +310,7 @@ def test_generic_unconfirmed_when_same_strike_premium_conflicts(run_generic_burs
 
 
 def test_generic_confirmed_plan_retains_symbol_lot_sizing(run_generic_bursts):
-    b = run_generic_bursts(**_generic_build())
+    b = run_generic_bursts(**_build_case(spot=GEN_SPOT))
     c = b["confirmation"]
     assert c["same_strike"] == GEN_STRIKE
     assert c["strike_premium_change"] == pytest.approx(6.0)
@@ -336,7 +328,7 @@ def test_generic_confirmed_plan_retains_symbol_lot_sizing(run_generic_bursts):
 
 
 def test_generic_missing_burst_minute_frame_is_unconfirmed(run_generic_bursts):
-    b = run_generic_bursts(**_generic_build(), omit_minutes=(BURST_MINUTE,))
+    b = run_generic_bursts(**_build_case(spot=GEN_SPOT), omit_minutes=(BURST_MINUTE,))
     assert b["flow"] == "unconfirmed"
     assert b["signal"] is None
     assert b["plan_suppressed"] is True
@@ -345,7 +337,7 @@ def test_generic_missing_burst_minute_frame_is_unconfirmed(run_generic_bursts):
 
 
 def test_generic_spot_contradiction_suppresses_the_plan(run_generic_bursts):
-    case = _generic_build()
+    case = _build_case(spot=GEN_SPOT)
     case["spot"] = [84000.0, 84000.0, 84000.0, 84000.0, 83990.0]
     b = run_generic_bursts(**case)
     assert b["flow"] == "unconfirmed"
