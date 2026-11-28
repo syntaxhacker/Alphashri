@@ -40,6 +40,10 @@ messages.
 | Correlation cache isolation | fixed (count not itemised) | `tests/test_correlation.py` isolated to a tmp `CACHE_DIR` with patched time; no shared cache bleed between tests (commit `83db695f`, `test: isolate correlation cache tests to tmp`). |
 | Frontend changed-test zero selection | fixed (guard, not a count) | The changed-test runner now diffs against the PR base and **fails when zero tests are selected**; previously an empty selection passed silently (commit `23c65d47`, `ci: diff frontend changed tests against the pr base`). |
 
+### Burn-down 2026-11-28 (symbol aliases)
+
+- **Symbol aliases missing gitignored data** — `tests/test_symbol_aliases.py` now loads a tmp `symbol_aliases.json` and validates targets against a tmp NSE_EQ instrument DB via local fixtures. Previously the module depended on the local alias file (absent → 31 failed / 17 passed) and the target check skipped when `db/alphashri.db` was missing. **49 passed, 0 failures, 0 skips** with the alias file forced absent; no production code changed.
+
 ## Remaining clusters (rough counts — re-measure before quoting)
 
 No exact total is claimed here. The figures are approximate, grouped by the
@@ -49,7 +53,6 @@ bugs.
 | Cluster | Owner / area | Rough count |
 | --- | --- | --- |
 | Broker / bot DB `SessionLocal` isolation | `tests/` broker + bot modules; shared in-memory SQLite / `SessionLocal` fixtures | **~30** (estimate) |
-| Symbol aliases missing gitignored data | tests relying on symbol-alias data under gitignored local paths | **~30** (estimate) |
 | Event-radar missing fixtures | `tests/api/test_event_radar/`; missing local fixtures/data | **~13** (estimate) |
 | Week52 cache property | `tests/` week52 cache property tests | **~11** (estimate) |
 | Misc API / date / source drift | assorted API tests, date/session assumptions, source-name drift | **remaining** (unquantified) |
