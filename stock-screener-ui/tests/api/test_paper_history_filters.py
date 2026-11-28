@@ -2,12 +2,14 @@
 GET /trades filter tests: DB-first/journal fallback, days_back, from/to IST, is_test, symbol safety.
 """
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 
 import bcrypt
 import pytest
 import jwt
+
+import config
 
 
 def _fast_hash(password: str) -> str:
@@ -15,7 +17,7 @@ def _fast_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=4)).decode("utf-8")
 
 
-IST = timezone(timedelta(hours=5, minutes=30))
+IST = config.IST
 TEST_PASSWORD_PARTS = ("Te", "st", "123", "!Aa")
 
 

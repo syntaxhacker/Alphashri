@@ -27,6 +27,7 @@ import pytest
 
 import api.reports_api.nifty as nifty
 from api.reports_api import chain10s
+from tests.helpers.chain_rows import full_chain_rows as _full_rows
 
 
 
@@ -53,30 +54,6 @@ def _reset_state(monkeypatch, tmp_path):
     nifty._SNAPSHOT_READ_CACHE.clear()
     nifty._DERIVED_SNAPSHOT_CACHE.clear()
     nifty._TAPE_READ_CACHE.clear()
-
-
-def _full_rows(base: float = 23500.0, n: int = 21,
-               call_wall: float | None = None,
-               put_wall: float | None = None) -> list[dict]:
-    """A parsed chain (greeks + prev_oi) around ``base``, one strike per 50."""
-    start = base - (n // 2) * 50
-    rows = []
-    for i in range(n):
-        strike = start + i * 50
-        ce_oi = 1_000_000 if strike == call_wall else 10_000 + i
-        pe_oi = 1_000_000 if strike == put_wall else 8_000 + i
-        rows.append({
-            "strike": float(strike),
-            "ce": {"ltp": 10.0 + i, "oi": ce_oi, "prev_oi": ce_oi - 500,
-                   "volume": 100, "delta": 0.4, "gamma": 0.002,
-                   "iv": 12.0, "oi_change": 500,
-                   "sentiment": {"type": "Neutral"}},
-            "pe": {"ltp": 20.0 + i, "oi": pe_oi, "prev_oi": pe_oi - 400,
-                   "volume": 90, "delta": -0.4, "gamma": 0.002,
-                   "iv": 13.0, "oi_change": 400,
-                   "sentiment": {"type": "Neutral"}},
-        })
-    return rows
 
 
 def _ws_snapshot(rows: list[dict], spot: float = 23500.0,

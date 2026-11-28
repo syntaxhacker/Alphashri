@@ -15,6 +15,7 @@ import pytest
 import market_levels
 import market_levels.service as service
 from market_levels import models
+from tests.helpers.market_levels_public_api import EXPECTED_PUBLIC_API
 from market_levels.models import (
     FUEL,
     GEX,
@@ -73,32 +74,7 @@ def _level(**overrides) -> Level:
 
 
 def test_public_api_exports_exact_all_set_and_identity():
-    expected = {
-        "LEVEL_SCHEMA_VERSION",
-        "SUPPORT",
-        "RESISTANCE",
-        "PIVOT",
-        "FUEL",
-        "WALL",
-        "MAX_PAIN",
-        "TRENDLINE",
-        "PRICE_ACTION",
-        "GEX",
-        "OI",
-        "SESSION",
-        "Level",
-        "LevelBook",
-        "DetectorSpec",
-        "level_id",
-        "DETECTORS",
-        "register",
-        "iter_detectors",
-        "list_specs",
-        "clear_registry",
-        "SOURCE_PRECEDENCE",
-        "fuse_levels",
-        "build_level_book",
-    }
+    expected = EXPECTED_PUBLIC_API
     exported = market_levels.__all__
     assert len(exported) == len(expected), "duplicate name in __all__"
     assert set(exported) == expected

@@ -1,0 +1,28 @@
+"""The public ``market_levels`` surface pinned by both contract test modules."""
+
+EXPECTED_PUBLIC_API = {
+    "LEVEL_SCHEMA_VERSION",
+    "SUPPORT",
+    "RESISTANCE",
+    "PIVOT",
+    "FUEL",
+    "WALL",
+    "MAX_PAIN",
+    "TRENDLINE",
+    "PRICE_ACTION",
+    "GEX",
+    "OI",
+    "SESSION",
+    "Level",
+    "LevelBook",
+    "level_id",
+    "DetectorSpec",
+    "DETECTORS",
+    "register",
+    "iter_detectors",
+    "list_specs",
+    "clear_registry",
+    "SOURCE_PRECEDENCE",
+    "fuse_levels",
+    "build_level_book",
+}
