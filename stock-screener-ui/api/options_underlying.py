@@ -96,6 +96,17 @@ INDEX_CONTRACT_META: dict[str, dict] = {
     "SENSEX": {"name": "BSE Sensex", "lot_size": 20, "tick_size": 5.0},
 }
 
+
+def index_lot_size(symbol: str) -> int:
+    """Canonical contract lot for ``symbol``; ``KeyError`` when unlisted.
+
+    Consumers with a legacy single-symbol name keep that name as an alias of
+    this accessor instead of restating the lot as a second literal.
+    """
+    key = str(symbol or "").strip().upper()
+    return int(INDEX_CONTRACT_META[key]["lot_size"])
+
+
 #: A contract listing only changes when the exchange rolls an expiry, so a
 #: short TTL while the session runs is enough; closed, the listing is static.
 CACHE_TTL_OPEN_SEC = 300.0

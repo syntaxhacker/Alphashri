@@ -35,6 +35,7 @@ from __future__ import annotations
 import statistics
 from typing import Any, Iterable, Optional
 
+from api.options_underlying import index_lot_size
 from api.reports_api._numeric import safe_float
 from api.reports_api._time import minutes_between as _gap_minutes
 from api.reports_api._time import seconds_between as _gap_seconds
@@ -56,11 +57,12 @@ OI_SIGNAL_RISK_BUDGET = 5_000.0
 OI_SIGNAL_SL_PCT = 25.0
 OI_SIGNAL_TP_PCT = 50.0
 OI_SIGNAL_MIN_PREMIUM = 10.0
-# NIFTY contract lot size. Corrected 75 -> 65 after 23 consecutive real exchange
+# NIFTY contract lot size, aliased from the canonical index contract registry.
+# The registry's 65 was corrected from 75 after 23 consecutive real exchange
 # prints (a Dhan time & sales capture) were every one an exact multiple of 65 —
 # GCD of all 23 sizes == 65, and the same user's 1-lot position showed qty 65.
 # With 75 the suggested qty was not a tradeable size at all.
-NIFTY_LOT_SIZE = 65
+NIFTY_LOT_SIZE = index_lot_size("NIFTY")
 
 #: Headlines within ±this many minutes of a burst are attached as candidates.
 NEWS_WINDOW_MIN = 10.0

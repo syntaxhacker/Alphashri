@@ -6,10 +6,13 @@ fetched from the broker's published charge list. Nothing is recalled.
 Sources
 -------
 Lot sizes
-    ``db/alphashri.db`` table ``instruments`` (the Upstox instrument master as
-    synced into this repo, rows created 2026-05-23). NIFTY's value is
-    independently corroborated by ``api/options.py``, whose comment records that
-    23 consecutive real exchange prints were exact multiples of 65.
+    Index contracts are aliased from ``api.options_underlying``'s
+    ``INDEX_CONTRACT_META``, the sole owner of index lot/tick literals; the stale
+    BANKNIFTY/FINNIFTY/MIDCPNIFTY entries (30/60/120) were replaced by the
+    canonical 15/25/50. Stock lots still come from ``db/alphashri.db`` table
+    ``instruments`` (the Upstox instrument master as synced into this repo, rows
+    created 2026-05-23). NIFTY's 65 is independently corroborated by the same
+    exchange-print evidence recorded in the registry.
     NOTE: the options *research* engine (``reports/OPTIONS_REAL_5Y/opteng.py``)
     used ``LOT=75``. Both are recorded here; ``DEFAULT_LOT_POLICY`` documents
     which one this sandbox trades with and why.
@@ -30,6 +33,8 @@ import time as _time
 from dataclasses import dataclass, asdict
 from datetime import date, datetime, time
 
+from api.options_underlying import INDEX_CONTRACT_META
+
 # --------------------------------------------------------------------------
 # Sessions (all IST)
 # --------------------------------------------------------------------------
@@ -42,14 +47,11 @@ DEFAULT_EOD_EXIT = time(15, 10)    # paper options: flatten here unless a strate
 # --------------------------------------------------------------------------
 # Lot sizes  (units per lot)
 # --------------------------------------------------------------------------
-# Index derivatives — from the instruments master.
+# Index derivatives — canonical lots, never restated here. NIFTYNXT50 is the
+# only contract outside the registry, so it keeps its verified master value.
 INDEX_LOTS: dict[str, int] = {
-    "NIFTY": 65,
-    "BANKNIFTY": 30,
-    "FINNIFTY": 60,
-    "MIDCPNIFTY": 120,
+    **{symbol: INDEX_CONTRACT_META[symbol]["lot_size"] for symbol in INDEX_CONTRACT_META},
     "NIFTYNXT50": 25,
-    "SENSEX": 20,          # BSE
 }
 
 # A handful of liquid F&O underlyings the sandbox may trade.
