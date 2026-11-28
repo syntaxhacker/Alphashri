@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import config
+from trading.week52.config import JOB_STALE_DEFAULT_SEC
 from trading.week52.job import (
     get_stale_threshold_sec,
     is_job_stale,
@@ -64,31 +65,31 @@ class TestJobAgeSec:
 
 class TestIsJobStale:
     def test_fresh_running_not_stale(self):
-        assert is_job_stale(_running_job(60), stale_sec=1800) is False
+        assert is_job_stale(_running_job(60), stale_sec=JOB_STALE_DEFAULT_SEC) is False
 
     def test_old_running_is_stale(self):
         # Mirrors the stuck 2026-09-29 batch: running for ~6 days.
-        assert is_job_stale(_running_job(6 * 86400), stale_sec=1800) is True
+        assert is_job_stale(_running_job(6 * 86400), stale_sec=JOB_STALE_DEFAULT_SEC) is True
 
     def test_completed_never_stale(self):
         job = _running_job(6 * 86400)
         job["status"] = "completed"
-        assert is_job_stale(job, stale_sec=1800) is False
+        assert is_job_stale(job, stale_sec=JOB_STALE_DEFAULT_SEC) is False
 
     def test_failed_never_stale(self):
         job = _running_job(6 * 86400)
         job["status"] = "failed"
-        assert is_job_stale(job, stale_sec=1800) is False
+        assert is_job_stale(job, stale_sec=JOB_STALE_DEFAULT_SEC) is False
 
     def test_idle_never_stale(self):
-        assert is_job_stale({"status": "idle"}, stale_sec=1800) is False
+        assert is_job_stale({"status": "idle"}, stale_sec=JOB_STALE_DEFAULT_SEC) is False
 
     def test_no_timestamp_not_stale(self):
-        assert is_job_stale({"status": "running"}, stale_sec=1800) is False
+        assert is_job_stale({"status": "running"}, stale_sec=JOB_STALE_DEFAULT_SEC) is False
 
     def test_boundary(self):
-        assert is_job_stale(_running_job(1799), stale_sec=1800) is False
-        assert is_job_stale(_running_job(1801), stale_sec=1800) is True
+        assert is_job_stale(_running_job(1799), stale_sec=JOB_STALE_DEFAULT_SEC) is False
+        assert is_job_stale(_running_job(1801), stale_sec=JOB_STALE_DEFAULT_SEC) is True
 
     def test_uses_env_threshold_by_default(self):
         os.environ["SCREENER_52W_STALE_SEC"] = "3600"

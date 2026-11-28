@@ -26,25 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from db.models import BrokerConnection, save_broker_token, delete_broker_token
-
-
-class _SharedSession:
-    """Proxy the test session so helper-owned ``SessionLocal`` calls cannot close it."""
-
-    def __init__(self, session):
-        self._session = session
-
-    def __enter__(self):
-        return self._session
-
-    def __exit__(self, *exc_info):
-        return False
-
-    def close(self):
-        pass
-
-    def __getattr__(self, name):
-        return getattr(self._session, name)
+from tests.helpers.shared_session import SharedSession as _SharedSession
 
 
 @pytest.fixture(autouse=True)

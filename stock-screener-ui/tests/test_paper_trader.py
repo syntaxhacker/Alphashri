@@ -34,6 +34,7 @@ from trading.paper_trader import (
     reset_paper_trader,
     clear_paper_trader,
 )
+from backtest import costs
 
 
 class TestEnumsAndDataclasses:
@@ -163,13 +164,13 @@ class TestPaperTraderInit:
     def test_default_cost_parameters(self):
         """Test default cost parameters are set correctly."""
         trader = PaperTrader()
-        assert trader.brokerage_pct == 0.0003
-        assert trader.min_brokerage == 20
-        assert trader.stt_pct == 0.00025
-        assert trader.exchange_pct == 0.0000297
-        assert trader.sebi_pct == 0.000001
-        assert trader.stamp_pct == 0.00003
-        assert trader.gst_pct == 0.18
+        assert trader.brokerage_pct == costs.BROKERAGE_PCT
+        assert trader.min_brokerage == costs.MIN_BROKERAGE
+        assert trader.stt_pct == costs.STT_PCT
+        assert trader.exchange_pct == costs.EXCHANGE_CHARGES_PCT
+        assert trader.sebi_pct == costs.SEBI_FEE_PCT
+        assert trader.stamp_pct == costs.STAMP_DUTY_PCT
+        assert trader.gst_pct == costs.GST_PCT
 
     def test_strategy_tracking(self):
         """Test strategy ID and name are set."""

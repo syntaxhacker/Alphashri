@@ -16,6 +16,7 @@ from db.models import (
     bot_strategies,
 )
 from tests.helpers.db import import_all_models
+from tests.helpers.shared_session import SharedSession as _SharedSession
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
@@ -106,25 +107,6 @@ def bot_with_strategy(db, bot, strategy):
     )
     db.commit()
     return bot, strategy
-
-
-class _SharedSession:
-    """Proxy the test session so helper-owned ``SessionLocal`` calls cannot close it."""
-
-    def __init__(self, session):
-        self._session = session
-
-    def __enter__(self):
-        return self._session
-
-    def __exit__(self, *exc_info):
-        return False
-
-    def close(self):
-        pass
-
-    def __getattr__(self, name):
-        return getattr(self._session, name)
 
 
 @pytest.fixture(autouse=True)
@@ -701,8 +683,10 @@ class TestPersistState:
 
         mock_redis.setex.assert_called_once()
         call_args = mock_redis.setex.call_args
+        from trading.runner_core import REDIS_SCAN_TTL
+
         assert call_args[0][0] == f"bot:{bot_id}:scan_items"
-        assert call_args[0][1] == 300
+        assert call_args[0][1] == REDIS_SCAN_TTL
         parsed = json.loads(call_args[0][2])
         assert len(parsed) == 2
         assert parsed[0]["symbol"] == "RELIANCE"
