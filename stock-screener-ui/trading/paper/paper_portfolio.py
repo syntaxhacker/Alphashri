@@ -82,13 +82,15 @@ class PaperTrader:
                 self.strategy_id = config.id
                 self.strategy_name = config.name
         else:
-            self.brokerage_pct = brokerage_pct if brokerage_pct is not None else 0.0003
-            self.min_brokerage = min_brokerage if min_brokerage is not None else 20
-            self.stt_pct = stt_pct if stt_pct is not None else 0.00025
-            self.exchange_pct = exchange_pct if exchange_pct is not None else 0.0000297
-            self.sebi_pct = sebi_pct if sebi_pct is not None else 0.000001
-            self.stamp_pct = stamp_pct if stamp_pct is not None else 0.00003
-            self.gst_pct = gst_pct if gst_pct is not None else 0.18
+            # Imported here: backtest.__init__ pulls api -> trading at module load.
+            from backtest import costs
+            self.brokerage_pct = brokerage_pct if brokerage_pct is not None else costs.BROKERAGE_PCT
+            self.min_brokerage = min_brokerage if min_brokerage is not None else costs.MIN_BROKERAGE
+            self.stt_pct = stt_pct if stt_pct is not None else costs.STT_PCT
+            self.exchange_pct = exchange_pct if exchange_pct is not None else costs.EXCHANGE_CHARGES_PCT
+            self.sebi_pct = sebi_pct if sebi_pct is not None else costs.SEBI_FEE_PCT
+            self.stamp_pct = stamp_pct if stamp_pct is not None else costs.STAMP_DUTY_PCT
+            self.gst_pct = gst_pct if gst_pct is not None else costs.GST_PCT
 
         self.slippage_pct = slippage_pct
         self.fill_probability = fill_probability

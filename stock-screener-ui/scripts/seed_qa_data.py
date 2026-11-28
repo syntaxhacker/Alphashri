@@ -9,6 +9,7 @@ import bcrypt
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from backtest.costs import calculate_trading_costs
 from db.database import SessionLocal
 from db.models import User, StrategyConfig, BotConfig, bot_strategies, BacktestResult
 
@@ -430,8 +431,10 @@ def generate_trades(user_id: int, bot: BotConfig, strategies: Dict[int, Strategy
 
                 pnl += random.uniform(-200, 200)
 
-                trade_value_total = entry_price * quantity
-                costs = trade_value_total * 0.0006
+                costs = calculate_trading_costs(
+                    entry_price, exit_price, quantity,
+                    side="SHORT" if side == "SELL" else "LONG",
+                )["total_costs"]
                 net_pnl = pnl - costs
 
                 exit_time = entry_time + timedelta(hours=random.randint(1, 3))

@@ -13,6 +13,15 @@ import json
 logger = logging.getLogger(__name__)
 
 
+def _canonical_cost(name):
+    """Resolve a rate from backtest/costs at instantiation time.
+
+    Importing backtest at module level would cycle through api -> trading.
+    """
+    from backtest import costs
+    return getattr(costs, name)
+
+
 @dataclass
 class StrategyConfigData:
     """Dataclass for strategy config with defaults (fallback when DB unavailable)."""
@@ -82,14 +91,14 @@ class StrategyConfigData:
     # Scan Interval
     scan_interval_secs: int = 5
 
-    # Cost Parameters
-    brokerage_pct: float = 0.0003
-    min_brokerage: float = 20
-    stt_pct: float = 0.00025
-    exchange_pct: float = 0.0000297
-    sebi_pct: float = 0.000001
-    stamp_pct: float = 0.00003
-    gst_pct: float = 0.18
+    # Cost Parameters — canonical rates from backtest/costs.py
+    brokerage_pct: float = field(default_factory=lambda: _canonical_cost("BROKERAGE_PCT"))
+    min_brokerage: float = field(default_factory=lambda: _canonical_cost("MIN_BROKERAGE"))
+    stt_pct: float = field(default_factory=lambda: _canonical_cost("STT_PCT"))
+    exchange_pct: float = field(default_factory=lambda: _canonical_cost("EXCHANGE_CHARGES_PCT"))
+    sebi_pct: float = field(default_factory=lambda: _canonical_cost("SEBI_FEE_PCT"))
+    stamp_pct: float = field(default_factory=lambda: _canonical_cost("STAMP_DUTY_PCT"))
+    gst_pct: float = field(default_factory=lambda: _canonical_cost("GST_PCT"))
 
     @classmethod
     def from_db_model(cls, model) -> "StrategyConfigData":
