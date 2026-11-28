@@ -1,0 +1,183 @@
+{
+  "generator": "scripts/perf/bench_indicators.py cases() -> chart_patterns.indicators.compute_indicators",
+  "canonical_form": "json.dumps(obj, sort_keys=True, separators=(',', ':'), allow_nan=False)",
+  "seed": 20261127,
+  "warmup_bars": 120,
+  "note": "Digests are pinned to the current numpy/pandas versions; a dependency bump requires regenerating this fixture.",
+  "document_sha256": "0e0230e81644fc28bc84f5bec062fddeb19763e3d0d69a785f55496f295244ea",
+  "timeframes": {
+    "1m": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "7936ee56886bc5e03b4e2218d3545d9bc4e77b0d53ee884a6d8661b2dbf4ceb2",
+      "series": {
+        "sma20": {"bars": 500, "values_sha256": "6374f6be37d362585dfb37f9ffd30af66ed015df9f2a6eeffe36c0065143ad53"},
+        "sma50": {"bars": 500, "values_sha256": "055b0e9e5f9f667f146453570a301865e3d6e07b6df1720e9dc796af9a0cb96c"},
+        "sma200": {"bars": 500, "values_sha256": "98a5539780e6ccb0dcb7361ef193a8f329b84df6fa096ec75b934e8a5c4d3a8e"},
+        "bbUpper": {"bars": 500, "values_sha256": "58e0a2674773839c67bf378df4643d4124b8027bdd8cfde710109d442677d4ab"},
+        "bbMiddle": {"bars": 500, "values_sha256": "6374f6be37d362585dfb37f9ffd30af66ed015df9f2a6eeffe36c0065143ad53"},
+        "bbLower": {"bars": 500, "values_sha256": "1194bc0b4db775d80ebd48c301c41cb4d0dd44ad6472506386ded0c47c9a5221"},
+        "vwap": {"bars": 500, "values_sha256": "812456fb21dcca509ac44eeb5180c41fba4542ee0517a1fb24274cec17f87508"}
+      },
+      "crosses": {"count": 2, "sha256": "6065e20ecb8337fd10c6e0ab8cd73dfb20db672a6082b9c08e5f967f335f5684"}
+    },
+    "5m": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": true,
+      "payload_sha256": "129a24af0a0756f84f8abfc775c8ce52f8970f6a0b0fd1559649c9bf05c53fed",
+      "series": {
+        "sma20": {"bars": 500, "values_sha256": "6374f6be37d362585dfb37f9ffd30af66ed015df9f2a6eeffe36c0065143ad53"},
+        "sma50": {"bars": 500, "values_sha256": "055b0e9e5f9f667f146453570a301865e3d6e07b6df1720e9dc796af9a0cb96c"},
+        "sma200": {"bars": 500, "values_sha256": "98a5539780e6ccb0dcb7361ef193a8f329b84df6fa096ec75b934e8a5c4d3a8e"},
+        "bbUpper": {"bars": 500, "values_sha256": "58e0a2674773839c67bf378df4643d4124b8027bdd8cfde710109d442677d4ab"},
+        "bbMiddle": {"bars": 500, "values_sha256": "6374f6be37d362585dfb37f9ffd30af66ed015df9f2a6eeffe36c0065143ad53"},
+        "bbLower": {"bars": 500, "values_sha256": "1194bc0b4db775d80ebd48c301c41cb4d0dd44ad6472506386ded0c47c9a5221"},
+        "vwap": {"bars": 500, "values_sha256": "9e393dc15126e546ac35f7b6c6de442a3e0a10fc0223ea22b18feab2331954d8"}
+      },
+      "crosses": {"count": 2, "sha256": "7ea646565ed298b6cf2ce38367c7cd96da6ffc384402fd80cae63c2dcb594b93"}
+    },
+    "10m": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "72aaf822341db54f9498882b4c2ab1eb8295b727ee9b5a97b9e34609f2c7ca4f",
+      "series": {
+        "sma20": {"bars": 500, "values_sha256": "662eb02395eea681c70ea0b4d6dea17f3b8f2d5131771c84cd9ef80a93d9adbf"},
+        "sma50": {"bars": 500, "values_sha256": "4a667e41c844fcc454803b2e9f959f408a06f0466cefc6370d611096fcf45430"},
+        "sma200": {"bars": 500, "values_sha256": "3d36bd326afd6060c64a069fef7541f7a9473735d6a27e1c4a7c19fd64881060"},
+        "bbUpper": {"bars": 500, "values_sha256": "7667f323466c4a92a7217358ad56413f785c493a693b9400371692574e7d7619"},
+        "bbMiddle": {"bars": 500, "values_sha256": "662eb02395eea681c70ea0b4d6dea17f3b8f2d5131771c84cd9ef80a93d9adbf"},
+        "bbLower": {"bars": 500, "values_sha256": "58ae45815024a662c28fe3aa1188058ddbd2fc59715b96050fc161e5f63ba026"},
+        "vwap": {"bars": 500, "values_sha256": "51edb9ff12c33539f02a1adeb09c2116b82c7d3a29a401659251021f08289da3"}
+      },
+      "crosses": {"count": 2, "sha256": "1e6946b1c42abd21a2fbffbb9914a0c71301ca9238287ea1c85d2c97c3b445c3"}
+    },
+    "15m": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "04b7e769d6ea4354af414528e45c46e5337b3d07eaf2956f2a6c077a57a59d63",
+      "series": {
+        "sma20": {"bars": 500, "values_sha256": "98f10703fcee58c6c27ee46ba46d4cf1e01684e18521c1e877e317d010b4bb5f"},
+        "sma50": {"bars": 500, "values_sha256": "2667f0497de4503d24bdf9e1cf2a6d811913fc72bbbcafb6b9ee79599605d9ce"},
+        "sma200": {"bars": 500, "values_sha256": "da859b5d4dd297ac99fb7206a704859dc257fcb86981775f556e455f7da6583c"},
+        "bbUpper": {"bars": 500, "values_sha256": "b8cf68286966cc0c6336dd4b8c9271edaf4cd72c63eb7dc2ca1c007bf297a07f"},
+        "bbMiddle": {"bars": 500, "values_sha256": "98f10703fcee58c6c27ee46ba46d4cf1e01684e18521c1e877e317d010b4bb5f"},
+        "bbLower": {"bars": 500, "values_sha256": "b31121f8910274b1cdbf71025ca0a3e4a10d774fd3c7379329506be6ca723200"},
+        "vwap": {"bars": 500, "values_sha256": "9623586330b29c5ed8bc024150a4cd7212cda86f985dd1ee03656c401f581326"}
+      },
+      "crosses": {"count": 3, "sha256": "da9b103ae75b8fa0922c727acce7d887fbf98ef4f387e4db406aabbec6af0a7d"}
+    },
+    "30m": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "e0b1ffa2ee260882cbbc0f90862640196380477de48b46a3e69cc96dcb7c08ba",
+      "series": {
+        "sma20": {"bars": 500, "values_sha256": "662eb02395eea681c70ea0b4d6dea17f3b8f2d5131771c84cd9ef80a93d9adbf"},
+        "sma50": {"bars": 500, "values_sha256": "4a667e41c844fcc454803b2e9f959f408a06f0466cefc6370d611096fcf45430"},
+        "sma200": {"bars": 500, "values_sha256": "3d36bd326afd6060c64a069fef7541f7a9473735d6a27e1c4a7c19fd64881060"},
+        "bbUpper": {"bars": 500, "values_sha256": "7667f323466c4a92a7217358ad56413f785c493a693b9400371692574e7d7619"},
+        "bbMiddle": {"bars": 500, "values_sha256": "662eb02395eea681c70ea0b4d6dea17f3b8f2d5131771c84cd9ef80a93d9adbf"},
+        "bbLower": {"bars": 500, "values_sha256": "58ae45815024a662c28fe3aa1188058ddbd2fc59715b96050fc161e5f63ba026"},
+        "vwap": {"bars": 500, "values_sha256": "4e847c50137c9febdd29bda6e7dc475b533ab3d3130e9c897f72d9aefd80f8c3"}
+      },
+      "crosses": {"count": 2, "sha256": "ad01a916e3a8e9338cfd5740f6e7ffac80cbeca2403e4576e1dd540cdb998578"}
+    },
+    "1h": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "2d5629688ae7a005764743e32b2fe3cc57d5f7212dedc8d3a964efb83225f0c4",
+      "series": {
+        "sma20": {"bars": 500, "values_sha256": "6374f6be37d362585dfb37f9ffd30af66ed015df9f2a6eeffe36c0065143ad53"},
+        "sma50": {"bars": 500, "values_sha256": "055b0e9e5f9f667f146453570a301865e3d6e07b6df1720e9dc796af9a0cb96c"},
+        "sma200": {"bars": 500, "values_sha256": "98a5539780e6ccb0dcb7361ef193a8f329b84df6fa096ec75b934e8a5c4d3a8e"},
+        "bbUpper": {"bars": 500, "values_sha256": "58e0a2674773839c67bf378df4643d4124b8027bdd8cfde710109d442677d4ab"},
+        "bbMiddle": {"bars": 500, "values_sha256": "6374f6be37d362585dfb37f9ffd30af66ed015df9f2a6eeffe36c0065143ad53"},
+        "bbLower": {"bars": 500, "values_sha256": "1194bc0b4db775d80ebd48c301c41cb4d0dd44ad6472506386ded0c47c9a5221"},
+        "vwap": {"bars": 500, "values_sha256": "ae2eda3bf21d62776e695a92bb18e9382bc00b04be32809ebdc14929ed400c76"}
+      },
+      "crosses": {"count": 2, "sha256": "4506bdef4f084770a75cbb2eb3459acec81495f356d823ef8d14937cb6596076"}
+    },
+    "3h": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "ece64331179683ed99398f3330a0117f305a51fe28f0e731207fc2618ba7904d",
+      "series": {
+        "sma20": {"bars": 500, "values_sha256": "4e9423390f08842e2f30fafd8aad98c8a7101a19cfbd8313432054234ce6b55c"},
+        "sma50": {"bars": 500, "values_sha256": "6b8ef933077e2c17096399c95c2275d49396f616f2cf6cad5c90bc08ede548c9"},
+        "sma200": {"bars": 500, "values_sha256": "993cd96af021fdb063b2de697560426a28694e31a2cef89f23143ea8c164d645"},
+        "bbUpper": {"bars": 500, "values_sha256": "b4c59cc757731aa15dce631e2b76c3aeffcd4f02c5a8a994116adc23b13b4fbe"},
+        "bbMiddle": {"bars": 500, "values_sha256": "4e9423390f08842e2f30fafd8aad98c8a7101a19cfbd8313432054234ce6b55c"},
+        "bbLower": {"bars": 500, "values_sha256": "7e8d1b0e4344ac47ec7e85002ac67b57837bee237ba43e4ca5525b0ccb7f5d92"},
+        "vwap": {"bars": 500, "values_sha256": "3d7577b5ed4b5e409d60b45c2a519e8bb9db28a3d558760a898f1f8a2bdcb0fd"}
+      },
+      "crosses": {"count": 3, "sha256": "9d22aaab25b5ddba9c86c5837434d4da27f24fe7cb24f7e74bffa4b2b2c758d7"}
+    },
+    "4h": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "7f590b3cdf9a239049506d3da2b0b694a2a987ea63725cf9935cbb5155fe8583",
+      "series": {
+        "sma20": {"bars": 500, "values_sha256": "4e9423390f08842e2f30fafd8aad98c8a7101a19cfbd8313432054234ce6b55c"},
+        "sma50": {"bars": 500, "values_sha256": "6b8ef933077e2c17096399c95c2275d49396f616f2cf6cad5c90bc08ede548c9"},
+        "sma200": {"bars": 500, "values_sha256": "993cd96af021fdb063b2de697560426a28694e31a2cef89f23143ea8c164d645"},
+        "bbUpper": {"bars": 500, "values_sha256": "b4c59cc757731aa15dce631e2b76c3aeffcd4f02c5a8a994116adc23b13b4fbe"},
+        "bbMiddle": {"bars": 500, "values_sha256": "4e9423390f08842e2f30fafd8aad98c8a7101a19cfbd8313432054234ce6b55c"},
+        "bbLower": {"bars": 500, "values_sha256": "7e8d1b0e4344ac47ec7e85002ac67b57837bee237ba43e4ca5525b0ccb7f5d92"},
+        "vwap": {"bars": 500, "values_sha256": "8819ecbe15cd8b83f842a3587b479f4734f1af9527cbb2ca3311dcf96f0b463b"}
+      },
+      "crosses": {"count": 3, "sha256": "55462f7bd8ac3a43358c7b0d2c6d2337c93510af5c6063a43b8386fad86430b1"}
+    },
+    "1D": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "f88831e5d16c5ce7f942a588f3b86ba959a497ece87959a79fc167d8b14ad93b",
+      "series": {
+        "sma20": {"bars": 500, "values_sha256": "4e9423390f08842e2f30fafd8aad98c8a7101a19cfbd8313432054234ce6b55c"},
+        "sma50": {"bars": 500, "values_sha256": "6b8ef933077e2c17096399c95c2275d49396f616f2cf6cad5c90bc08ede548c9"},
+        "sma200": {"bars": 500, "values_sha256": "993cd96af021fdb063b2de697560426a28694e31a2cef89f23143ea8c164d645"},
+        "bbUpper": {"bars": 500, "values_sha256": "b4c59cc757731aa15dce631e2b76c3aeffcd4f02c5a8a994116adc23b13b4fbe"},
+        "bbMiddle": {"bars": 500, "values_sha256": "4e9423390f08842e2f30fafd8aad98c8a7101a19cfbd8313432054234ce6b55c"},
+        "bbLower": {"bars": 500, "values_sha256": "7e8d1b0e4344ac47ec7e85002ac67b57837bee237ba43e4ca5525b0ccb7f5d92"}
+      },
+      "crosses": {"count": 3, "sha256": "1f21a58d07104eefa56479b523513825b7eaa5d927e1556d5a541115d0626393"}
+    },
+    "1W": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "bd926bb09efce2e64789f7e59713fb2f430b9f9208633379c6be1014446d60e7",
+      "series": {
+        "sma20": {"bars": 260, "values_sha256": "5711a1c5a32ec16bb6c81f7e399056f5ac6e777407edea546a2b5104b8219839"},
+        "sma50": {"bars": 260, "values_sha256": "3476d227d8a4b1a830b60605b42357d90339760741b4226b25c7bc41ddb73f3d"},
+        "sma200": {"bars": 260, "values_sha256": "0cba1da3fa08760ca899992a261c5a192bfee3166d2fe1f203e5e950d3832f69"},
+        "bbUpper": {"bars": 260, "values_sha256": "e8dca6cb6c017c068f0819b32aee00d80b1d24380a563693923e12b63c8cc6a6"},
+        "bbMiddle": {"bars": 260, "values_sha256": "5711a1c5a32ec16bb6c81f7e399056f5ac6e777407edea546a2b5104b8219839"},
+        "bbLower": {"bars": 260, "values_sha256": "4b7b17337c56c2e39cbeeef00605ae18dcb9c52320549a46c07789264b6d5ae5"}
+      },
+      "crosses": {"count": 0, "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}
+    },
+    "1M": {
+      "aligned": "candles",
+      "session": "Asia/Kolkata",
+      "partial_last": false,
+      "payload_sha256": "5bf48fe7bb837e28222804bf3a441b6e88750d708e6a5f6f0630868435150304",
+      "series": {
+        "sma20": {"bars": 120, "values_sha256": "7773b41f6da0699844b6b3581c3037f525811bfb1a51b94cd8f9e08706890d8f"},
+        "sma50": {"bars": 120, "values_sha256": "5294af0a9961c4f867d3541ed650885ec017f3636d1f723446760038e3fd4bc0"},
+        "sma200": {"bars": 120, "values_sha256": "aacfd864a24f614a795eed63d643452995d3104a3aef54c27d574ed3c51858c0"},
+        "bbUpper": {"bars": 120, "values_sha256": "bdcc1c4f783cdd3a7f8159335fc6af2d846ae573b4884832128027735b09b9e8"},
+        "bbMiddle": {"bars": 120, "values_sha256": "7773b41f6da0699844b6b3581c3037f525811bfb1a51b94cd8f9e08706890d8f"},
+        "bbLower": {"bars": 120, "values_sha256": "242ffb111416307e48d27d38a9061d8c8f52def3119c2469b005f1a6df8fecc0"}
+      },
+      "crosses": {"count": 0, "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}
+    }
+  }
+}

@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from chart_patterns import indicators
+from scripts.perf import bench_indicators
 
 
 def _candle(t, price, volume=100.0, *, o=None, h=None, l=None, c=None):
@@ -501,3 +505,63 @@ def test_resampled_3h_4h_vwap_anchors_at_session_open():
             if candle["t"].startswith("2026-01-06")
         )
         assert vwap[first_second] == pytest.approx(expected[first_second])
+
+
+# --- CI golden for the #330 byte-parity win --------------------------------
+
+
+_GOLDEN_PATH = Path(__file__).parent / "fixtures" / "indicators_serialized_golden.json"
+
+
+def _digest(payload: object) -> str:
+    # The harness's canonical serialized form (sort_keys, tight separators,
+    # allow_nan=False) is exactly what the 11/11 byte-parity claim measured.
+    return hashlib.sha256(
+        bench_indicators._golden_text(payload).encode("utf-8")
+    ).hexdigest()
+
+
+@pytest.mark.unit
+def test_seeded_candles_serialized_indicators_golden_all_timeframes():
+    """Pin the benchmark's 11/11 byte-identical payloads inside the fast tier.
+
+    Candle frames come from the same seeded harness (seed 20261127, 120-bar
+    warmup on 1m/5m/15m/1h) so the guard and the perf evidence cannot diverge.
+    Digests are pinned to the current numpy/pandas floating-point output: a
+    dependency bump requires regenerating the fixture with ``_digest`` over the
+    canonical serialized values, crosses and payloads.
+    """
+    golden = json.loads(_GOLDEN_PATH.read_text(encoding="utf-8"))
+    want = golden["timeframes"]
+    actual = {
+        tf: bench_indicators._compute(case)
+        for tf, case in bench_indicators.cases().items()
+    }
+
+    assert golden["seed"] == bench_indicators.SEED
+    assert golden["warmup_bars"] == bench_indicators.WARMUP_BARS
+    assert set(actual) == set(want) == set(bench_indicators.enabled_timeframes())
+
+    for tf, expected in want.items():
+        got = actual[tf]
+        where = f"{tf} golden payload"
+        assert got["aligned"] == expected["aligned"] == "candles", where
+        assert got["timeframe"] == tf, where
+        assert got["session"] == expected["session"] == bench_indicators.IST, where
+        assert got["partial_last"] is expected["partial_last"], where
+        series_by_id = {series["id"]: series for series in got["series"]}
+        assert series_by_id.keys() == expected["series"].keys(), where
+        for series_id, series in series_by_id.items():
+            spec = expected["series"][series_id]
+            assert len(series["values"]) == spec["bars"], f"{where}: {series_id} bars"
+            assert _digest(series["values"]) == spec["values_sha256"], (
+                f"{where}: {series_id} values"
+            )
+        assert len(got["crosses"]) == expected["crosses"]["count"], (
+            f"{where}: crosses count"
+        )
+        assert _digest(got["crosses"]) == expected["crosses"]["sha256"], (
+            f"{where}: crosses"
+        )
+        assert _digest(got) == expected["payload_sha256"], where
+    assert _digest(actual) == golden["document_sha256"], "golden document drifted"
