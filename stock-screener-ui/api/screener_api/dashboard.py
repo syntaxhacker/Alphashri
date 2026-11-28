@@ -45,7 +45,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Query
 
 from api.utils import _sanitize_for_json
-from api.tv import SCREENER_COLUMNS
+from api.tv import FRAME_LIMIT, SCREENER_COLUMNS
 from api.tv.cache import FrameDescriptor, invalidate, scan_frame_cached
 from trading.week52.math import pct_from_52w_low, signed_gap_pct_to_52w_high
 
@@ -68,7 +68,7 @@ SPARK_WORKERS = 16
 # the `all_equity` universe list, which is the real binding limit
 # (`_frame_to_records` drops anything outside `allowed`). Raising this changes
 # nothing today; it stops the constant from being the next ceiling.
-TV_LIMIT = 4000
+TV_LIMIT = FRAME_LIMIT["india"]
 
 _cache: dict[str, tuple[float, dict]] = {}
 

@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from api.tv import scan_raw, PERFORMANCE_FIELDS
 from api.tv.cache import invalidate, scan_frame_cached
 
-from api.sector import SHARED_FRAMES, _load_theme_membership
+from api.sector import SHARED_FRAME_LIMIT, SHARED_FRAMES, _load_theme_membership
 from config import IST
 
 router = APIRouter(prefix="/api/rotation", tags=["rotation"])
@@ -28,7 +28,7 @@ Market = Literal["india", "america"]
 Kind = Literal["sector", "industry", "theme"]
 Period = Literal["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"]
 CACHE_TTL_SECONDS = 60
-FRAME_LIMIT = 3000
+FRAME_LIMIT = SHARED_FRAME_LIMIT
 MAX_GROUPS = 48
 
 #: The rotation view's columns are the shared group frame plus relative volume;
