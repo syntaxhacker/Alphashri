@@ -1,5 +1,4 @@
-import { createEffect, onCleanup, onMount, Show } from "solid-js";
-import type * as ECharts from "echarts";
+import { createMemo, Show } from "solid-js";
 import { Box, Text, typeSize } from "@/ui";
 import {
   breakevens,
@@ -9,7 +8,7 @@ import {
   type PayoffLeg,
 } from "./payoff";
 import { NT_HLINE, CHART_MUTED, CHART_AVG_ENTRY } from "@/ui/palette";
-import { loadEcharts } from "@/utils/loadEcharts";
+import { EChartsHost } from "../../charts/EChartsHost";
 
 const LINE_COLOR = NT_HLINE;
 
@@ -28,25 +27,13 @@ function formatINR(value: number): string {
 }
 
 export function PayoffChart(props: PayoffChartProps) {
-  let chartEl: HTMLDivElement | undefined;
-  let chart: ECharts.ECharts | undefined;
-  let disposed = false;
-
   const height = () => props.height ?? 140;
   const rangePct = () => props.rangePct ?? 8;
   const testId = () => props["data-testid"] ?? "payoff-chart";
 
-  async function applyOption(option: Record<string, unknown>) {
-    const lib = await loadEcharts();
-    if (disposed || !chartEl || !lib) return;
-    if (!chart) chart = lib.init(chartEl, null) as ECharts.ECharts;
-    chart.setOption(option, true);
-    chart.resize();
-  }
-
-  createEffect(() => {
+  const option = createMemo<Record<string, unknown> | undefined>(() => {
     const legs = props.legs;
-    if (legs.length === 0) return;
+    if (legs.length === 0) return undefined;
     const spot = props.spot;
     const atmFallback = legs[0]?.strike ?? 100;
     const base = spot ?? atmFallback;
@@ -71,7 +58,7 @@ export function PayoffChart(props: PayoffChartProps) {
               itemStyle: { color: LINE_COLOR },
             },
           ];
-    void applyOption({
+    return {
       animation: false,
       backgroundColor: "transparent",
       tooltip: {
@@ -97,19 +84,7 @@ export function PayoffChart(props: PayoffChartProps) {
           markPoint: { data: markPointData },
         },
       ],
-    });
-  });
-
-  onMount(() => {
-    const handleResize = () => chart?.resize();
-    window.addEventListener("resize", handleResize);
-    onCleanup(() => window.removeEventListener("resize", handleResize));
-  });
-
-  onCleanup(() => {
-    disposed = true;
-    chart?.dispose();
-    chart = undefined;
+    };
   });
 
   return (
@@ -129,8 +104,8 @@ export function PayoffChart(props: PayoffChartProps) {
         </Text>
       </Box>
     }>
-      <div
-        ref={(el) => (chartEl = el)}
+      <EChartsHost
+        option={option}
         data-testid={testId()}
         style={{ height: `${height()}px`, width: "100%" }}
       />
