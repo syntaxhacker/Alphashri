@@ -62,7 +62,7 @@ CIRCUIT_COOLDOWN_SECONDS = 60       # how long the circuit stays open
 
 # --- Global Upstox sliding-window limits (unchanged) ---
 GLOBAL_KEY = "upstox:rl:hits"
-GLOBAL_PER_SECOND = 50
+GLOBAL_PER_SECOND = 50  # policy mirror: ACQUIRE_LUA hardcodes 50 in its 1s window check
 GLOBAL_PER_MINUTE = 500
 
 # --- Per-consumer budget settings ---

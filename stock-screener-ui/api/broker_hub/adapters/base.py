@@ -53,15 +53,6 @@ AUTH_ERROR_HINTS = (
 _ERROR_BLOB_MARKERS = ("-+-+-", "b'", 'b"')
 
 
-class OrderFlowAuthError(RuntimeError):
-    """The broker rejected our session and the user must re-authenticate."""
-
-    def __init__(self, broker: str, detail: str = ""):
-        self.broker = broker
-        self.detail = detail
-        super().__init__(f"{broker} session rejected: {detail}".strip(": "))
-
-
 def strip_error_noise(message: object, limit: int = 200) -> str:
     """Collapse a broker SDK error into one short, safe line.
 
