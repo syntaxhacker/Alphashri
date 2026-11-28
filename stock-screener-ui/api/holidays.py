@@ -3,7 +3,7 @@ Holidays API - Endpoints for market holiday queries.
 """
 
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session

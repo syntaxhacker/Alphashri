@@ -8,7 +8,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, List
 
 from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel

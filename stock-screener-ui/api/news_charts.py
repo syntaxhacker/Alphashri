@@ -11,7 +11,7 @@ import json
 import urllib.parse
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 
 import config
 import requests

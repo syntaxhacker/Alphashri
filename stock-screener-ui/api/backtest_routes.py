@@ -5,7 +5,7 @@ Backtest API — routes for running, viewing, and managing backtests.
 from typing import Optional, Dict, Any, List
 import asyncio
 
-from fastapi import APIRouter, Query, HTTPException, Path, Depends
+from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel
 
 from api.screener import _sanitize_for_json
