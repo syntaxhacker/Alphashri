@@ -814,6 +814,7 @@ OPENAPI_TAGS = [
     {"name": "screener", "description": "Screener scans, saved profiles and 52-week range data."},
     {"name": "chart", "description": "OHLCV chart preview and per-symbol price series."},
     {"name": "chart-patterns", "description": "Candlestick pattern detection, scans and timeframes."},
+    {"name": "levels", "description": "Additive fused LevelBook S/R and trendline levels (read-only)."},
     {"name": "Paper Trading", "description": "Paper portfolio, positions, trades and order simulation."},
     {"name": "Paper Trading Live", "description": "Server-sent live price stream for open paper positions."},
     {"name": "Bots", "description": "Multi-strategy bot lifecycle, status, logs and performance."},
@@ -1381,6 +1382,7 @@ _include_api("api.rotation", "router", "rotation", msg="✅ Rotation API loaded 
 # can resolve to the module (or a stale attribute) after other imports have
 # touched the package, which silently registers an APIRouter with no routes.
 _include_api("api.value_scan.router", "router", "value scan", msg="✅ Value scan API loaded at /api/value")
+_include_api("api.levels_api.router", "router", "levels", msg="✅ Levels API loaded at /api/levels")
 _include_api("api.market_screen.router", "router", "market screen", msg="✅ Market Screen API loaded at /api/market")
 
 _include_api("api.options", "router", "options", msg="✅ Options API loaded at /api/options")
