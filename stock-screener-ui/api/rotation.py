@@ -31,23 +31,6 @@ CACHE_TTL_SECONDS = 60
 FRAME_LIMIT = SHARED_FRAME_LIMIT
 MAX_GROUPS = 48
 
-#: The rotation view's columns are the shared group frame plus relative volume;
-#: the descriptor itself lives in api.sector (SHARED_FRAMES).
-ROTATION_COLUMNS = (
-    "name",
-    "sector",
-    "industry",
-    "change",
-    "Perf.W",
-    "Perf.1M",
-    "Perf.3M",
-    "Perf.6M",
-    "Perf.YTD",
-    "Perf.Y",
-    "market_cap_basic",
-    "relative_volume",
-)
-
 BENCHMARKS = {
     "india": {"name": "NIFTY 50", "symbol": "NSE:NIFTY", "vix": "NSE:INDIAVIX"},
     "america": {"name": "S&P 500", "symbol": "AMEX:SPY", "vix": "CBOE:VIX"},

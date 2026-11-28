@@ -221,16 +221,6 @@ def _wing_iv(
     )
 
 
-def _empty_skew() -> dict[str, Optional[float]]:
-    return {
-        "strike_ce25": None,
-        "ce_25d_iv": None,
-        "strike_pe25": None,
-        "pe_25d_iv": None,
-        "skew_25d": None,
-    }
-
-
 def _skew(entries: list[dict[str, Any]]) -> dict[str, Any]:
     """25-delta skew block: call wing minus put wing (positive = calls rich)."""
     strike_ce, ce_iv = _wing_iv(entries, "ce")

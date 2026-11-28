@@ -8,15 +8,12 @@ import hashlib
 import json
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
 from typing import Dict, Any, Optional, List
 
 from .costs import get_cost_breakdown
 from .chart_data import build_chart_data_for_symbol
 
 from api.utils import _sanitize_for_json
-
-BACKTEST_CACHE_TTL = None  # No expiry — backtest results are deterministic
 
 
 def _get_journal():

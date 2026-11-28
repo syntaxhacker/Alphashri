@@ -28,7 +28,6 @@ MAX_WINDOW_DAYS = 3650
 HISTORY_MEMO_TTL_SECONDS = 30.0
 
 #: The Upstox daily-candle endpoint is limited to one decade.
-UPSTOX_DAY_UNIT = "day"
 # Upstox V3 path order is unit/interval/to_date/from_date.
 UPSTOX_CANDLE_URL = (
     "https://api.upstox.com/v3/historical-candle/"

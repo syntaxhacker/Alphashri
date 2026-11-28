@@ -42,18 +42,6 @@ def _get_upstox_token_from_file() -> Optional[dict]:
     return None
 
 
-def _get_upstox_token_from_env() -> Optional[dict]:
-    """DEPRECATED: Environment variable fallback for local development only.
-
-    This is deprecated and should not be used for production flows.
-    OAuth tokens should be stored in the database via the OAuth flow.
-    """
-    token = config.UPSTOX_ACCESS_TOKEN
-    if token:
-        return {"access_token": token, "token_timestamp": None}
-    return None
-
-
 def _get_token_status() -> dict:
     """Get broker token status.
 

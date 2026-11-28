@@ -2653,13 +2653,6 @@ def _snapshot_minutes(date_str: str) -> set[str]:
     return seen
 
 
-def _peek_last_snapshot_t(path: Path) -> Optional[str]:
-    """The last snapshot line's ``t`` (minute dedupe anchor) — never raises."""
-    last = _tail_last_json_line(path)
-    t = last.get("t") if last else None
-    return str(t) if t else None
-
-
 def _append_snapshot_line(date_str: str, t_iso: str,
                           report: Optional[dict],
                           sensex: Optional[dict]) -> Optional[dict]:

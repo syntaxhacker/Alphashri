@@ -34,8 +34,6 @@ _paper_bot_pid_file = Path("/tmp/alphashri-runner.pid")
 
 _user_pid_files: dict = {}
 
-DEFAULT_USER_ID = 1
-
 
 def _get_user_id(user: "User") -> int:
     return user.id
