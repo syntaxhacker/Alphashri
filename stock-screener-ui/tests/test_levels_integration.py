@@ -227,7 +227,7 @@ def _raw_wall_entries() -> list[tuple[str, str, dict]]:
 
 def test_all_four_sources_determinism_and_unique_ids(book):
     assert {spec.id for spec in list_specs()} == {
-        "price_action", "pivot", "gex", "walls"
+        "price_action", "pivot", "gex", "walls", "trendline"
     }
     assert book.symbol == SYMBOL and book.timeframe == TIMEFRAME
     assert book.as_of == AS_OF and book.spot == SPOT
