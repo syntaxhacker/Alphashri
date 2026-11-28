@@ -5,6 +5,14 @@ import { describe, expect, it } from "vitest";
 const ROOT = process.cwd();
 const BUDGETS_PATH = resolve(ROOT, "perf/chart_ui_budgets.json");
 const DOC_PATH = resolve(ROOT, "docs/CHART_PERFORMANCE.md");
+const AGENTS_PATH = resolve(ROOT, "AGENTS.md");
+const RULES_PATH = resolve(ROOT, "SUBAGENT_RULES.md");
+
+// The budget file owns the Codespaces artifact root; docs and agent rules follow it.
+const CODESPACES_ARTIFACT_DIR: string = JSON.parse(
+  readFileSync(BUDGETS_PATH, "utf8"),
+).measurement.artifact_dir.codespaces;
+const CODESPACES_ARTIFACT_ROOT = CODESPACES_ARTIFACT_DIR.replace(/\/chart-perf$/, "/");
 
 const REQUIRED_TARGETS = [
   "initial_route_chart_ms",
@@ -21,6 +29,11 @@ const REQUIRED_TARGETS = [
 ] as const;
 
 const REQUIRED_SCRIPTS = ["perf:chart:fixtures", "perf:chart:matrix", "perf:chart"];
+const PERF_SCRIPTS = [
+  "scripts/perf/gen_chart_fixtures.py",
+  "scripts/perf/chart_tf_matrix.mjs",
+  "scripts/perf/chart_perf.mjs",
+] as const;
 
 describe("chart performance contract", () => {
   it("keeps the machine-readable budget file present and well formed", () => {
@@ -67,8 +80,12 @@ describe("chart performance contract", () => {
       menu_toggles: 10,
       fullscreen_cycles: 5,
     });
-    expect(measurement.artifact_dir.codespaces).toBe(
-      "/workspaces/react/.agent-artifacts/chart-perf",
+  });
+
+  it("derives the Codespaces artifact root from the budget file", () => {
+    expect(CODESPACES_ARTIFACT_DIR).toMatch(/^\/workspaces\/[^/]+\/\.agent-artifacts\/chart-perf$/);
+    expect(CODESPACES_ARTIFACT_ROOT).toBe(
+      `${CODESPACES_ARTIFACT_DIR.slice(0, -"/chart-perf".length)}/`,
     );
   });
 
@@ -78,6 +95,7 @@ describe("chart performance contract", () => {
     expect(doc).toContain("perf/chart_ui_budgets.json");
     expect(doc).toContain("bun run perf:chart");
     expect(doc).toContain("CODESPACES=true");
+    expect(doc).toContain(CODESPACES_ARTIFACT_DIR);
     expect(doc).toContain("1600×1000");
     expect(doc).toContain("390×844");
   });
@@ -87,24 +105,30 @@ describe("chart performance contract", () => {
     for (const script of REQUIRED_SCRIPTS) {
       expect(pkg.scripts, `missing package script ${script}`).toHaveProperty(script);
     }
-    for (const script of [
-      "scripts/perf/gen_chart_fixtures.py",
-      "scripts/perf/chart_tf_matrix.mjs",
-      "scripts/perf/chart_perf.mjs",
-    ]) {
+    for (const script of PERF_SCRIPTS) {
       expect(existsSync(resolve(ROOT, script)), `missing ${script}`).toBe(true);
     }
     const ignore = readFileSync(resolve(ROOT, "perf/.gitignore"), "utf8");
     expect(ignore).toContain("!chart_ui_budgets.json");
   });
 
+  it("keeps perf scripts on the derived Codespaces artifact root", () => {
+    for (const script of PERF_SCRIPTS) {
+      const source = readFileSync(resolve(ROOT, script), "utf8");
+      expect(source, `${script} still uses the old workspace path`).not.toMatch(
+        /\/workspaces\/react/,
+      );
+      expect(source, `${script} is missing the artifact root`).toContain(CODESPACES_ARTIFACT_DIR);
+    }
+  });
+
   it("keeps the agent rules wired to the protocol and gate", () => {
-    const agents = readFileSync(resolve(ROOT, "AGENTS.md"), "utf8");
+    const agents = readFileSync(AGENTS_PATH, "utf8");
     expect(agents).toContain("docs/CHART_PERFORMANCE.md");
     expect(agents).toContain("perf:chart");
-    expect(agents).toContain("/workspaces/react/.agent-artifacts/");
+    expect(agents).toContain(CODESPACES_ARTIFACT_ROOT);
 
-    const rules = readFileSync(resolve(ROOT, "SUBAGENT_RULES.md"), "utf8");
+    const rules = readFileSync(RULES_PATH, "utf8");
     expect(rules).toContain("## 12. Performance audit (mandatory for interactive UI)");
     expect(rules).toContain("p50/p95");
     expect(rules).toContain(".agent-artifacts");

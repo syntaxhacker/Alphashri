@@ -12,7 +12,7 @@ import { PATTERNS_EVIDENCE_PATH, setupPatternEvidenceMocks } from "../mocks/patt
 import { collectConsoleErrors } from "./helpers/flowsB";
 
 const CAPTURE = process.env.SCREENSHOT_EVIDENCE === "1";
-const DIR = process.env.PATTERNS_CAPTURE_DIR ?? "/workspaces/react/.agent-artifacts/ui-a-plus/fixes";
+const DIR = process.env.PATTERNS_CAPTURE_DIR ?? "/workspaces/test-rag/.agent-artifacts/ui-a-plus/fixes";
 const PHASE = process.env.PATTERNS_CAPTURE_PHASE ?? "capture";
 
 for (const [width, height] of [

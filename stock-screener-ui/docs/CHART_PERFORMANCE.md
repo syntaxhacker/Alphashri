@@ -33,16 +33,16 @@ This workspace lives under `/workspaces/` in Codespaces. A container/sandbox
 reset wipes `/tmp`; that has already destroyed a worktree's uncommitted fixes,
 fixtures, a virtualenv and 28 screenshots.
 
-- Worktrees go in `/workspaces/react/.agent-worktrees/<task>/`.
+- Worktrees go in `/workspaces/test-rag/.agent-worktrees/<task>/`.
 - Virtualenvs, fixtures, captures, logs and benchmark JSON go in
-  `/workspaces/react/.agent-artifacts/<task>/`.
+  `/workspaces/test-rag/.agent-artifacts/<task>/`.
 - `/tmp/opencode` is allowed only outside Codespaces, or for single-use files
   that a committed script regenerates in one command.
 
 The perf scripts resolve this automatically:
 
 ```text
-CODESPACES=true  -> /workspaces/react/.agent-artifacts/chart-perf
+CODESPACES=true  -> /workspaces/test-rag/.agent-artifacts/chart-perf
 otherwise        -> /tmp/opencode/chart-perf
 override         -> CHART_PERF_ARTIFACT_DIR
 ```
@@ -92,7 +92,7 @@ Re-timing the real candles already on disk requires no network:
 
 ```bash
 python scripts/perf/gen_chart_fixtures.py --from-fixtures \
-  --out /workspaces/react/.agent-artifacts/chart-perf/fixtures
+  --out /workspaces/test-rag/.agent-artifacts/chart-perf/fixtures
 ```
 
 This rewrites only `manifest.json`; `fixtures.json` (including its recorded
