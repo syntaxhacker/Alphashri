@@ -127,6 +127,7 @@ The recipe below is implemented by `market_levels/detectors/trendline.py`.
 | `tests/test_levels_adversarial.py` | non-finite/partial geometry, degraded and malformed option blocks, fusion side/order/provenance invariants, service validation and cold-registry registration |
 | `tests/test_levels_trendline_extension.py` | segment geometry validation, date-aware segment identity, segment fields preserved by fusion, deterministic book with no source or consumer change |
 | `tests/test_levels_trendline_detector.py` | deterministic rising/falling/flat segment detection, ATR-tolerance touches, date-aware endpoints and ids, configurable pivot count, short-frame rejection, registry spec, pure detect and book integration |
+| `tests/test_market_levels_p2_hardening.py` | failing-first guards for geometry strictness, numeric-string normalization and non-dict `Mapping` blocks |
 | `scripts/perf/bench_levels.py` | deterministic warmup + 50-rep median/p95 for raw S/R and the full book |
 
 The contract is enforced by comparing the book back to the raw functions
@@ -161,10 +162,19 @@ unchanged afterward. No suite edits an existing consumer payload.
 
 ## Phase 1 limitations / P2 hardening
 
-- `Level` geometry/field strictness is complete for `segment`; horizontal/zone
-  contradictory field combinations are still accepted (follow-up).
-- `_checked_finite` accepts numeric strings/bools rather than normalizing to
-  `float` (follow-up).
+- `Level` geometry/field strictness is now complete for all three geometries:
+  `horizontal` accepts `price` only, `zone` accepts `bottom`+`top` only, and
+  `segment` accepts the two endpoints plus their dates. Contradictory
+  combinations (e.g. a horizontal level carrying a zone or segment) raise
+  `ValueError` at construction. Existing producers already emitted one geometry
+  each, so golden/parity output is unchanged.
+- `_checked_finite` still validates finiteness, but numeric strings and bools
+  are now normalized to `float` on `Level` (price/bottom/top/endpoints/strength)
+  and `LevelBook.spot`. Detector math and `level_id` are untouched — every
+  adapter already passed floats.
+- GEX/wall blocks and trendline params accept any `collections.abc.Mapping`,
+  not just `dict`; `MappingProxyType`, `ChainMap` and similar inputs are copied
+  into `evidence` as plain dicts. Non-mapping values are still skipped.
 - If the options precompute fails, an adapter may retry the failing
   `build_levels` call once as a fallback (no output change); hardening that
   retry path is a P2 follow-up.
