@@ -1,9 +1,8 @@
-import { createEffect, onCleanup, onMount } from "solid-js";
-import type * as ECharts from "echarts";
+import { createMemo } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
-import { loadEcharts } from "@/utils/loadEcharts";
 import type { PositioningStrikeRow } from "@/utils/positioning";
+import { EChartsHost } from "../../charts/EChartsHost";
 
 interface PositioningChartProps {
   rows: PositioningStrikeRow[];
@@ -12,25 +11,12 @@ interface PositioningChartProps {
 }
 
 export function PositioningChart(props: PositioningChartProps) {
-  let chartEl: HTMLDivElement | undefined;
-  let chart: ECharts.ECharts | undefined;
-  let disposed = false;
-  let resizeObserver: ResizeObserver | undefined;
-
-  async function applyOption(option: Record<string, unknown>) {
-    const lib = await loadEcharts();
-    if (disposed || !chartEl || !lib) return;
-    if (!chart) chart = lib.init(chartEl, null) as ECharts.ECharts;
-    chart.setOption(option, true);
-    chart.resize();
-  }
-
-  createEffect(() => {
+  const option = createMemo<Record<string, unknown> | undefined>(() => {
     const rows = props.rows;
-    if (rows.length === 0) return;
+    if (rows.length === 0) return undefined;
     const strikes = rows.map((r) => String(r.strike));
     const values = rows.map((r) => r.net_cr ?? 0);
-    void applyOption({
+    return {
       animation: false,
       tooltip: {
         trigger: "axis",
@@ -57,29 +43,12 @@ export function PositioningChart(props: PositioningChartProps) {
           })),
         },
       ],
-    });
-  });
-
-  onMount(() => {
-    if (typeof ResizeObserver !== "undefined" && chartEl) {
-      resizeObserver = new ResizeObserver(() => chart?.resize());
-      resizeObserver.observe(chartEl);
-    }
-    const handleResize = () => chart?.resize();
-    window.addEventListener("resize", handleResize);
-    onCleanup(() => window.removeEventListener("resize", handleResize));
-  });
-
-  onCleanup(() => {
-    disposed = true;
-    resizeObserver?.disconnect();
-    chart?.dispose();
-    chart = undefined;
+    };
   });
 
   return (
-    <div
-      ref={(el) => (chartEl = el)}
+    <EChartsHost
+      option={option}
       data-testid={props["data-testid"] ?? "positioning-chart"}
       style={{ height: `${props.height ?? 320}px`, width: "100%" }}
     />

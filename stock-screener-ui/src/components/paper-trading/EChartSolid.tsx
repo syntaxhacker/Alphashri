@@ -1,10 +1,11 @@
-import { createEffect, createSignal, onCleanup, onMount, type JSX } from "solid-js";
-import { loadEcharts } from "../../utils/loadEcharts";
+import type { JSX } from "solid-js";
+import { EChartsHost } from "../charts/EChartsHost";
 
 /**
- * Minimal Solid wrapper around echarts. `option` is a thunk evaluated inside
- * a tracking scope, so the chart re-applies whenever anything the option
- * builder reads changes.
+ * Thin alias kept for existing paper-trading callers. The shared host owns
+ * the lazy load, init, setOption, resize and dispose lifecycle. `option` is a
+ * thunk evaluated inside the host's tracking scope, so it re-applies when any
+ * signal the builder reads changes.
  */
 export function EChartSolid(props: {
   option: () => Record<string, unknown>;
@@ -12,53 +13,9 @@ export function EChartSolid(props: {
   class?: string;
   "data-testid"?: string;
 }) {
-  let chartEl: HTMLDivElement | undefined;
-  let chart: any = null;
-  let resizeHandler: (() => void) | null = null;
-  let ro: ResizeObserver | null = null;
-  const [libReady, setLibReady] = createSignal(false);
-  let echartsLib: any = null;
-
-  onMount(async () => {
-    const lib = await loadEcharts();
-    if (!lib) return;
-    echartsLib = lib;
-    setLibReady(true);
-  });
-
-  onCleanup(() => {
-    if (resizeHandler) window.removeEventListener("resize", resizeHandler);
-    ro?.disconnect();
-    if (chart) {
-      try { chart.dispose(); } catch { /* echarts dispose can throw in headless DOM */ }
-      chart = null;
-    }
-  });
-
-  createEffect(() => {
-    if (!libReady()) return;
-    const option = props.option();
-    if (!chart && chartEl) {
-      chart = echartsLib.init(chartEl, null);
-      resizeHandler = () => chart?.resize();
-      window.addEventListener("resize", resizeHandler);
-      if (typeof ResizeObserver !== "undefined") {
-        ro = new ResizeObserver(() => chart?.resize());
-        ro.observe(chartEl);
-      }
-    }
-    if (!chart) return;
-    try {
-      chart.setOption(option, true);
-      chart.resize();
-    } catch {
-      /* headless DOM without canvas 2d */
-    }
-  });
-
   return (
-    <div
-      ref={(el) => { chartEl = el; }}
+    <EChartsHost
+      option={props.option}
       class={props.class ?? "w-full"}
       style={props.style}
       data-testid={props["data-testid"]}

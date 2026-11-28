@@ -1,0 +1,80 @@
+{
+  "feature": "viz-echartshost",
+  "route": "/options; /paper?view=aggregated",
+  "head": "3c4b3e039eeb77547d5d8b5e6754c8fd12e307f0",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "iv-skew-1600.png": "be18cfaeeb32b47c3ee89c2d38e408d06b36259cd80a4fdb2145700aca4d67d2",
+    "iv-skew-390.png": "0f26c145bf87adbf11e298a88d294e036d0cf515e3950a5a8e7661987480e126",
+    "payoff-1600.png": "75ae431ae4bc5e414fe19f9c89add45eec553f793074354080f22e7ad9aea57e",
+    "payoff-390.png": "dbe7582c112dcd007effa3f9eeedbf65abb2caa2a0dfc9d2b88544c69c0a48d9",
+    "payoff-empty-1600.png": "c638f60969a9c5f21db062225416345e98aab80cb7e5691469adcdb1f904da44",
+    "payoff-empty-390.png": "947f850dabde9bdb9d03c4a39ca2b16c1f598c90b00eb303bdf475f320433a5b",
+    "positioning-1600.png": "1af52f7a8249c029c34c4ec2bc7cf2a0bd172df7c9c620c004a7c829f915178a",
+    "positioning-390.png": "326a1da9141d25ba73353e424ea9498596760eda8045881d14c760f60c785968",
+    "positioning-empty-1600.png": "aafd8834af9fdf2419d322cf02f58891dfb064958aa1001c2bddd4871103eaec",
+    "positioning-empty-390.png": "3c47f325915767148992523febd1998777674deb2975404b34f35a7b6146e99f",
+    "echart-solid-1600.png": "cf170e8f4482cea164240fe3d2034e28853c5a996ec5f1a5d097fe15cfce694d",
+    "echart-solid-390.png": "233aea9a60291e461ff65f83079192381fd9341247e4babfef7efd85601f9bcc"
+  },
+  "states": [
+    {
+      "id": "iv-skew",
+      "files": {
+        "390": "iv-skew-390.png",
+        "1600": "iv-skew-1600.png"
+      },
+      "covers": "IVSkewChart on /options chain analysis tab with option-chain IV quotes",
+      "mock": true
+    },
+    {
+      "id": "payoff",
+      "files": {
+        "390": "payoff-390.png",
+        "1600": "payoff-1600.png"
+      },
+      "covers": "PayoffChart with a long-straddle setup leg on /options premium tab",
+      "mock": true
+    },
+    {
+      "id": "payoff-empty",
+      "files": {
+        "390": "payoff-empty-390.png",
+        "1600": "payoff-empty-1600.png"
+      },
+      "covers": "PayoffChart empty guard on /options simulator tab with no legs",
+      "mock": true
+    },
+    {
+      "id": "positioning",
+      "files": {
+        "390": "positioning-390.png",
+        "1600": "positioning-1600.png"
+      },
+      "covers": "PositioningChart on /options positioning tab switched to chart view with strike rows",
+      "mock": true
+    },
+    {
+      "id": "positioning-empty",
+      "files": {
+        "390": "positioning-empty-390.png",
+        "1600": "positioning-empty-1600.png"
+      },
+      "covers": "PositioningChart panel empty state on /options positioning tab with no rows",
+      "mock": true
+    },
+    {
+      "id": "echart-solid",
+      "files": {
+        "390": "echart-solid-390.png",
+        "1600": "echart-solid-1600.png"
+      },
+      "covers": "EChartSolid equity curve via EChartSolid alias on /paper dashboard tab",
+      "mock": true
+    }
+  ],
+  "source": "route-mocks"
+}
