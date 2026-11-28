@@ -26,6 +26,7 @@ from api.broker_hub.adapters.base import (
     sanitize_adapter_error,
 )
 from api.broker_hub.symbols import fyers_symbol  # noqa: F401  (re-exported)
+from common.numbers import float_or_default
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +65,7 @@ def _default_socket_factory(
     )
 
 
-def _f(value, default: float = 0.0) -> float:
-    if value is None:
-        return default
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+_f = float_or_default
 
 
 def _has(value) -> bool:

@@ -9,7 +9,6 @@ anti-drift test in ``tests/api/test_options_levels.py`` fails if they diverge.
 
 from __future__ import annotations
 
-import math
 import statistics
 from collections import Counter
 from typing import Any, Iterable, Optional, TypedDict
@@ -24,6 +23,7 @@ from api.options_conventions import (
     THIN_MIN_ROWS,
     THIN_MIN_TOTAL_OI,
 )
+from common.numbers import to_float
 
 
 class Strike(TypedDict):
@@ -42,12 +42,7 @@ class Strike(TypedDict):
 WALL_NEAR_DIST_PCT = NEAR_BAND_PCT
 
 
-def _f(value: Any, default: float = 0.0) -> float:
-    try:
-        out = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return default
-    return out if math.isfinite(out) else default
+_f = to_float
 
 
 def _i(value: Any, default: int = 0) -> int:

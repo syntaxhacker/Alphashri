@@ -30,6 +30,7 @@ from typing import Any, Iterable, Optional, Union
 
 import pandas as pd
 
+from common.numbers import to_float
 from market_data.market_data import _lookback_days, _resample_rule
 
 logger = logging.getLogger(__name__)
@@ -1170,15 +1171,4 @@ def candles_to_series(df: pd.DataFrame, limit: int = 300) -> list[dict]:
     return series
 
 
-def _f(value: Any, default: float = 0.0) -> float:
-    try:
-        import math
-
-        if value is None:
-            return default
-        out = float(value)
-        if out != out or math.isinf(out):
-            return default
-        return out
-    except Exception:
-        return default
+_f = to_float

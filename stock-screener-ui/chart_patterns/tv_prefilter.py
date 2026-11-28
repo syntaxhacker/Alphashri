@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from api.tv import get_scanner_data
-from common.numbers import optional_float
+from common.numbers import strict_optional_float
 
 log = logging.getLogger(__name__)
 
@@ -38,8 +38,7 @@ TV_COLUMNS = (
 _TV_BATCH_SIZE = 80
 
 
-def _to_float(value) -> float | None:
-    return optional_float(value, reject_bool=True)
+_to_float = strict_optional_float
 
 
 def fetch_tv_volume_metrics(symbols: list[str], *, limit: int | None = None) -> dict[str, dict]:
