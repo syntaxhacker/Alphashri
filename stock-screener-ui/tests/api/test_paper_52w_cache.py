@@ -1,7 +1,5 @@
 import json
-import time
 from datetime import datetime, timedelta
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -11,9 +9,8 @@ from api.paper.endpoints import _read_52w_cache, _write_52w_cache, _52W_TTL_MINU
 import config
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def cache_dir(tmp_path):
-    original = Path("api/paper/endpoints").parent
     import api.paper.endpoints as mod
     old = mod.CACHE_52W_DIR
     mod.CACHE_52W_DIR = tmp_path / "52w_cache"
@@ -32,7 +29,12 @@ class Test52wCacheHelpers:
         assert data["high_52w"] == 500.0
         assert data["low_52w"] == 200.0
 
-        # past date is always returned from cache
+        # A completed session is immutable: the today-only TTL does not evict it.
+        past_session = datetime.now(config.IST) - timedelta(days=1)
+        data["date"] = past_session.strftime('%Y-%m-%d')
+        data["cached_at"] = (past_session - timedelta(days=1)).isoformat()
+        cache_file.write_text(json.dumps(data))
+
         cached = _read_52w_cache("TEST")
         assert cached is not None
         assert cached["high_52w"] == 500.0
@@ -120,7 +122,7 @@ class Test52wCacheEndpoint:
 
         with patch("api.paper.endpoints._read_52w_cache", return_value=None), \
              patch("api.paper.endpoints._write_52w_cache") as mock_write, \
-             patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api):
+             patch("upstox_trader.config_and_utils.upstox_api.UpstoxAPI", return_value=mock_api):
 
             response = client.get("/api/paper/52w/SYM", headers=auth_headers)
 
@@ -136,7 +138,7 @@ class Test52wCacheEndpoint:
 
         with patch("api.paper.endpoints._read_52w_cache", return_value=None), \
              patch("api.paper.endpoints._write_52w_cache") as mock_write, \
-             patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api):
+             patch("upstox_trader.config_and_utils.upstox_api.UpstoxAPI", return_value=mock_api):
 
             response = client.get("/api/paper/52w/EMPTY", headers=auth_headers)
 
@@ -151,7 +153,7 @@ class Test52wCacheEndpoint:
         mock_api.fetch_historical_data_v3.side_effect = Exception("Connection error")
 
         with patch("api.paper.endpoints._read_52w_cache", return_value=None), \
-             patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api):
+             patch("upstox_trader.config_and_utils.upstox_api.UpstoxAPI", return_value=mock_api):
 
             response = client.get("/api/paper/52w/ERROR", headers=auth_headers)
 
@@ -170,7 +172,7 @@ class Test52wCacheEndpoint:
 
         with patch("api.paper.endpoints._read_52w_cache", return_value=None), \
              patch("api.paper.endpoints._write_52w_cache"), \
-             patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api):
+             patch("upstox_trader.config_and_utils.upstox_api.UpstoxAPI", return_value=mock_api):
 
             response = client.get("/api/paper/52w/CALC", headers=auth_headers)
 

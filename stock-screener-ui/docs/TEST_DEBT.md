@@ -28,9 +28,10 @@ changed-test runner and timing pipeline.
 
 ## Fixed clusters
 
-These were burned down in the 2026-11-22 audit. Counts are from `changelog/`
-and `docs/PERFORMANCE_LOG_2026-11-22.md` where stated; otherwise from commit
-messages.
+These were burned down in the 2026-11-22 audit, with a 2026-11-28 follow-up.
+Counts are from `changelog/` and `docs/PERFORMANCE_LOG_2026-11-22.md` where
+stated; otherwise from commit messages or a freshly measured local run (noted
+in the row).
 
 | Cluster | Count | What changed |
 | --- | --- | --- |
@@ -39,6 +40,7 @@ messages.
 | ORB / config / DB stale expectations | **14 → 0 failures** (204 tests) | Updated ORB signal defaults, config-loader and DB-model expectations in the same commit (`9f355659`). |
 | Correlation cache isolation | fixed (count not itemised) | `tests/test_correlation.py` isolated to a tmp `CACHE_DIR` with patched time; no shared cache bleed between tests (commit `83db695f`, `test: isolate correlation cache tests to tmp`). |
 | Frontend changed-test zero selection | fixed (guard, not a count) | The changed-test runner now diffs against the PR base and **fails when zero tests are selected**; previously an empty selection passed silently (commit `23c65d47`, `ci: diff frontend changed tests against the pr base`). |
+| Week52 cache property | **3 → 0 failures (11 passed, freshly measured 2026-11-28)** | `tests/api/test_paper_52w_cache.py`: the endpoint imports `UpstoxAPI` from `upstox_trader.config_and_utils.upstox_api`, but the tests patched `free_indian_apis.UpstoxAPI`, so the mock never applied — the route hit the real API, returned empty frames (`high_52w == 0`) and wrote cache files into the repo's `experiments/data/52w_cache/`. Re-pointed the four patch targets to the module the route actually imports, made the `cache_dir` fixture autouse so every test (including the endpoint cases) writes to `tmp_path`, and made `test_write_and_read_past_date` exercise a real past session (stale `cached_at`) instead of today's date. No production code changed. `CI_MODE=1 <task-venv>/python -m pytest tests/api/test_paper_52w_cache.py -q -o addopts=""` → **11 passed** (was 3 failed / 8 passed); broader week52 sweep (`tests/test_week52_*.py tests/test_52w_*.py tests/api/test_paper_52w_cache.py`) → **414 passed**. |
 
 ## Remaining clusters (rough counts — re-measure before quoting)
 
@@ -51,7 +53,6 @@ bugs.
 | Broker / bot DB `SessionLocal` isolation | `tests/` broker + bot modules; shared in-memory SQLite / `SessionLocal` fixtures | **~30** (estimate) |
 | Symbol aliases missing gitignored data | tests relying on symbol-alias data under gitignored local paths | **~30** (estimate) |
 | Event-radar missing fixtures | `tests/api/test_event_radar/`; missing local fixtures/data | **~13** (estimate) |
-| Week52 cache property | `tests/` week52 cache property tests | **~11** (estimate) |
 | Misc API / date / source drift | assorted API tests, date/session assumptions, source-name drift | **remaining** (unquantified) |
 
 These are the *named* clusters; the sum is deliberately not asserted as the
