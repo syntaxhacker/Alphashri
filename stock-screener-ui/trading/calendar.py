@@ -59,6 +59,58 @@ def last_completed_session(now: Optional[DateLike] = None) -> date:
     return candidate
 
 
+def last_completed_session_lenient(
+    now: Optional[DateLike] = None,
+    *,
+    day_check=None,
+) -> date:
+    """Lenient last-session pin used by the candle cache.
+
+    Kept apart from :func:`last_completed_session` because the cache's historical
+    helper deliberately differs in three ways: a plain ``date`` counts as already
+    past the close; a failing holiday calendar is treated as a trading day; and
+    the walkback is capped at 365 days, falling back to ``day - 1`` when no
+    session is found. An injected ``day_check`` keeps the caller's monkeypatch
+    point and holiday-calendar policy.
+    """
+    from trading import utils as trading_utils
+
+    def _default_day_check(d: date) -> bool:
+        if d.weekday() >= 5:
+            return False
+        try:
+            return not trading_utils.is_trading_holiday(d)
+        except Exception:
+            return True
+
+    check = day_check or _default_day_check
+
+    if now is None:
+        now = datetime.now(IST)
+    if isinstance(now, datetime):
+        today = now.date()
+        try:
+            close = datetime(
+                today.year, today.month, today.day,
+                trading_utils.MARKET_CLOSE[0], trading_utils.MARKET_CLOSE[1],
+                tzinfo=now.tzinfo if now.tzinfo is not None else IST,
+            )
+            after_close = now >= close
+        except Exception:
+            after_close = now.hour * 60 + now.minute >= 15 * 60 + 30
+    else:
+        today = now
+        after_close = True
+    if check(today) and after_close:
+        return today
+    cursor = today - timedelta(days=1)
+    for _ in range(365):
+        if check(cursor):
+            return cursor
+        cursor -= timedelta(days=1)
+    return today - timedelta(days=1)
+
+
 def next_session_open(now: Optional[DateLike] = None) -> datetime:
     """Next trading day's 09:15 IST session open.
 

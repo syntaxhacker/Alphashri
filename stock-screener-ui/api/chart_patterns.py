@@ -3195,8 +3195,8 @@ def _intraday_bar_partial(bar_ts, now, market: str) -> bool:
 def _period_bar_partial(bar_ts, timeframe: str, now) -> bool:
     """True when the weekly/monthly bar's period has not closed yet."""
     try:
-        bar_local = _local_timestamp(bar_ts, "Asia/Kolkata")
-        now_local = _now_timestamp(now, "Asia/Kolkata")
+        bar_local = _local_timestamp(bar_ts, root_config.IST)
+        now_local = _now_timestamp(now, root_config.IST)
     except (TypeError, ValueError, OverflowError):
         return False
     period_end = _period_last_session(bar_local.date(), timeframe)
