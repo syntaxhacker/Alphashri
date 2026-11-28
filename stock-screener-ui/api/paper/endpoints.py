@@ -29,7 +29,8 @@ from trading.week52.keys import PAPER_52W_CACHE_DIR, PAPER_52W_FILE_TTL_MINUTES
 
 console = Console()
 
-from .orb_utils import compute_orb_score, calculate_pivot_points
+from .orb_utils import compute_orb_score
+from trading.pivot_utils import calculate_pivot_points as _classic_pivot_points
 from .chart_utils import format_candles_for_chart, calc_hold_duration
 
 # Handlers in this module are sync `def` on purpose: FastAPI runs them on the
@@ -607,14 +608,13 @@ def get_paper_chart(
                     if not prev_days.empty:
                         last = prev_days.iloc[-1]
                         prev_h, prev_l, prev_c = float(last['high']), float(last['low']), float(last['close'])
-                        pp = (prev_h + prev_l + prev_c) / 3
-                        hl = prev_h - prev_l
+                        pivots = _classic_pivot_points(prev_h, prev_l, prev_c, "classic")
                         pivot_levels = {
-                            "pp": round(pp, 2),
-                            "r1": round(2 * pp - prev_l, 2),
-                            "r2": round(pp + hl, 2),
-                            "s1": round(2 * pp - prev_h, 2),
-                            "s2": round(pp - hl, 2),
+                            "pp": round(pivots.pp, 2),
+                            "r1": round(pivots.r1, 2),
+                            "r2": round(pivots.r2, 2),
+                            "s1": round(pivots.s1, 2),
+                            "s2": round(pivots.s2, 2),
                         }
         except Exception as e:
             console.print(f"[yellow]Could not fetch 52W levels for {symbol}: {e}[/yellow]")
