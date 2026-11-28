@@ -40,6 +40,12 @@ messages.
 | Correlation cache isolation | fixed (count not itemised) | `tests/test_correlation.py` isolated to a tmp `CACHE_DIR` with patched time; no shared cache bleed between tests (commit `83db695f`, `test: isolate correlation cache tests to tmp`). |
 | Frontend changed-test zero selection | fixed (guard, not a count) | The changed-test runner now diffs against the PR base and **fails when zero tests are selected**; previously an empty selection passed silently (commit `23c65d47`, `ci: diff frontend changed tests against the pr base`). |
 
+### Burn-down 2026-11-28 (CI-debt lane 1)
+
+- **Risk-manager RR** — `test_risk_manager.py` updated to the live contract: `min_rr_ratio` was deliberately removed (commit `58bc6efb`, migration `2026_05_05`); a 0.4 RR trade is now sized/validated with RR reported, not rejected.
+- **Watch F&O / ETF tags** — `test_chart_patterns_watch.py` gained a local `tag_instruments` fixture so tag assertions no longer depend on the gitignored `nse_instruments.json` (absent in CI → empty tags).
+- **Partial-today synthetic bar** — `TestPartialToday` pins `_is_trading_day=True`; production intentionally skips the bar on weekends/holidays (commit `84efd0fb`), so the fixed tape fixture now runs deterministically.
+
 ## Remaining clusters (rough counts — re-measure before quoting)
 
 No exact total is claimed here. The figures are approximate, grouped by the

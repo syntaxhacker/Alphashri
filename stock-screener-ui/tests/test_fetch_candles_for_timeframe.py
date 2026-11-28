@@ -308,6 +308,14 @@ class TestTodayMerge:
 
 
 class TestPartialToday:
+    @pytest.fixture(autouse=True)
+    def _trading_day(self, monkeypatch):
+        """The live edge only synthesizes a partial bar on a trading day; the
+        fixed tape fixture must not inherit the real clock's weekend/holiday."""
+        import chart_patterns.candles as candles
+
+        monkeypatch.setattr(candles, "_is_trading_day", lambda date: True)
+
     def _history_and_tape(self):
         history = _daily_bars("2026-03-31", 30)
         tape = _intraday_bars(120, "1min", start="2026-04-09 09:15:00")

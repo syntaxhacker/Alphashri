@@ -468,8 +468,8 @@ class TestValidateTrade:
         assert result['valid'] is True
         assert result['shares'] > 0
 
-    def test_low_risk_reward_ratio(self, manager):
-        """Test: Trade rejected for low risk/reward ratio."""
+    def test_low_risk_reward_ratio_is_reported_not_rejected(self, manager):
+        """RR is reported for visibility only; the min_rr_ratio gate was removed with the risk-param cleanup (commit 58bc6efb, migration 2026_05_05). A 0.4 RR trade is sized and validated, not rejected."""
         result = manager.validate_trade(
             capital=1_000_000,
             cash=500_000,
@@ -480,9 +480,12 @@ class TestValidateTrade:
             take_profit=102.0,  # Only 2 reward vs 5 risk = 0.4 RR
             side="BUY",
         )
-        assert result['valid'] is False
-        assert "Risk/reward ratio" in result['reason']
-        assert "too low" in result['reason']
+        assert result['valid'] is True
+        assert result['rr_ratio'] == pytest.approx(0.4)
+        assert result['risk_pct'] == pytest.approx(5.0)
+        assert result['reward_pct'] == pytest.approx(2.0)
+        assert result['shares'] > 0
+        assert result['reason'] == "Trade validated successfully"
 
     def test_risk_reward_exactly_2(self, manager):
         """Test: Trade allowed with exactly 1:2 risk/reward."""
