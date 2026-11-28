@@ -3,6 +3,7 @@ import { Box, Text, typeSize } from "@/ui";
 import type { DockLeg } from "@/state/optionsDock";
 import { DockSection } from "./DockSection";
 import { PayoffChartCore, formatPop, type PayoffSnapshot } from "./PayoffChartCore";
+import { volPointsToIvDecimal } from "./charts/payoffMath";
 
 // Kept here as well as in the core: the dock and their tests import the pure
 // model from the panel's original public surface.
@@ -28,10 +29,7 @@ export function PayoffPanel(props: {
   // Published by the core's single gated recompute — no second payoff integral.
   const [snapshot, setSnapshot] = createSignal<PayoffSnapshot | null>(null);
 
-  const ivDecimal = () => {
-    const iv = props.iv;
-    return iv != null && Number.isFinite(iv) && iv > 0 ? iv / 100 : Number.NaN;
-  };
+  const ivDecimal = () => volPointsToIvDecimal(props.iv);
 
   const renderPop = () => (
     <Box className="flex items-baseline gap-1.5">

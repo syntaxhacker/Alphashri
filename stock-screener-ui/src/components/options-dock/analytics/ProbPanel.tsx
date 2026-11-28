@@ -11,6 +11,7 @@ import {
   type PayoffGuide,
   type PayoffSnapshot,
 } from "../PayoffChartCore";
+import { volPointsToIvDecimal } from "../charts/payoffMath";
 import type { ProfitScenario } from "./probRead";
 import { readProb } from "./probRead";
 import type { AnalyticsMetricVM, AnalyticsTone } from "./types";
@@ -162,7 +163,7 @@ export function ProbPanel(props: {
   data: OptionsAnalytics | null;
 }) {
   const [snapshot, setSnapshot] = createSignal<PayoffSnapshot | null>(null);
-  const ivDecimal = () => (finite(props.iv) && props.iv! > 0 ? props.iv! / 100 : Number.NaN);
+  const ivDecimal = () => volPointsToIvDecimal(props.iv);
   const hasLegs = () => props.legs.length > 0;
 
   const prob = createMemo(() => readProb(props.legs, props.spot));

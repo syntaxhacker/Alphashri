@@ -1,15 +1,25 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
-import { Box, Text, useColorScheme, typeSize } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { loadEcharts } from "@/utils/loadEcharts";
 import { formatNumber } from "@/utils/ui-helpers";
-import {
-  expectedMove,
-  payoffCurve,
-  probabilityOfProfit,
-  type OptionLeg,
-} from "@/utils/optionsMath";
+import { expectedMove, payoffCurve, probabilityOfProfit } from "@/utils/optionsMath";
 import type { DockLeg } from "@/state/optionsDock";
+import {
+  AXIS_LINE,
+  AXIS_SPLIT,
+  AXIS_TICK_OFF,
+  CHART_BASE,
+  CHART_LABEL_FONT_SIZE,
+  TOOLTIP_BASE,
+  axisLabelInk,
+  disposeCanvasChart,
+  initCanvasChart,
+  onWindowResize,
+  setChartOption,
+  useChartInk,
+} from "./charts/chartDefaults";
+import { ivDecimalOrNaN, toOptionLegs } from "./charts/payoffMath";
 
 /**
  * The shared payoff canvas: ECharts surface, guides and the four-cell footer.
@@ -27,8 +37,6 @@ const SPOT_MOVE_EPSILON = 0.0005;
 const DEFAULT_WIDTH_PCT = 10;
 /** Horizontal pixel budget for the y axis labels. */
 const GRID_LEFT = 46;
-/** Axis ticks and strike-line labels: 9px was unreadable in the narrow dock. */
-const LABEL_FONT_SIZE = typeSize("micro");
 /** Only used when a host has no expiry to quote; that host hides the ±1σ cell. */
 const FALLBACK_DTE_YEARS = 7 / 365;
 
@@ -51,17 +59,6 @@ export interface PayoffGuide {
   label: string;
 }
 
-function toPure(legs: DockLeg[]): OptionLeg[] {
-  return legs.map((leg) => ({
-    side: leg.side,
-    type: leg.type,
-    strike: leg.strike,
-    premium: leg.premium,
-    lots: leg.lots,
-    lotSize: leg.lotSize,
-  }));
-}
-
 function legSignature(legs: DockLeg[]): string {
   return legs.map((leg) => `${leg.key}|${leg.side}|${leg.lots}|${leg.lotSize}|${leg.premium}`).join(";");
 }
@@ -75,7 +72,7 @@ export function buildPayoff(
   opts: { widthPct?: number } = {},
 ): PayoffSnapshot | null {
   if (legs.length === 0 || !(spot > 0)) return null;
-  const pure = toPure(legs);
+  const pure = toOptionLegs(legs);
   // The public `widthPct` is a percentage (10 = ±10 %); payoffCurve wants a
   // fraction. Omitting it keeps the model's own default, so every existing host
   // samples exactly the same window as before.
@@ -105,19 +102,6 @@ function signedCompact(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return "∞";
   const sign = value > 0 ? "+" : value < 0 ? "−" : "";
   return `${sign}${formatNumber(Math.abs(value))}`;
-}
-
-/**
- * ECharts paints labels on a canvas, which cannot resolve `var(...)`. Read the
- * theme token's computed value so light mode keeps its higher-contrast ink
- * instead of the dark anchor baked into `palette.CHART_MUTED`.
- */
-function mutedChartInk(): string {
-  if (typeof document === "undefined") return palette.CHART_MUTED;
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue("--color-fin-text-muted")
-    .trim();
-  return value || palette.CHART_MUTED;
 }
 
 function emptySnapshot(): PayoffSnapshot {
@@ -176,7 +160,7 @@ function buildOption(
             show: true,
             formatter: `BE ₹${Math.round(be).toLocaleString("en-IN")}`,
             color: mutedInk,
-            fontSize: LABEL_FONT_SIZE,
+            fontSize: CHART_LABEL_FONT_SIZE,
             fontFamily: palette.MONO,
             position: "end" as const,
           },
@@ -199,7 +183,7 @@ function buildOption(
           show: true,
           formatter: guide.label,
           color: mutedInk,
-          fontSize: LABEL_FONT_SIZE,
+          fontSize: CHART_LABEL_FONT_SIZE,
           fontFamily: palette.MONO,
           position: "end",
         },
@@ -231,7 +215,7 @@ function buildOption(
           show: true,
           formatter: "±1σ",
           color: mutedInk,
-          fontSize: LABEL_FONT_SIZE,
+          fontSize: CHART_LABEL_FONT_SIZE,
           fontFamily: palette.MONO,
           position: "insideTop",
         },
@@ -241,27 +225,20 @@ function buildOption(
   }
 
   return {
-    animation: false,
-    backgroundColor: "transparent",
+    ...CHART_BASE,
     // 20px of bottom room: the tick labels sit under the plot and the footer
     // band starts on the next pixel, so they must not be painted on top of it.
     // `containLabel` keeps the 10px ticks inside the grid box instead of letting
     // them overflow the 46px left gutter and get clipped by the band edge.
     grid: { left: GRID_LEFT, right: 8, top: 13, bottom: 20, containLabel: true },
-    tooltip: {
-      trigger: "axis",
-      backgroundColor: palette.TOOLTIP_BG,
-      borderColor: palette.TOOLTIP_BORDER,
-      textStyle: { color: palette.OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: typeSize("micro") },
-    },
+    tooltip: { ...TOOLTIP_BASE, trigger: "axis" },
     xAxis: {
       type: "category",
       data: spots.map((value) => Math.round(value).toString()),
-      axisLine: { lineStyle: { color: palette.AXIS_LINE } },
-      axisTick: { show: false },
+      axisLine: AXIS_LINE,
+      axisTick: AXIS_TICK_OFF,
       axisLabel: {
-        color: mutedInk,
-        fontSize: LABEL_FONT_SIZE,
+        ...axisLabelInk(mutedInk),
         margin: 4,
         interval: Math.max(0, Math.floor(spots.length / 6)),
       },
@@ -270,9 +247,9 @@ function buildOption(
     yAxis: {
       type: "value",
       axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { color: mutedInk, fontSize: LABEL_FONT_SIZE },
-      splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
+      axisTick: AXIS_TICK_OFF,
+      axisLabel: axisLabelInk(mutedInk),
+      splitLine: AXIS_SPLIT,
     },
     series: [
       {
@@ -345,7 +322,7 @@ function buildOption(
         style: {
           text: `flat vol ${Number.isFinite(iv) && iv > 0 ? (iv * 100).toFixed(1) : "—"}%`,
           fill: mutedInk,
-          fontSize: LABEL_FONT_SIZE,
+          fontSize: CHART_LABEL_FONT_SIZE,
           fontFamily: palette.MONO,
         },
       },
@@ -382,22 +359,15 @@ export function PayoffChartCore(props: {
   let chart: any = null;
   let disposed = false;
 
-  const { colorScheme } = useColorScheme();
   /** Reading the scheme here repaints the canvas labels when the theme flips. */
-  const chartMuted = () => {
-    void colorScheme();
-    return mutedChartInk();
-  };
+  const chartMuted = useChartInk();
 
   let lastSignature = "";
   let lastSpot = 0;
   const [snapshot, setSnapshot] = createSignal<PayoffSnapshot | null>(null);
   const [density, setDensity] = createSignal<{ spot: number; prob: number }[]>([]);
 
-  const ivDecimal = () => {
-    const iv = props.iv;
-    return iv != null && Number.isFinite(iv) && iv > 0 ? iv : Number.NaN;
-  };
+  const ivDecimal = () => ivDecimalOrNaN(props.iv);
   const dteYears = () => props.dteYears ?? FALLBACK_DTE_YEARS;
 
   const recompute = (force: boolean) => {
@@ -423,7 +393,7 @@ export function PayoffChartCore(props: {
     }
     const next = buildPayoff(legs, spot, iv, dte, { widthPct });
     setSnapshot(next);
-    setDensity(next ? probabilityOfProfit(toPure(legs), spot, iv, dte).density : []);
+    setDensity(next ? probabilityOfProfit(toOptionLegs(legs), spot, iv, dte).density : []);
     props.onSnapshot?.(next);
   };
 
@@ -439,16 +409,15 @@ export function PayoffChartCore(props: {
   });
 
   onMount(() => {
-    const resize = () => chart?.resize();
-    window.addEventListener("resize", resize);
-    onCleanup(() => window.removeEventListener("resize", resize));
+    onWindowResize(() => chart?.resize());
     const el = chartEl;
     if (!el) return;
     void loadEcharts().then((lib) => {
-      if (disposed || !lib || !chartEl) return;
-      chart = lib.init(chartEl, undefined, { renderer: "canvas" });
+      chart = initCanvasChart(lib, el, () => disposed || !chartEl);
+      if (!chart) return;
       // Merge mode: `notMerge: true` wipes the axis annotations on every tick.
-      chart.setOption(
+      setChartOption(
+        chart,
         buildOption(
           snapshot() ?? emptySnapshot(),
           props.spot,
@@ -462,7 +431,6 @@ export function PayoffChartCore(props: {
             sigmaBand: props.sigmaBand,
           },
         ),
-        { notMerge: false, lazyUpdate: true },
       );
     });
   });
@@ -481,21 +449,20 @@ export function PayoffChartCore(props: {
     // the canvas must not repaint just because a raw frame field moved. A real
     // move (or an IV/DTE change) always publishes a new snapshot first.
     untrack(() => {
-      chart.setOption(
+      setChartOption(
+        chart,
         buildOption(current, props.spot, ivDecimal(), density(), ink, guides, {
           shadeProfitLoss,
           breakevens,
           sigmaBand,
         }),
-        { notMerge: false, lazyUpdate: true },
       );
     });
   });
 
   onCleanup(() => {
     disposed = true;
-    chart?.dispose();
-    chart = null;
+    chart = disposeCanvasChart(chart);
   });
 
   const beText = createMemo(() => {

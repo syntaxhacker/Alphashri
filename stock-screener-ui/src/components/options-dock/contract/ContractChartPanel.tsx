@@ -12,6 +12,14 @@ import {
 } from "@/api/optionsContractChart";
 import { AnalyticsChartCore } from "../analytics/AnalyticsChartCore";
 import { useChartInk } from "../analytics/chartInk";
+import {
+  AXIS_LINE,
+  AXIS_SPLIT,
+  AXIS_TICK_OFF,
+  CHART_BASE,
+  CHART_LABEL_FONT_SIZE,
+  axisLabelInk,
+} from "../charts/chartDefaults";
 
 export interface ContractChartSelection {
   instrumentKey: string;
@@ -26,7 +34,6 @@ export interface ContractChartSelection {
 /** The chips and the API enum must stay one list. */
 const INTERVALS: readonly ContractInterval[] = ["1m", "5m", "15m"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const AXIS_FONT = typeSize("micro");
 const EMPTY_TEXT = "No trades for this contract yet";
 
 function expiryLabel(expiry: string): string {
@@ -108,16 +115,16 @@ export function buildContractChartOption(input: ContractChartOptionInput): Recor
       gridIndex: 0,
       scale: true,
       axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { fontSize: AXIS_FONT, color: ink },
-      splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
+      axisTick: AXIS_TICK_OFF,
+      axisLabel: axisLabelInk(ink),
+      splitLine: AXIS_SPLIT,
     },
     {
       type: "value",
       gridIndex: 1,
       scale: false,
       axisLine: { show: false },
-      axisTick: { show: false },
+      axisTick: AXIS_TICK_OFF,
       axisLabel: { show: false },
       splitLine: { show: false },
     },
@@ -142,15 +149,14 @@ export function buildContractChartOption(input: ContractChartOptionInput): Recor
       position: "right",
       scale: true,
       axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { fontSize: AXIS_FONT, color: palette.INFO, formatter: (value: number) => formatNumber(value) },
+      axisTick: AXIS_TICK_OFF,
+      axisLabel: { fontSize: CHART_LABEL_FONT_SIZE, color: palette.INFO, formatter: (value: number) => formatNumber(value) },
       splitLine: { show: false },
     });
   }
 
   return {
-    animation: false,
-    backgroundColor: "transparent",
+    ...CHART_BASE,
     grid: [
       { left: 4, right, top: 8, height: "60%", containLabel: true },
       { left: 4, right, top: "78%", height: "14%", containLabel: true },
@@ -161,7 +167,7 @@ export function buildContractChartOption(input: ContractChartOptionInput): Recor
       confine: true,
       backgroundColor: palette.TOOLTIP_BG,
       borderColor: palette.TOOLTIP_BORDER,
-      textStyle: { color: palette.TEXT, fontSize: AXIS_FONT },
+      textStyle: { color: palette.TEXT, fontSize: CHART_LABEL_FONT_SIZE },
       formatter: (params: unknown) => {
         const list = (Array.isArray(params) ? params : [params]) as Array<{ axisValue?: unknown }>;
         const candle = byTime.get(Number(list[0]?.axisValue));
@@ -179,8 +185,8 @@ export function buildContractChartOption(input: ContractChartOptionInput): Recor
       {
         type: "time",
         gridIndex: 0,
-        axisLine: { lineStyle: { color: palette.AXIS_LINE } },
-        axisTick: { show: false },
+        axisLine: AXIS_LINE,
+        axisTick: AXIS_TICK_OFF,
         axisLabel: { show: false },
         splitLine: { show: false },
         axisPointer: { label: { formatter: (params: { value?: unknown }) => tickLabel(params?.value) } },
@@ -188,9 +194,9 @@ export function buildContractChartOption(input: ContractChartOptionInput): Recor
       {
         type: "time",
         gridIndex: 1,
-        axisLine: { lineStyle: { color: palette.AXIS_LINE } },
-        axisTick: { show: false },
-        axisLabel: { fontSize: AXIS_FONT, color: ink, hideOverlap: true, formatter: tickLabel },
+        axisLine: AXIS_LINE,
+        axisTick: AXIS_TICK_OFF,
+        axisLabel: { ...axisLabelInk(ink), hideOverlap: true, formatter: tickLabel },
         splitLine: { show: false },
         axisPointer: { label: { formatter: (params: { value?: unknown }) => tickLabel(params?.value) } },
       },

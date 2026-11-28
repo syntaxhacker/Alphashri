@@ -1,7 +1,13 @@
 import { createEffect, onCleanup, onMount, Show, untrack } from "solid-js";
-import { Box, Text, useColorScheme } from "@/ui";
+import { Box, Text } from "@/ui";
 import { loadEcharts } from "@/utils/loadEcharts";
-import { chartMutedInk } from "./chartInk";
+import {
+  disposeCanvasChart,
+  initCanvasChart,
+  onWindowResize,
+  setChartOption,
+  useChartInk,
+} from "../charts/chartDefaults";
 
 /**
  * The empty state needs a readable box even when nothing else sizes the
@@ -34,11 +40,7 @@ export function AnalyticsChartCore(props: {
   let resizeObserver: ResizeObserver | undefined;
   let resizeFrame = 0;
 
-  const { colorScheme } = useColorScheme();
-  const chartMuted = () => {
-    void colorScheme();
-    return chartMutedInk();
-  };
+  const chartMuted = useChartInk();
 
   let lastKey = "";
   let lastInk = "";
@@ -50,7 +52,7 @@ export function AnalyticsChartCore(props: {
     if (key === lastKey && ink === lastInk) return;
     lastKey = key;
     lastInk = ink;
-    chart.setOption(untrack(() => props.option), { notMerge: false, lazyUpdate: true });
+    setChartOption(chart, untrack(() => props.option));
   };
 
   const resizeChart = () => {
@@ -88,7 +90,7 @@ export function AnalyticsChartCore(props: {
     // window resize (scrollbar, dock maximize, 390 breakpoint) and the canvas
     // kept its old width, so the last x-axis label was clipped. The window
     // listener stays as a fallback when ResizeObserver is unavailable.
-    window.addEventListener("resize", scheduleResize);
+    onWindowResize(scheduleResize);
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver((entries) => {
         if (!hasArea(entries)) return;
@@ -97,7 +99,6 @@ export function AnalyticsChartCore(props: {
       resizeObserver.observe(el);
     }
     onCleanup(() => {
-      window.removeEventListener("resize", scheduleResize);
       resizeObserver?.disconnect();
       resizeObserver = undefined;
       if (resizeFrame) {
@@ -107,8 +108,8 @@ export function AnalyticsChartCore(props: {
     });
 
     void loadEcharts().then((lib) => {
-      if (disposed || !lib || !chartEl) return;
-      chart = lib.init(chartEl, undefined, { renderer: "canvas" });
+      chart = initCanvasChart(lib, el, () => disposed || !chartEl);
+      if (!chart) return;
       paint();
     });
   });
@@ -123,8 +124,7 @@ export function AnalyticsChartCore(props: {
 
   onCleanup(() => {
     disposed = true;
-    chart?.dispose();
-    chart = null;
+    chart = disposeCanvasChart(chart);
   });
 
   const testId = () => props.testId ?? "analytics-chart";
