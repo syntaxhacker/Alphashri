@@ -47,15 +47,17 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
+from trading.timezone import TZ_IST
+
 MARKET_SESSIONS = {
-    "india": "Asia/Kolkata",
+    "india": TZ_IST,
     "usa": "America/New_York",
 }
 
 #: Exchange-local opening time (hour, minute) per session label. Used only to
 #: decide whether the first observed bar can anchor a session VWAP.
 SESSION_OPENS = {
-    "Asia/Kolkata": (9, 15),
+    TZ_IST: (9, 15),
     "America/New_York": (9, 30),
 }
 
@@ -96,7 +98,7 @@ _CROSS_EPS_FACTOR = 1e-9
 
 def session_for_market(market: Optional[str]) -> str:
     """Exchange session label for a chart market (defaults to India)."""
-    return MARKET_SESSIONS.get(str(market or "india").strip().lower(), "Asia/Kolkata")
+    return MARKET_SESSIONS.get(str(market or "india").strip().lower(), TZ_IST)
 
 
 def _float_or_nan(value) -> float:
@@ -547,7 +549,7 @@ def _vwap_from_arrays(
 
 def compute_vwap(
     candles: Sequence,
-    session: str = "Asia/Kolkata",
+    session: str = TZ_IST,
     timeframe: Optional[str] = None,
     *,
     market: Optional[str] = None,
@@ -568,7 +570,7 @@ def compute_vwap(
     # (candles, timeframe, session) — the payload path always uses keywords.
     if is_intraday_timeframe(session):
         if timeframe is None:
-            timeframe, session = str(session), "Asia/Kolkata"
+            timeframe, session = str(session), TZ_IST
         elif not is_intraday_timeframe(timeframe):
             session, timeframe = str(timeframe), str(session)
     if timeframe is None and str(session) in {"1D", "1W", "1M"}:

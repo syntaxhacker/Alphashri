@@ -1112,12 +1112,14 @@ def _vol_adj_one(symbol: str, now=None) -> Optional[float]:
         if "volume" not in df_1m.columns or "volume" not in df_1d.columns:
             return None
         try:
+            import config
+
             idx = df_1m.index
             try:
                 if idx.tz is None:
-                    idx_ist = idx.tz_localize("UTC").tz_convert("Asia/Kolkata")
+                    idx_ist = idx.tz_localize("UTC").tz_convert(config.IST)
                 else:
-                    idx_ist = idx.tz_convert("Asia/Kolkata")
+                    idx_ist = idx.tz_convert(config.IST)
             except Exception:
                 idx_ist = idx
             today = _vol_adj_today(now)

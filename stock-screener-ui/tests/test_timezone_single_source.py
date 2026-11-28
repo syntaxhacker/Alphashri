@@ -2,11 +2,14 @@
 
 AST-scans the app layers (``api/``, ``trading/``, ``chart_patterns/``,
 ``cache/``) for locally constructed ``ZoneInfo("Asia/Kolkata")``. A second,
-narrower scan covers the consolidated fork files for the spellings that evade
-that check: zone literals passed to ``tz_convert``/``tz_localize``, ``+05:30``
-strings and ``timedelta(hours=5, ...)``. ``config.py`` is the canonical
-definition and is deliberately outside both scans. Research scripts,
-``india_board/`` and tests are out of scope.
+narrower scan covers the consolidated fork files and the audit-B1 residual
+consumer files for the spellings that evade that check: zone literals passed
+to ``tz_convert``/``tz_localize``, ``+05:30`` strings and
+``timedelta(hours=5, ...)``. ``config.py`` defines the canonical timezone and
+``trading/timezone.py`` defines the canonical IANA zone name plus its
+import-failure fallback; both are checked as single-source definitions rather
+than scanned for clones. Research scripts, ``india_board/`` and tests are out
+of scope.
 
 ``frame_last_date()`` and ``fmt_date()`` are the canonical IST display
 helpers in ``chart_patterns/``; this guard also prevents a second copy.
@@ -33,12 +36,21 @@ CANONICAL_DISPLAY_HELPERS = {
 # The original scan only saw ZoneInfo("Asia/Kolkata"). The session-date lane's
 # leftover forks spelled the same zone as a tz_convert/tz_localize argument or
 # as an offset literal, which that scan could not see. These are the files that
-# lane consolidated; other app-layer modules still carrying legacy literals are
-# a separate cleanup and are deliberately not in this set.
+# lane consolidated.
 EVASIVE_SCAN_FILES = (
     "chart_patterns/candles.py",
     "api/chart_patterns.py",
     "trading/calendar.py",
+)
+
+# Audit B1 residual: the last app-layer consumers that still spelled the zone
+# itself. Conversion sites must take config.IST; registry sites must take the
+# canonical IANA name from trading.timezone.TZ_IST. Docstring examples are
+# documentation, not executable sources, and are skipped by the detector.
+RESIDUAL_SCAN_FILES = (
+    "api/backtest_routes.py",
+    "chart_patterns/watch.py",
+    "chart_patterns/indicators.py",
 )
 
 
@@ -91,11 +103,33 @@ def test_app_layers_do_not_construct_kolkata_zoneinfo():
     )
 
 
+def _docstring_constant_ids(tree: ast.Module) -> set[int]:
+    """Docstring constants document a payload; they are not executable tz sources."""
+    ids: set[int] = set()
+    for owner in ast.walk(tree):
+        if not isinstance(
+            owner, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            continue
+        body = owner.body
+        if not body:
+            continue
+        first = body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            ids.add(id(first.value))
+    return ids
+
+
 def _hardcoded_ist_lines(tree: ast.Module) -> list[tuple[int, str]]:
     """IST spellings that evade the ZoneInfo-only scan above."""
+    docstrings = _docstring_constant_ids(tree)
     found = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Constant):
+        if isinstance(node, ast.Constant) and id(node) not in docstrings:
             if isinstance(node.value, str):
                 if node.value == KOLKATA:
                     found.append((node.lineno, "hardcoded zone literal"))
@@ -123,6 +157,70 @@ def test_consolidated_forks_do_not_hardcode_an_ist_zone():
         "Hardcoded IST zone/offset in a consolidated fork — use config.IST:\n"
         + "\n".join(violations)
     )
+
+
+def test_residual_consumers_do_not_hardcode_an_ist_zone():
+    violations = []
+    for rel in RESIDUAL_SCAN_FILES:
+        for lineno, why in _hardcoded_ist_lines(_parse(REPO / rel)):
+            violations.append(f"{rel}:{lineno} ({why})")
+    assert not violations, (
+        "Hardcoded IST zone/offset in an audit-B1 consumer — use config.IST "
+        "for conversions and trading.timezone.TZ_IST for registries:\n"
+        + "\n".join(violations)
+    )
+
+
+def test_canonical_tz_name_and_offset_fallback_are_single_source():
+    tree = _parse(REPO / "trading/timezone.py")
+    zone_constants = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and node.value == KOLKATA
+    ]
+    assert len(zone_constants) == 1, (
+        "trading/timezone.py must hold the only IANA IST name in app layers:\n"
+        + "\n".join(f"line {n.lineno}" for n in zone_constants)
+    )
+    assert any(
+        isinstance(node, ast.Assign)
+        and any(
+            isinstance(t, ast.Name) and t.id == "TZ_IST" for t in node.targets
+        )
+        and isinstance(node.value, ast.Constant)
+        and node.value.value == KOLKATA
+        for node in tree.body
+    ), "the canonical TZ_IST assignment must define the IANA IST name"
+
+    fallback = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "timedelta"
+        and any(
+            kw.arg == "hours"
+            and isinstance(kw.value, ast.Constant)
+            and kw.value.value == 5
+            for kw in node.keywords
+        )
+    ]
+    assert len(fallback) == 1, (
+        "Only the import-failure fallback may restate the IST offset:\n"
+        + "\n".join(f"line {n.lineno}" for n in fallback)
+    )
+
+    import config
+
+    offset_seconds = int(config.IST.utcoffset(None).total_seconds())
+    expected_hours, remainder = divmod(offset_seconds, 3600)
+    kwargs = {
+        kw.arg: kw.value.value
+        for kw in fallback[0].keywords
+        if isinstance(kw.value, ast.Constant)
+    }
+    assert kwargs.get("hours") == expected_hours
+    assert kwargs.get("minutes") == remainder // 60
 
 
 def test_evasive_spelling_detector_catches_every_form():
