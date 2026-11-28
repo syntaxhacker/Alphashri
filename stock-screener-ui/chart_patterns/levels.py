@@ -32,9 +32,10 @@ import numpy as np
 import pandas as pd
 
 from chart_patterns import features
+from trading.indicators import DEFAULT_ATR_PERIOD
 
 LOOKBACK_BARS = 400
-ATR_PERIOD = 14
+ATR_PERIOD = DEFAULT_ATR_PERIOD
 LARGE_FRAME_BARS = 500
 PIVOT_ORDER_LARGE = 6
 PIVOT_ORDER_SMALL = 2

@@ -30,7 +30,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from api.tv import USA_EXCHANGES  # noqa: E402
 from market.tv_client import scanner_frame  # noqa: E402
 
 AI_FRAGILE = {
@@ -61,7 +65,7 @@ def build() -> pd.DataFrame:
     if "type" in df:
         df = df[df["type"].eq("stock")]
     if "exchange" in df:
-        df = df[df["exchange"].isin({"NASDAQ", "NYSE", "AMEX"})]
+        df = df[df["exchange"].isin(USA_EXCHANGES)]
     df["mcap_bn"] = df["market_cap_basic"] / 1e9
     df["fcf_y"] = df["free_cash_flow_ttm"] / df["market_cap_basic"] * 100
     df["off52"] = (df["close"] / df["price_52_week_high"] - 1) * 100

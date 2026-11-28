@@ -7,8 +7,13 @@ import pandas as pd
 from . import _engine
 from ._common import SeriesLike, as_series, shape
 
+#: Canonical ATR lookback. Consumers that pass a fixed ATR window (chart-pattern
+#: zones, trendline tolerances) import this instead of restating ``14``.
+DEFAULT_ATR_PERIOD = 14
 
-def atr(high: SeriesLike, low: SeriesLike, close: SeriesLike, period: int = 14, *, full: bool = False):
+
+def atr(high: SeriesLike, low: SeriesLike, close: SeriesLike,
+        period: int = DEFAULT_ATR_PERIOD, *, full: bool = False):
     h, _ = as_series(high)
     l, _ = as_series(low)
     c, was_series = as_series(close)
