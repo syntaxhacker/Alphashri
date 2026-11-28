@@ -1,7 +1,7 @@
 {
   "feature": "market-vis",
   "route": "/screener?view=vis",
-  "head": "c8678717bb4a13425e871b948e68a2574354155b",
+  "head": "2b71dc2386b6ca4f98763953e00a796c54c07416",
   "viewports": [
     1600,
     390
