@@ -16,6 +16,8 @@ from bisect import bisect_right
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
+from trading.week52.math import ratio_gap_pct_from_52w_high
+
 from ._numeric import num as _num
 
 # ---------------------------------------------------------------------------
@@ -155,7 +157,7 @@ def _off_52w_high_from(close: float | None, high: float | None) -> float | None:
     """Distance of close below the 52-week high in percent."""
     if close is None or high is None or high <= 0:
         return None
-    return (close / high - 1.0) * 100.0
+    return ratio_gap_pct_from_52w_high(high, close)
 
 
 def _median(values: list[float]) -> float | None:

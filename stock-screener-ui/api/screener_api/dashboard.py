@@ -47,6 +47,7 @@ from fastapi import APIRouter, Query
 from api.utils import _sanitize_for_json
 from api.tv import SCREENER_COLUMNS
 from api.tv.cache import FrameDescriptor, invalidate, scan_frame_cached
+from trading.week52.math import pct_from_52w_low, signed_gap_pct_to_52w_high
 
 router = APIRouter(prefix="/api/screener", tags=["screener"])
 
@@ -165,13 +166,13 @@ def _fetch_sparks(symbols: list[str]) -> dict[str, list[float]]:
 def _to_52w_pct(close: Optional[float], high52: Optional[float]) -> Optional[float]:
     if close is None or high52 is None or high52 <= 0:
         return None
-    return (close - high52) / high52 * 100.0
+    return signed_gap_pct_to_52w_high(high52, close)
 
 
 def _from_52w_low_pct(close: Optional[float], low52: Optional[float]) -> Optional[float]:
     if close is None or low52 is None or low52 <= 0:
         return None
-    return (close - low52) / low52 * 100.0
+    return pct_from_52w_low(low52, close)
 
 
 def _build_row(

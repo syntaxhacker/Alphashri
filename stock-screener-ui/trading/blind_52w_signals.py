@@ -1,6 +1,7 @@
 from typing import Optional
 
 from trading.orb_signals import ORBSignal, SignalType
+from trading.week52.math import gap_pct_to_52w_high_unrounded
 from trading.week52_utils import Base52WSignalGenerator
 
 
@@ -31,7 +32,7 @@ class Blind52WSignalGenerator(Base52WSignalGenerator):
         if current_price >= high_52w:
             return None
 
-        pct_from_high = (high_52w - current_price) / high_52w * 100
+        pct_from_high = gap_pct_to_52w_high_unrounded(high_52w, current_price)
 
         if pct_from_high > self.near_high_threshold_pct:
             return None

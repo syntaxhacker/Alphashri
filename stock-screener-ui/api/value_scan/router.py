@@ -7,6 +7,8 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
+from trading.week52.math import signed_gap_pct_to_52w_high
+
 from ._numeric import num_or_none as _num
 from .cache import get_scored_frame
 from .tv_source import MARKET_CURRENCY, MARKETS, TvSourceError
@@ -46,7 +48,7 @@ def _off_52w_high(row: dict[str, Any]) -> Optional[float]:
     high = _num(row.get("price_52_week_high"))
     if price is None or not high:
         return None
-    return (price - high) / high * 100.0
+    return signed_gap_pct_to_52w_high(high, price)
 
 
 def _shape_row(row: dict[str, Any]) -> dict[str, Any]:

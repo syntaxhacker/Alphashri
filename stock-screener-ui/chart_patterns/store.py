@@ -13,6 +13,8 @@ from typing import Any, Iterable, Optional
 
 from sqlalchemy import case, func, literal
 
+from trading.week52.math import rounded_gap_pct_to_52w_high
+
 logger = logging.getLogger(__name__)
 
 from db.database import SessionLocal
@@ -589,7 +591,7 @@ def _attach_52w_gaps(session, items: list) -> None:
     for symbol, high, close in rows:
         try:
             if high:
-                gaps[str(symbol).upper()] = round(((high - close) / high) * 100, 2)
+                gaps[str(symbol).upper()] = rounded_gap_pct_to_52w_high(high, close)
         except (TypeError, ZeroDivisionError, ArithmeticError):
             continue
     for item in items:

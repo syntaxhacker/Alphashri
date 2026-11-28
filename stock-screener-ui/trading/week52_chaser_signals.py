@@ -13,6 +13,7 @@ import math
 from typing import Dict, List, Optional
 
 from trading.orb_signals import ORBSignal, SignalType
+from trading.week52.math import signed_gap_pct_to_52w_high
 from trading.week52_utils import Base52WSignalGenerator, calculate_52w_high
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ class Week52ChaserSignalGenerator(Base52WSignalGenerator):
 
         # Chaser enters on confirmed breakout: price must be min_breakout_pct above the 52W high
         # (ensures SL at 52W high gives ~min_breakout_pct room) and not more than entry_threshold_pct above
-        pct_above = ((current_price - high_52w) / high_52w) * 100
+        pct_above = signed_gap_pct_to_52w_high(high_52w, current_price)
         if pct_above < self.min_breakout_pct or pct_above > self.entry_threshold_pct:
             return None
 
