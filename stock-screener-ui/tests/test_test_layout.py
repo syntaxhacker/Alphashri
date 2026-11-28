@@ -25,7 +25,6 @@ PRUNED_DIRS = {
 LEGACY_PYTHON_TEST_ROOTS = {
     "experiments": "research experiments run explicitly",
     "scripts": "standalone tool self-checks",
-    "edge_scanner_tv": "separate tool with its own tests/ directory",
     ".prime": "agent skill tests, run explicitly",
 }
 

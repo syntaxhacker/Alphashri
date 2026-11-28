@@ -47,7 +47,7 @@ tests/
 └── *.md                        # scenario/results/gap notes + this map
 ```
 
-**Ownership rule:** new Python tests go under `tests/` (or an existing subdirectory); new Playwright specs go under `tests/e2e/`. Do not scatter `test_*.py` into `api/`, `trading/`, `backtest/`, or the repo root — `pytest.ini` sets `testpaths = tests`, so those files would not be collected. The layout guard enforces this. Standalone test files in `experiments/`, `scripts/`, `edge_scanner_tv/`, and `.prime/` are intentional exceptions (research/tool/skill self-checks run explicitly).
+**Ownership rule:** new Python tests go under `tests/` (or an existing subdirectory); new Playwright specs go under `tests/e2e/`. Do not scatter `test_*.py` into `api/`, `trading/`, `backtest/`, or the repo root — `pytest.ini` sets `testpaths = tests`, so those files would not be collected. The layout guard enforces this. Standalone test files in `experiments/`, `scripts/`, and `.prime/` are intentional exceptions (research/tool/skill self-checks run explicitly).
 
 ## Test split
 

@@ -1,6 +1,6 @@
 # Market / Home signal sections — native plan (2026-11-24)
 
-Goal: build **signal sections** (VWAP cross, momentum, ORB breakout, RVOL spike, 52W touch) natively in this app, with our own components, our own storage and our own backend adapter. **Nothing from `edge_scanner_tv` is imported, mounted, proxied or copied** — not its dashboard, not its Python modules, not its port 7777. Only the concept names are borrowed.
+Goal: build **signal sections** (VWAP cross, momentum, ORB breakout, RVOL spike, 52W touch) natively in this app, with our own components, our own storage and our own backend adapter. The standalone scanner tool has been removed from the repository; sections are implemented end-to-end in this app, with no imported, mounted or proxied external dashboard. Only the concept names are borrowed.
 
 > **Status (2026-11-25):** P0 done — descriptor types, single registry and starter presets with tests (`src/state/sections/{types,registry,presets}.ts`), and `src/state/sections/config.ts` now implements the `user.sections` savedConfig hook. P1 in flight — `SectionManagerModal.tsx` (CRUD, JSON, validation, 390px list Select) exists with tests, but has no mounted entry point yet. P2 backend adapter present (`api/sections/{service,fields,predicates}.py`, router being wired). P3 in flight — `SectionsView`/`SECTION_TABS` are defined in `MarketScreenerPanel.tsx` but not rendered, and `src/pages/home/homeSectionPanels.ts` currently fails to parse (JSX in a `.ts` file), so the Home picker is not usable. P4 (story / E2E / evidence / raters) not done. The CRUD acceptance cases are recorded in `tests/e2e/market-sections.spec.ts` against the shipped `section-*` testids, each skipped with the missing surface named until its entry point lands; verified TradingView field facts are in `docs/TV_USAGE.md`. This block records status only — the plan below is unchanged.
 
@@ -15,7 +15,7 @@ Goal: build **signal sections** (VWAP cross, momentum, ORB breakout, RVOL spike,
 | Backend | a NEW module under `api/` in this FastAPI app, using our existing market-data helpers (`market_data.market_data`, `api/tv`) |
 | Theme/type | `src/ui/palette.ts`, `text-ui-*` only, 12px floor, no raw hex, no `styles={{}}` |
 
-Explicitly excluded: `edge_scanner_tv/dashboard-v2/**`, `edge_scanner_tv/*.py`, `http://localhost:7777`, any iframe/proxy to that app, any vendored dashboard code.
+The former standalone tool and its dashboard are gone from the repository; no external dashboard code, iframe, proxy or localhost URL is part of this plan.
 
 ## One descriptor per concept
 
@@ -194,4 +194,4 @@ Rules: **no indicator math in Solid components** (`UI_RULES.md`); exactly **one 
 - Sections that need bar history (VWAP/ORB) are unavailable on snapshot-only payloads; the definition must name its required field family and show a reason-based empty state, never fabricated values.
 - Local-first storage: no cross-device sync until a backend scope is added — don't imply otherwise.
 - A deleted definition pinned in Home/Screener must degrade to a named empty state, not crash.
-- No dependency on the other app means we also don't inherit its alert engine; our adapter must implement the concepts from our own data, and its outputs must be tested against fixtures.
+- With the standalone tool removed, we do not inherit an alert engine; our adapter must implement the concepts from our own data, and its outputs must be tested against fixtures.
