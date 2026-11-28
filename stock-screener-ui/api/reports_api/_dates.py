@@ -7,11 +7,8 @@ a 500 on ``None`` or on a non-string value.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from fastapi import HTTPException
-
-from api.reports_api._time import today_str
 
 
 def validate_date(date_str: str) -> str:
@@ -29,20 +26,3 @@ def validate_date(date_str: str) -> str:
             detail=f"bad date: {date_str!r}, want YYYY-MM-DD",
         )
     return text
-
-
-def parse_day(value: Optional[str], *, default_today: bool = True) -> str:
-    """Parse ``YYYY-MM-DD`` (first 10 chars) or fall back to today.
-
-    ``None`` / empty / unparseable -> today's IST date (``YYYY-MM-DD``) when
-    ``default_today`` is set, otherwise an empty string. One shared copy so
-    every report reader returns the same value; callers keep their private
-    names via ``from ... import parse_day as _parse_date``.
-    """
-    text = (value or "").strip()
-    if not text:
-        return today_str() if default_today else ""
-    try:
-        return datetime.strptime(text[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
-    except ValueError:
-        return today_str() if default_today else ""

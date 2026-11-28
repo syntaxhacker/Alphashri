@@ -1,4 +1,3 @@
-import logging
 from fastapi import APIRouter, Depends, HTTPException
 from db.database import SessionLocal, get_db
 from db.models import LLMRun, User
@@ -9,7 +8,6 @@ from typing import Dict, Any, List
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-logger = logging.getLogger(__name__)
 
 
 class LLMStats(BaseModel):
