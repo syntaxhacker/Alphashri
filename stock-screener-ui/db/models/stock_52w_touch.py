@@ -1,6 +1,5 @@
 """Model for tracking when stocks touch 52-week highs/lows."""
 import uuid
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, UniqueConstraint, Index
 from sqlalchemy.sql import func
 
