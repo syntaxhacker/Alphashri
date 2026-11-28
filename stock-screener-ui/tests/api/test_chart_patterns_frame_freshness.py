@@ -39,22 +39,8 @@ def _clean_caches(monkeypatch):
     cp_api._clear_read_caches()
 
 
-def _frame(closes, end: str) -> pd.DataFrame:
-    idx = pd.date_range(end=end, periods=len(closes), freq="D", tz="UTC")
-    return pd.DataFrame(
-        {
-            "open": closes,
-            "high": [c + 1 for c in closes],
-            "low": [c - 1 for c in closes],
-            "close": closes,
-            "volume": [1000.0] * len(closes),
-        },
-        index=idx,
-    )
-
-
-def _frame_hourly(closes, end: str) -> pd.DataFrame:
-    idx = pd.date_range(end=end, periods=len(closes), freq="h", tz="UTC")
+def _frame(closes, end: str, *, freq: str = "D") -> pd.DataFrame:
+    idx = pd.date_range(end=end, periods=len(closes), freq=freq, tz="UTC")
     return pd.DataFrame(
         {
             "open": closes,
@@ -193,13 +179,13 @@ def test_results_item_carries_close_bar_date_from_frame(monkeypatch):
 
 def test_intraday_frame_bar_date_converted_to_ist(monkeypatch):
     """08:45 UTC on 16 Nov is 14:15 IST — same date; 18:45 UTC rolls to the next."""
-    df = _frame_hourly([100.0, 101.0, 102.0], "2026-11-16T08:45:00")
+    df = _frame([100.0, 101.0, 102.0], "2026-11-16T08:45:00", freq="h")
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
 
     out = cp_api._enrich_with_candles([{"symbol": "TEST", "timeframe": "1h"}], "1h")
 
     assert out[0]["close_bar_date"] == "2026-11-16"
-    assert cp_api._close_bar_date(_frame_hourly([100.0, 102.0], "2026-11-16T18:45:00")) == "2026-11-17"
+    assert cp_api._close_bar_date(_frame([100.0, 102.0], "2026-11-16T18:45:00", freq="h")) == "2026-11-17"
 
 
 def test_symbol_header_carries_close_bar_date(monkeypatch):
@@ -256,7 +242,7 @@ def test_matrix_uses_newest_frame_date_with_its_close():
     cp_api._remember_frame(("KAYNES", "1D"), _frame([3300.0, 3430.0], "2026-11-13"), 3430.0, 1.42)
     cp_api._remember_frame(
         ("KAYNES", "1h"),
-        _frame_hourly([100.0, 102.0], "2026-11-16T08:45:00"),
+        _frame([100.0, 102.0], "2026-11-16T08:45:00", freq="h"),
         102.0, 2.0,
     )
     stale = _stale_item()
@@ -1044,7 +1030,7 @@ def test_network_path_carries_freshness_keys(monkeypatch, tmp_path):
 def test_network_path_intraday_current_without_expected_date(monkeypatch, tmp_path):
     """Intraday has no expected session date: a plain fetch reports a valid
     as_of with stale:false and no expected_as_of — the same freshness keys."""
-    frame = _frame_hourly([100.0, 101.0, 102.0], "2026-11-16T08:45:00")
+    frame = _frame([100.0, 101.0, 102.0], "2026-11-16T08:45:00", freq="h")
     monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame)
     monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])

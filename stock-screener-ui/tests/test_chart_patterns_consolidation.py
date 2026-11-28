@@ -20,23 +20,7 @@ from sqlalchemy.orm import sessionmaker
 from chart_patterns import features as F
 from chart_patterns import store
 from chart_patterns.detectors.consolidation import detect_consolidation
-
-_INDEX = pd.date_range("2024-01-01", periods=400, freq="D", tz="UTC")
-
-
-def frame(closes, spread: float = 0.5) -> pd.DataFrame:
-    close = np.asarray(closes, dtype=float)
-    n = len(close)
-    return pd.DataFrame(
-        {
-            "open": np.concatenate([[close[0]], close[:-1]]),
-            "high": close + spread,
-            "low": close - spread,
-            "close": close,
-            "volume": np.full(n, 1000.0),
-        },
-        index=_INDEX[:n],
-    )
+from tests.helpers.chart_frames import INDEX as _INDEX, frame
 
 
 def base_frame(n: int = 140, level: float = 100.0, half: float = 2.0) -> pd.DataFrame:
