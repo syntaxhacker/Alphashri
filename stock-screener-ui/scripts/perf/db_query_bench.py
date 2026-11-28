@@ -21,7 +21,6 @@ import os
 import random
 import re
 import sqlite3
-import statistics
 import sys
 import time
 from dataclasses import dataclass

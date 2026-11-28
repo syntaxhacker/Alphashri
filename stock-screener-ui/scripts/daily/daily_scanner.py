@@ -6,7 +6,7 @@ from typing import List
 from rich.console import Console
 from rich.table import Table
 
-from trading.orb_signals import SignalType, create_entry_signal
+from trading.orb_signals import create_entry_signal
 
 console = Console()
 

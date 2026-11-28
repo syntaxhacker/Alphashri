@@ -25,7 +25,6 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
-import statistics
 import sys
 
 import pandas as pd

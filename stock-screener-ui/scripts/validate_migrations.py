@@ -13,7 +13,6 @@ Exit: 0 = valid, 1 = invalid
 """
 
 import ast
-import os
 import sys
 from pathlib import Path
 
