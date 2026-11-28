@@ -22,6 +22,7 @@ from market_levels import (
     level_id,
     register,
 )
+from trading.indicators import DEFAULT_ATR_PERIOD
 
 SPEC = DetectorSpec(
     id="trendline",
@@ -39,7 +40,7 @@ SPEC = DetectorSpec(
 )
 
 LOOKBACK_BARS = 400
-ATR_PERIOD = 14
+ATR_PERIOD = DEFAULT_ATR_PERIOD
 PIVOT_LEFT = 2
 PIVOT_RIGHT = 2
 DEFAULT_PIVOTS = 4
