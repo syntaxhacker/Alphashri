@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from chart_patterns import indicators
+from scripts.perf import bench_indicators
 
 
 def _candle(t, price, volume=100.0, *, o=None, h=None, l=None, c=None):
@@ -501,3 +505,71 @@ def test_resampled_3h_4h_vwap_anchors_at_session_open():
             if candle["t"].startswith("2026-01-06")
         )
         assert vwap[first_second] == pytest.approx(expected[first_second])
+
+
+# --- CI golden for the #330 byte-parity win --------------------------------
+
+
+_GOLDEN_PATH = Path(__file__).parent / "fixtures" / "indicators_serialized_golden.json"
+
+
+def _rounded(value):
+    return None if value is None else round(float(value), 6)
+
+
+def _series_summary(series: dict) -> dict:
+    """Structure, null positions and 6-dp coarse values; no exact float bits."""
+    values = series["values"]
+    n = len(values)
+    finite = [value for value in values if value is not None]
+    mask = "".join("1" if value is None else "0" for value in values)
+    sample_at = (n // 6, n // 3, n // 2, 2 * n // 3, 5 * n // 6)
+    return {
+        "id": series["id"],
+        "bars": n,
+        "mask": hashlib.sha256(mask.encode("ascii")).hexdigest(),
+        "min": _rounded(min(finite)) if finite else None,
+        "max": _rounded(max(finite)) if finite else None,
+        "first": _rounded(values[0]) if n else None,
+        "last": _rounded(values[-1]) if n else None,
+        "samples": [_rounded(values[i]) for i in sample_at],
+    }
+
+
+@pytest.mark.unit
+def test_seeded_candles_serialized_indicators_golden_all_timeframes():
+    """Pin the 11-timeframe indicator contract without pinning numpy float bits.
+
+    Byte-level equality is proven by ``bench_indicators --compare`` at PR time,
+    not by this CI guard: numpy builds differ in RNG streams and summation, so
+    exact float digests fail across shards for identical code. Only structure,
+    null positions and values rounded to 6 dp (far above ~1e-12 summation
+    noise) are pinned here -- enough to catch window, column, alignment and
+    algorithm drift.
+    """
+    golden = json.loads(_GOLDEN_PATH.read_text(encoding="utf-8"))
+    want = golden["timeframes"]
+    actual = {
+        tf: bench_indicators._compute(case)
+        for tf, case in bench_indicators.cases().items()
+    }
+
+    assert golden["seed"] == bench_indicators.SEED
+    assert golden["warmup_bars"] == bench_indicators.WARMUP_BARS
+    assert set(actual) == set(want) == set(bench_indicators.enabled_timeframes())
+
+    for tf, expected in want.items():
+        got = actual[tf]
+        where = f"{tf} golden payload"
+        assert got["aligned"] == expected["aligned"] == "candles", where
+        assert got["timeframe"] == tf, where
+        assert got["session"] == expected["session"] == bench_indicators.IST, where
+        assert got["partial_last"] is expected["partial_last"], where
+        assert [(s["id"], len(s["values"])) for s in got["series"]] == [
+            (s["id"], s["bars"]) for s in expected["series"]
+        ], f"{where}: series names/lengths"
+        assert [_series_summary(s) for s in got["series"]] == expected["series"], where
+        assert got["crosses"] == expected["crosses"], f"{where}: crosses"
+        assert len(got["crosses"]) == expected["crosses_count"], (
+            f"{where}: crosses count"
+        )
