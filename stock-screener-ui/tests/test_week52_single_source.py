@@ -24,8 +24,12 @@ from trading.week52 import keys as canonical_keys
 from trading.week52 import math as canonical_math
 from trading.week52 import ranges as canonical_ranges
 from trading.week52 import upsert as canonical_upsert
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from tests.helpers.source_ast import (
+    PROJECT_ROOT,
+    definitions as _definitions,
+    source as _source,
+    tree as _tree,
+)
 
 CONFIG_PATH = "trading/week52/config.py"
 ENV_PREFIXES = ("SCREENER_52W_", "SCREENER_TOUCH_", "SCREENER_RETEST_")
@@ -91,14 +95,6 @@ BANNED_ORCHESTRATOR_NAMES = {
 }
 
 
-def _source(rel: str) -> str:
-    return (PROJECT_ROOT / rel).read_text(encoding="utf-8")
-
-
-def _tree(rel: str) -> ast.Module:
-    return ast.parse(_source(rel), filename=rel)
-
-
 def _production_modules() -> list[tuple[str, Path]]:
     """Production Python modules owned by the 52W duplication surface."""
     modules: list[tuple[str, Path]] = []
@@ -152,14 +148,6 @@ def _imported_from(tree: ast.AST, module: str) -> set[str]:
         for node in ast.walk(tree)
         if isinstance(node, ast.ImportFrom) and node.module == module
         for alias in node.names
-    }
-
-
-def _definitions(tree: ast.AST) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
-    return {
-        node.name: node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
 
 

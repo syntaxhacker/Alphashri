@@ -3,7 +3,7 @@ Tests for trading/utils.py - unified is_market_open with holiday support.
 """
 
 import sys
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +13,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from trading.timezone import IST
+from trading.utils import (
+    DERIVATIVES_CLOSE,
+    MARKET_CLOSE,
+    MARKET_OPEN,
+    PRE_MARKET,
+)
 
 
 class TestIsMarketOpen:
@@ -49,28 +55,28 @@ class TestIsMarketOpen:
     @patch("trading.utils._get_cache")
     def test_returns_false_before_open(self, mock_cache):
         mock_cache.return_value = {"trading": set(), "clearing": set()}
-        dt = datetime(2026, 1, 20, 9, 0, tzinfo=IST)  # 09:00 - before 09:15
+        dt = datetime(2026, 1, 20, *PRE_MARKET, tzinfo=IST)  # before MARKET_OPEN
         from trading.utils import is_market_open
         assert is_market_open(dt) is False
 
     @patch("trading.utils._get_cache")
     def test_returns_false_after_close(self, mock_cache):
         mock_cache.return_value = {"trading": set(), "clearing": set()}
-        dt = datetime(2026, 1, 20, 15, 31, tzinfo=IST)  # 15:31 - after 15:30
+        dt = datetime(2026, 1, 20, *MARKET_CLOSE, tzinfo=IST) + timedelta(minutes=1)  # just after MARKET_CLOSE
         from trading.utils import is_market_open
         assert is_market_open(dt) is False
 
     @patch("trading.utils._get_cache")
     def test_returns_true_at_open_time(self, mock_cache):
         mock_cache.return_value = {"trading": set(), "clearing": set()}
-        dt = datetime(2026, 1, 20, 9, 15, tzinfo=IST)  # Exactly 09:15
+        dt = datetime(2026, 1, 20, *MARKET_OPEN, tzinfo=IST)  # exactly MARKET_OPEN
         from trading.utils import is_market_open
         assert is_market_open(dt) is True
 
     @patch("trading.utils._get_cache")
     def test_returns_true_at_close_time(self, mock_cache):
         mock_cache.return_value = {"trading": set(), "clearing": set()}
-        dt = datetime(2026, 1, 20, 15, 30, tzinfo=IST)  # Exactly 15:30
+        dt = datetime(2026, 1, 20, *MARKET_CLOSE, tzinfo=IST)  # exactly MARKET_CLOSE
         from trading.utils import is_market_open
         assert is_market_open(dt) is True
 
@@ -172,35 +178,35 @@ class TestIsDerivativesOpen:
     @patch("trading.utils._get_cache")
     def test_returns_false_before_open(self, mock_cache):
         mock_cache.return_value = {"trading": set(), "clearing": set()}
-        dt = datetime(2026, 1, 20, 9, 0, tzinfo=IST)  # 09:00 - before 09:15
+        dt = datetime(2026, 1, 20, *PRE_MARKET, tzinfo=IST)  # before MARKET_OPEN
         from trading.utils import is_derivatives_open
         assert is_derivatives_open(dt) is False
 
     @patch("trading.utils._get_cache")
     def test_returns_false_after_close(self, mock_cache):
         mock_cache.return_value = {"trading": set(), "clearing": set()}
-        dt = datetime(2026, 1, 20, 15, 41, tzinfo=IST)  # 15:41 - after 15:40
+        dt = datetime(2026, 1, 20, *DERIVATIVES_CLOSE, tzinfo=IST) + timedelta(minutes=1)  # just after DERIVATIVES_CLOSE
         from trading.utils import is_derivatives_open
         assert is_derivatives_open(dt) is False
 
     @patch("trading.utils._get_cache")
     def test_returns_true_at_open_time(self, mock_cache):
         mock_cache.return_value = {"trading": set(), "clearing": set()}
-        dt = datetime(2026, 1, 20, 9, 15, tzinfo=IST)  # Exactly 09:15
+        dt = datetime(2026, 1, 20, *MARKET_OPEN, tzinfo=IST)  # exactly MARKET_OPEN
         from trading.utils import is_derivatives_open
         assert is_derivatives_open(dt) is True
 
     @patch("trading.utils._get_cache")
     def test_returns_true_at_close_time(self, mock_cache):
         mock_cache.return_value = {"trading": set(), "clearing": set()}
-        dt = datetime(2026, 1, 20, 15, 40, tzinfo=IST)  # Exactly 15:40
+        dt = datetime(2026, 1, 20, *DERIVATIVES_CLOSE, tzinfo=IST)  # exactly DERIVATIVES_CLOSE
         from trading.utils import is_derivatives_open
         assert is_derivatives_open(dt) is True
 
     @patch("trading.utils._get_cache")
     def test_returns_false_one_minute_after_close(self, mock_cache):
         mock_cache.return_value = {"trading": set(), "clearing": set()}
-        dt = datetime(2026, 1, 20, 15, 41, tzinfo=IST)  # 15:41
+        dt = datetime(2026, 1, 20, *DERIVATIVES_CLOSE, tzinfo=IST) + timedelta(minutes=1)
         from trading.utils import is_derivatives_open
         assert is_derivatives_open(dt) is False
 

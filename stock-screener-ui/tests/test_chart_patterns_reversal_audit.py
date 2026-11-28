@@ -17,13 +17,11 @@ For every pattern we assert:
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from chart_patterns import features as F
 from chart_patterns.detectors.common import DETECTORS, PATTERN_CATALOG, fmt_date
-
-_INDEX = pd.date_range("2024-01-01", periods=400, freq="D", tz="UTC")
+from tests.helpers.chart_frames import INDEX as _INDEX, frame
 
 REVERSAL = {
     "falling_wedge",
@@ -45,21 +43,6 @@ BULLISH = {
 }
 
 
-
-
-def frame(closes, spread: float = 0.5) -> pd.DataFrame:
-    close = np.asarray(closes, dtype=float)
-    n = len(close)
-    return pd.DataFrame(
-        {
-            "open": np.concatenate([[close[0]], close[:-1]]),
-            "high": close + spread,
-            "low": close - spread,
-            "close": close,
-            "volume": np.full(n, 1000.0),
-        },
-        index=_INDEX[:n],
-    )
 
 
 def interp(anchors, n: int) -> np.ndarray:

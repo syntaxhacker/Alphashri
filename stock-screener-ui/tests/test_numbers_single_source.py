@@ -15,8 +15,12 @@ from pathlib import Path
 import pytest
 
 import common.numbers as numbers
+from tests.helpers.source_ast import (
+    PROJECT_ROOT,
+    definitions as _definitions,
+    tree as _tree,
+)
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_PATH = "common/numbers.py"
 CANONICAL_MODULE = "common.numbers"
 TARGET_NAMES = {"to_float", "optional_float", "finite_or_none"}
@@ -64,10 +68,6 @@ NAN = float("nan")
 INF = float("inf")
 
 
-def _tree(rel: str) -> ast.Module:
-    return ast.parse((PROJECT_ROOT / rel).read_text(encoding="utf-8"), filename=rel)
-
-
 def _production_modules(paths: tuple[str, ...] = PRODUCTION_PATHS) -> list[tuple[str, Path]]:
     modules = []
     for rel in paths:
@@ -77,14 +77,6 @@ def _production_modules(paths: tuple[str, ...] = PRODUCTION_PATHS) -> list[tuple
                 continue
             modules.append(("/".join(parts), file))
     return modules
-
-
-def _definitions(tree: ast.AST) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
-    return {
-        node.name: node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
 
 
 def _canonical_aliases(tree: ast.AST, name: str) -> set[str]:
