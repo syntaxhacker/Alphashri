@@ -88,12 +88,14 @@ INDEX_ALIASES: dict[str, tuple[str, str]] = {
 #: ``api.options.AVAILABLE_UNDERLYINGS`` table is derived from it so the two
 #: registries cannot drift. NIFTY's 65 is what GEX already computes with (23
 #: consecutive exchange prints were exact multiples of 65; it was 25).
+#: Index option premiums tick at ₹0.05 for all these symbols; the 0.05/0.10/0.20
+#: ladder applies to index FUTURES only (NSE/FAOP/73928; BSE SENSEX OPTIONS spec).
 INDEX_CONTRACT_META: dict[str, dict] = {
     "NIFTY": {"name": "Nifty 50", "lot_size": 65, "tick_size": 0.05},
-    "BANKNIFTY": {"name": "Nifty Bank", "lot_size": 15, "tick_size": 1.05},
-    "FINNIFTY": {"name": "Nifty Fin Service", "lot_size": 25, "tick_size": 1.05},
+    "BANKNIFTY": {"name": "Nifty Bank", "lot_size": 15, "tick_size": 0.05},
+    "FINNIFTY": {"name": "Nifty Fin Service", "lot_size": 25, "tick_size": 0.05},
     "MIDCPNIFTY": {"name": "NIFTY MID SELECT", "lot_size": 50, "tick_size": 0.05},
-    "SENSEX": {"name": "BSE Sensex", "lot_size": 20, "tick_size": 5.0},
+    "SENSEX": {"name": "BSE Sensex", "lot_size": 20, "tick_size": 0.05},
 }
 
 

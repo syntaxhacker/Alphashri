@@ -103,12 +103,10 @@ DEFAULT_LOT_POLICY = "master"     # "master" (instrument table) | "report" (opte
 REPORT_LOT_OVERRIDE: dict[str, int] = {"NIFTY": 75}
 
 # Tick sizes (minimum premium increment), from the instruments master / NSE.
+# Index option ticks alias the canonical registry, as INDEX_LOTS does above;
+# a contract outside it would keep a verified literal here (none today).
 TICK_SIZES: dict[str, float] = {
-    "NIFTY": 0.05,
-    "BANKNIFTY": 0.05,
-    "FINNIFTY": 0.05,
-    "MIDCPNIFTY": 0.05,
-    "SENSEX": 0.05,
+    **{symbol: INDEX_CONTRACT_META[symbol]["tick_size"] for symbol in INDEX_CONTRACT_META},
 }
 
 # --------------------------------------------------------------------------

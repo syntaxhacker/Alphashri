@@ -563,12 +563,14 @@ class TestRegistryPin:
         """Guard the exact public payload values against accidental edits."""
         from api.options import AVAILABLE_UNDERLYINGS
 
+        # Ticks corrected to ₹0.05: index OPTION premium tick (NSE/FAOP/73928;
+        # BSE SENSEX OPTIONS contract spec). The 0.05/0.10/0.20 ladder is futures-only.
         expected = {
             "NIFTY": ("NSE_INDEX|Nifty 50", "Nifty 50", 65, 0.05),
-            "BANKNIFTY": ("NSE_INDEX|Nifty Bank", "Nifty Bank", 15, 1.05),
-            "FINNIFTY": ("NSE_INDEX|Nifty Fin Service", "Nifty Fin Service", 25, 1.05),
+            "BANKNIFTY": ("NSE_INDEX|Nifty Bank", "Nifty Bank", 15, 0.05),
+            "FINNIFTY": ("NSE_INDEX|Nifty Fin Service", "Nifty Fin Service", 25, 0.05),
             "MIDCPNIFTY": ("NSE_INDEX|NIFTY MID SELECT", "NIFTY MID SELECT", 50, 0.05),
-            "SENSEX": ("BSE_INDEX|SENSEX", "BSE Sensex", 20, 5.0),
+            "SENSEX": ("BSE_INDEX|SENSEX", "BSE Sensex", 20, 0.05),
         }
         assert {
             entry["symbol"]: (
