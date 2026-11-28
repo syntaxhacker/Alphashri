@@ -297,11 +297,10 @@ def ema(values: list[float], period: int) -> Optional[float]:
     """Exponential moving average seeded with the first ``period`` mean."""
     if period <= 0 or len(values) < period:
         return None
-    k = 2.0 / (period + 1.0)
-    e = sum(values[:period]) / period
-    for v in values[period:]:
-        e = v * k + e * (1.0 - k)
-    return e
+    # Lazy import: this report module stays free of pandas/pandas-ta at load.
+    from trading.indicators import ema_sma_seed
+
+    return ema_sma_seed(values, period)
 
 
 def ema_series(values: list, period: int) -> list[Optional[float]]:
@@ -312,32 +311,9 @@ def ema_series(values: list, period: int) -> list[Optional[float]]:
     where the close is missing/``None`` — are ``None``; the tail equals
     ``ema(values, period)`` when every close is present.
     """
-    n = len(values or [])
-    out: list[Optional[float]] = [None] * n
-    if period <= 0 or n == 0:
-        return out
-    valid_idx: list[int] = []
-    valid_vals: list[float] = []
-    for i, v in enumerate(values):
-        if v is None:
-            continue
-        try:
-            valid_vals.append(float(v))
-        except (TypeError, ValueError):
-            continue
-        else:
-            valid_idx.append(i)
-    if len(valid_vals) < period:
-        return out
-    k = 2.0 / (period + 1.0)
-    e = sum(valid_vals[:period]) / period
-    seq: list[Optional[float]] = [None] * (period - 1) + [e]
-    for v in valid_vals[period:]:
-        e = v * k + e * (1.0 - k)
-        seq.append(e)
-    for j, idx in enumerate(valid_idx):
-        out[idx] = seq[j]
-    return out
+    from trading.indicators import ema_sma_seed
+
+    return ema_sma_seed(values, period, full=True)
 
 
 def rsi_wilder(closes: list[float], period: int = 14) -> Optional[float]:
@@ -345,18 +321,9 @@ def rsi_wilder(closes: list[float], period: int = 14) -> Optional[float]:
 
     A flat/rising series with zero average loss pins RSI at 100.
     """
-    if period <= 0 or len(closes) < period + 1:
-        return None
-    deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
-    avg_gain = sum(max(d, 0.0) for d in deltas[:period]) / period
-    avg_loss = sum(max(-d, 0.0) for d in deltas[:period]) / period
-    for d in deltas[period:]:
-        avg_gain = (avg_gain * (period - 1) + max(d, 0.0)) / period
-        avg_loss = (avg_loss * (period - 1) + max(-d, 0.0)) / period
-    if avg_loss == 0:
-        return 100.0
-    rs = avg_gain / avg_loss
-    return 100.0 - 100.0 / (1.0 + rs)
+    from trading.indicators import rsi_wilder as _rsi_wilder
+
+    return _rsi_wilder(closes, period)
 
 
 def _closes(candles: Optional[list[dict]]) -> list[float]:

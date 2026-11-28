@@ -173,19 +173,15 @@ def _ema_cross_series(closes: list[float]) -> tuple[list[float], list[float]]:
     with the first close) without paying ~0.5 ms of pandas dispatch per symbol
     on a cache-miss universe scan.
     """
+    from trading.indicators import ema_first_close
+
     values = list(closes or [])
     if not values:
         return [], []
-
-    def ema(span: int) -> list[float]:
-        alpha = 2.0 / (span + 1.0)
-        series = [float(values[0])]
-        append = series.append
-        for value in values[1:]:
-            append(alpha * float(value) + (1.0 - alpha) * series[-1])
-        return series
-
-    return ema(12), ema(26)
+    return (
+        ema_first_close(values, 12, full=True),
+        ema_first_close(values, 26, full=True),
+    )
 
 
 def _signal_at(
