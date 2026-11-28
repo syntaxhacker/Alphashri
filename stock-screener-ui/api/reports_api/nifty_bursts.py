@@ -39,7 +39,7 @@ from api.options_underlying import index_lot_size
 from api.reports_api._numeric import safe_float
 from api.reports_api._time import minutes_between as _gap_minutes
 from api.reports_api._time import seconds_between as _gap_seconds
-from api.reports_api.nifty_fuel import basis_text, fuel_state, plan_allowed
+from api.reports_api.nifty_fuel import fuel_state, plan_allowed
 
 OI_BURST_WINDOW = 10
 OI_BURST_MIN_ABS = 2_000
