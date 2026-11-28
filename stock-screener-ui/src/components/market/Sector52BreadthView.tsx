@@ -1,8 +1,10 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { Box, SegmentedControl, Text, ToolbarRow } from "@/ui";
+import { Box, SegmentedControl, Text } from "@/ui";
 import { VIZ_BG, VIZ_GRID, VIZ_MUTED, VIZ_PANEL, VIZ_SCALE_PNL, VIZ_TEXT } from "@/ui/palette";
 import type { MarketRow } from "@/types/marketScreener";
 import type { VisRenderProps } from "./MarketMapView";
+import { VisEmpty, VisFrame, VisToolbar } from "./vis/VisFrame";
+import { isFiniteNumber } from "./vis/visScale";
 
 /**
  * Market → Vis "52W breadth": a horizontal bar chart (the D3 gallery "Bar
@@ -20,9 +22,6 @@ export const SECTOR_52W_BREADTH_OPTIONS = [
 
 const NEAR_HIGH_CUTOFF = -5;
 const NEAR_LOW_CUTOFF = 10;
-
-const isFiniteNumber = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value);
 
 export function median(values: number[]): number {
   if (values.length === 0) return 0;
@@ -97,18 +96,8 @@ export function Sector52BreadthView(props: VisRenderProps) {
   );
 
   return (
-    <Box
-      className="flex-1 min-w-0 min-h-0 flex flex-col"
-      style={{ "background-color": VIZ_BG, color: VIZ_TEXT }}
-      data-testid="sector-52w-breadth-view"
-    >
-      <ToolbarRow
-        gap={8}
-        wrap={false}
-        className="h-10 flex-shrink-0 border-b px-2"
-        style={{ "border-color": VIZ_GRID }}
-        data-testid="sector-52w-breadth-toolbar"
-      >
+    <VisFrame testId="sector-52w-breadth-view">
+      <VisToolbar testId="sector-52w-breadth-toolbar">
         <SegmentedControl
           size="xs"
           value={mode()}
@@ -126,20 +115,11 @@ export function Sector52BreadthView(props: VisRenderProps) {
         <Text span size="xs" c={VIZ_MUTED} data-testid="sector-52w-breadth-count">
           {breadth().length} sectors
         </Text>
-      </ToolbarRow>
+      </VisToolbar>
 
       <Show
         when={breadth().length > 0}
-        fallback={
-          <Box
-            className="flex-1 min-w-0 min-h-0 flex items-center justify-center p-4"
-            data-testid="sector-52w-breadth-empty"
-          >
-            <Text span size="sm" c={VIZ_MUTED}>
-              No 52-week breadth data.
-            </Text>
-          </Box>
-        }
+        fallback={<VisEmpty message="No 52-week breadth data." testId="sector-52w-breadth-empty" />}
       >
         <Box
           className="flex-1 min-w-0 min-h-0 flex flex-col overflow-auto gap-1 p-2"
@@ -207,6 +187,6 @@ export function Sector52BreadthView(props: VisRenderProps) {
           </For>
         </Box>
       </Show>
-    </Box>
+    </VisFrame>
   );
 }

@@ -7,13 +7,16 @@ import {
   VIZ_GRID,
   VIZ_MUTED,
   VIZ_PANEL,
-  VIZ_SCALE_PNL,
   VIZ_TEXT,
   VIZ_UP,
   VIZ_DOWN,
 } from "@/ui/palette";
 import type { MarketRow } from "@/types/marketScreener";
 import type { VisRenderProps } from "./MarketMapView";
+import { VisTitle } from "./vis/VisFrame";
+import { isFiniteNumber as finite, vizPnlColor as pnlScaleColor } from "./vis/visScale";
+
+export { pnlScaleColor };
 
 /**
  * Market → Vis "52-week range": the D3 gallery's Range plot / Dot plot form —
@@ -30,7 +33,6 @@ const INITIAL_ROWS = 150;
 const LOAD_STEP = 150;
 const MAX_CEILING = 600;
 const BIN_COUNT = 10;
-const NEUTRAL_STOP = 4;
 
 export const RANGE52_FILTERS = [
   { id: "all", label: "All", threshold: null },
@@ -39,9 +41,6 @@ export const RANGE52_FILTERS = [
   { id: "10", label: "within 10%", threshold: 10 },
 ] as const;
 export type Range52Filter = (typeof RANGE52_FILTERS)[number]["id"];
-
-const finite = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value);
 
 type RangedRow = MarketRow & { close: number; high52w: number; low52w: number };
 
@@ -96,15 +95,6 @@ export function toHighText(row: MarketRow): string {
 export function positionText(row: MarketRow): string {
   const value = positionPct(row);
   return value === null ? "n/a" : formatPct(value, 0);
-}
-
-/** Loss red → neutral → gain green; never invert the P&L direction. */
-export function pnlScaleColor(change: number | null, extent: number): string {
-  if (!finite(change)) return VIZ_SCALE_PNL[NEUTRAL_STOP];
-  const span = finite(extent) && extent > 0 ? extent : 1;
-  const t = Math.max(-1, Math.min(1, change / span));
-  const index = Math.round(((t + 1) / 2) * (VIZ_SCALE_PNL.length - 1));
-  return VIZ_SCALE_PNL[index];
 }
 
 export interface PosHistogram {
@@ -213,9 +203,7 @@ export function Range52View(props: VisRenderProps) {
         style={{ "border-bottom": `1px solid ${VIZ_GRID}` }}
         data-testid="range52-toolbar"
       >
-        <Text size="xs" fw={600} c={VIZ_TEXT} className="whitespace-nowrap">
-          52-week range
-        </Text>
+        <VisTitle>52-week range</VisTitle>
         {/* Four unshrinkable chips clipped the count at 390px; one bounded,
             scrollable rail keeps every proximity option reachable. The unit
             label cannot share this cell: the rail's scroll cue covered it. */}

@@ -17,19 +17,26 @@ import {
   VIZ_GRID,
   VIZ_MUTED,
   VIZ_PANEL,
-  VIZ_SCALE_PNL,
   VIZ_TEXT,
   VIZ_UP,
 } from "@/ui/palette";
 import type { MarketRow } from "@/types/marketScreener";
 import type { VisRenderProps } from "./MarketMapView";
+import { VisFrame, VisTitle } from "./vis/VisFrame";
+import {
+  formatSignedPct as formatChange,
+  isFiniteNumber as finite,
+  pnlRampCss,
+  vizPnlColor as relVolColor,
+} from "./vis/visScale";
+
+export { formatChange, relVolColor };
 
 const EMPTY: MarketRow[] = [];
 
 /** Top-N only: a full universe of lollipops is unreadable. */
 export const REL_VOL_LIMIT = 50;
 export const REL_VOL_THRESHOLD = 2;
-const NEUTRAL_STOP = 4;
 
 export const REL_VOL_FILTERS = [
   { id: "all", label: "All", threshold: null },
@@ -37,9 +44,6 @@ export const REL_VOL_FILTERS = [
   { id: "gte3", label: "≥3×", threshold: 3 },
 ] as const;
 export type RelVolFilter = (typeof REL_VOL_FILTERS)[number]["id"];
-
-const finite = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value);
 
 /** Loosely typed rows can carry nulls/non-numbers; only a finite rel-vol qualifies. */
 export function hasRelVol(row: MarketRow): boolean {
@@ -67,22 +71,6 @@ export function filterRelVolRows(rows: MarketRow[], filter: string): MarketRow[]
 /** One decimal plus the × unit, e.g. `3.4×`. */
 export function formatRelVol(value: number | null): string {
   return finite(value) ? `${value.toFixed(1)}×` : "n/a";
-}
-
-/** Signed change, no -0.00%. */
-export function formatChange(value: number | null): string {
-  if (!finite(value)) return "—";
-  const rounded = Math.abs(value) < 0.005 ? 0 : value;
-  return `${rounded > 0 ? "+" : ""}${rounded.toFixed(2)}%`;
-}
-
-/** Loss red → neutral → gain green on the shared P&L ramp, zero pinned to centre. */
-export function relVolColor(change: number | null, extent: number): string {
-  if (!finite(change)) return VIZ_SCALE_PNL[NEUTRAL_STOP];
-  const span = finite(extent) && extent > 0 ? extent : 1;
-  const t = Math.max(-1, Math.min(1, change / span));
-  const index = Math.round(((t + 1) / 2) * (VIZ_SCALE_PNL.length - 1));
-  return VIZ_SCALE_PNL[index];
 }
 
 /** The ramp's mid-stops are below 4.5:1, so text uses full-strength semantic ink. */
@@ -127,11 +115,7 @@ export function RelVolView(props: VisRenderProps) {
     `change ${formatChange(row.change)} · value ${row.valueTraded ?? "n/a"} · volume ${row.volume ?? "n/a"}`;
 
   return (
-    <Box
-      className="flex-1 min-w-0 min-h-0 flex flex-col"
-      style={{ "background-color": VIZ_BG, color: VIZ_TEXT }}
-      data-testid="relvol-view"
-    >
+    <VisFrame testId="relvol-view">
       <ToolbarRow
         gap={8}
         wrap={false}
@@ -140,9 +124,7 @@ export function RelVolView(props: VisRenderProps) {
         style={{ "border-bottom": `1px solid ${VIZ_GRID}` }}
         data-testid="relvol-toolbar"
       >
-        <Text size="xs" fw={600} c={VIZ_TEXT} className="whitespace-nowrap">
-          Relative volume
-        </Text>
+        <VisTitle>Relative volume</VisTitle>
         <For each={REL_VOL_FILTERS}>
           {(option) => (
             <Chip
@@ -279,7 +261,7 @@ export function RelVolView(props: VisRenderProps) {
         <Box className="flex items-center gap-2 min-w-0" data-testid="relvol-legend-scale-group">
           <Box
             className="h-2 w-24 rounded-fin"
-            style={{ background: `linear-gradient(to right, ${VIZ_SCALE_PNL.join(",")})` }}
+            style={{ background: pnlRampCss() }}
             data-testid="relvol-scale"
           />
           <Text size="xs" c={VIZ_MUTED} className="whitespace-nowrap">
@@ -295,6 +277,6 @@ export function RelVolView(props: VisRenderProps) {
           reference line at 2×
         </Text>
       </ToolbarRow>
-    </Box>
+    </VisFrame>
   );
 }

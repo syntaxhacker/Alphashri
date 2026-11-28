@@ -34,9 +34,15 @@ import { CURRENCIES, type CurrencyCode } from "@/config/currency";
 import { compositeOver, contrastRatio, pickTextColor } from "@/utils/contrast";
 import type { MarketRow } from "@/types/marketScreener";
 import type { VisRenderProps } from "./MarketMapView";
+import {
+  formatSignedPct as formatSignedPercent,
+  isFiniteNumber as finite,
+  VIZ_PNL_NEUTRAL_INDEX,
+} from "./vis/visScale";
+
+export { formatSignedPercent };
 
 export const UNCLASSIFIED_SECTOR = "Unclassified";
-const NEUTRAL_STOP = Math.floor(VIZ_SCALE_PNL.length / 2);
 const EXTENT_FLOOR = 0.5;
 const MIN_TEXT_CONTRAST = 4.5;
 const EMPTY: MarketRow[] = [];
@@ -57,9 +63,6 @@ const LABEL_GAP = 10;
 const LABEL_BAND_STEP = 13;
 /** Measured advance of the monospace stack at `LABEL_FONT`, per em. */
 const MONO_ADVANCE = 0.62;
-
-const finite = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value);
 
 export interface SectorFlowGroup {
   /** Trimmed sector name, or `Unclassified` when the row has none. */
@@ -154,7 +157,7 @@ export function flowExtent(groups: readonly SectorFlowGroup[]): number {
 
 /** Zero-centred, √-curved VIZ_SCALE_PNL stop — small moves stay visible. */
 export function flowChangeColor(change: number | null, extent: number): string {
-  if (!finite(change)) return VIZ_SCALE_PNL[NEUTRAL_STOP]!;
+  if (!finite(change)) return VIZ_SCALE_PNL[VIZ_PNL_NEUTRAL_INDEX]!;
   const span = finite(extent) && extent > 0 ? extent : EXTENT_FLOOR;
   const curved = Math.sign(change) * span * Math.sqrt(Math.min(Math.abs(change) / span, 1));
   const t = Math.max(-1, Math.min(1, curved / span));
@@ -243,12 +246,6 @@ export function shortSectorName(name: string): string {
     .join("")
     .toUpperCase()
     .slice(0, 8);
-}
-
-export function formatSignedPercent(value: number | null): string {
-  if (!finite(value)) return "—";
-  const rounded = Math.abs(value) < 0.005 ? 0 : value;
-  return `${rounded > 0 ? "+" : ""}${rounded.toFixed(2)}%`;
 }
 
 export function formatAmount(value: number, currency: CurrencyCode = "INR", signed = false): string {
