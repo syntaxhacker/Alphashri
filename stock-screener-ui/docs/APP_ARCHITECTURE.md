@@ -24,7 +24,7 @@ a **separate subprocess** (`trading/runner_cli.py`) that also talks to the DB an
 | Transport | Frontend owner | Backend owner | Used by |
 | --- | --- | --- | --- |
 | REST (JSON) | `fetchWithAuth` in [`src/state/auth.ts`](../src/state/auth.ts); base URL from [`src/api/config.ts`](../src/api/config.ts); one typed module per feature in [`src/api/`](../src/api/index.ts) | Routers mounted in [`api_server_fastapi.py`](../api_server_fastapi.py) (`_include_api()` at line 1123, includes at 1569–1732); contract in [`openapi.yaml`](../openapi.yaml) | All features |
-| SSE | [`src/api/sse.ts`](../src/api/sse.ts) `readSseStream` + frame parser | [`api/paper/live_stream.py`](../api/paper/live_stream.py) (`/api/paper/live/stream`), chart-pattern scan and TradingAgents stream in [`api/trading_agents.py`](../api/trading_agents.py) | Live prices → [`LivePriceUpdater.tsx`](../src/components/paper-trading/LivePriceUpdater.tsx); pattern scan progress; TradingAgents (no UI consumer) |
+| SSE | [`src/api/sse.ts`](../src/api/sse.ts) `readSseStream` + frame parser | [`api/paper/live_stream.py`](../api/paper/live_stream.py) (`/api/paper/live/stream`), chart-pattern scan in [`api/chart_patterns.py`](../api/chart_patterns.py) | Live prices → [`LivePriceUpdater.tsx`](../src/components/paper-trading/LivePriceUpdater.tsx); pattern scan progress |
 | WebSocket | [`src/state/newsWebSocket.tsx`](../src/state/newsWebSocket.tsx), [`src/pages/report/niftyStreamSolid.ts`](../src/pages/report/niftyStreamSolid.ts), [`src/hooks/useFyersTickStream.ts`](../src/hooks/useFyersTickStream.ts) | [`api/news/news_ws.py`](../api/news/news_ws.py) (`/ws/news`), [`api/reports_api/nifty_ws.py`](../api/reports_api/nifty_ws.py) (`/ws/nifty/*`), [`api/reports_api/fyers_ws.py`](../api/reports_api/fyers_ws.py), [`api/orderflow_stream.py`](../api/orderflow_stream.py) (`/ws/orderflow`) | News feed, Index Report live tape/bursts, order flow |
 
 Auth gate: [`AuthProvider`](../src/components/auth/AuthProvider.tsx) wraps everything; `AppContent`
@@ -229,7 +229,7 @@ FastAPI version — use the checked-in [`openapi.yaml`](../openapi.yaml), regene
 | Options | [`api/options.py`](../api/options.py), [`api/options_analytics.py`](../api/options_analytics.py), [`api/options_conventions.py`](../api/options_conventions.py), [`api/options_math.py`](../api/options_math.py), [`api/options_iv.py`](../api/options_iv.py) |
 | Trading / bots | [`api/paper_trading.py`](../api/paper_trading.py), [`api/paper/live_stream.py`](../api/paper/live_stream.py), [`api/bots_api/`](../api/bots_api/bots_router.py), [`api/strategy_runner_api.py`](../api/strategy_runner_api.py), [`api/strategies.py`](../api/strategies.py), [`api/replay_api.py`](../api/replay_api.py) |
 | Reports | [`api/reports_api/`](../api/reports_api/nifty.py) (NIFTY + generic `/api/reports/options/{symbol}`), [`api/event_radar/router.py`](../api/event_radar/router.py) (`/api/events`), [`api/catalyst_radar/router.py`](../api/catalyst_radar/router.py) (`/api/catalysts`) |
-| Market data / research | [`api/chart.py`](../api/chart.py), [`api/chart_patterns.py`](../api/chart_patterns.py), [`api/heatmap.py`](../api/heatmap.py), [`api/sector.py`](../api/sector.py), [`api/rotation.py`](../api/rotation.py), [`api/news_routes.py`](../api/news_routes.py), [`api/trading_agents.py`](../api/trading_agents.py) |
+| Market data / research | [`api/chart.py`](../api/chart.py), [`api/chart_patterns.py`](../api/chart_patterns.py), [`api/heatmap.py`](../api/heatmap.py), [`api/sector.py`](../api/sector.py), [`api/rotation.py`](../api/rotation.py), [`api/news_routes.py`](../api/news_routes.py) |
 | Ops | [`api/admin.py`](../api/admin.py), [`api/debug_api.py`](../api/debug_api.py), [`api/notifications_api.py`](../api/notifications_api.py), [`api/orderflow_stream.py`](../api/orderflow_stream.py), [`api/agri/router.py`](../api/agri/router.py), [`api/poc_nq.py`](../api/poc_nq.py) |
 
 **Domain services**
@@ -341,8 +341,6 @@ subscribers. Falls back to polling when the stream drops.
 - **No `*.columns.ts` files** — column builders are factories in [`components/table/columns/`](../src/components/table/columns/index.tsx) or inline arrays beside the consumer.
 - **One layering inversion remains** (a component importing a page): the lazy Market tab import in [`components/screener/ScreenerPage.tsx`](../src/components/screener/ScreenerPage.tsx). The other one (`components/dock/reportChartDock.tsx`) was deleted on 2026-11-21. Do not add more.
 - **Endpoints are not discovered by reading routers one by one** — start at [`openapi.yaml`](../openapi.yaml). WebSocket routes (`/ws/orderflow`, `/ws/nifty/*`, `/ws/news`) never appear in it.
-- **TradingAgents has no UI consumer.** Chat/analyze/stream endpoints exist in [`api/trading_agents.py`](../api/trading_agents.py); the old `ChatPopup` was removed on 2026-11-21.
-
 ---
 
 ## 9. Doc drift notes

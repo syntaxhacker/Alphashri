@@ -3,7 +3,7 @@ IST timezone and json.dumps serialization tests
 
 - test_chart_utc_index_filtered_with_ist that builds df with UTC tz index then calls
   _filter_to_date_or_recent with IST, assert correct filtering
-- trading_agents SSE json.dumps serialization single-encoded test
+- SSE json.dumps single-encoding test for live-stream price events
 - chart_cache today TTL 60s vs historical no TTL via endpoint cache poisoning guard
 """
 
@@ -109,33 +109,7 @@ class TestChartUTCIndexFilteredWithIST:
         assert _filter_to_date_or_recent(None, "2026-04-28") is None
 
 
-class TestTradingAgentsJsonDumpsSerialization:
-    def test_stream_event_single_encoded(self):
-        """TradingAgents SSE must use json.dumps single-encoded, not double."""
-        payload = {"ticker": "RELIANCE", "date": "2026-04-28", "decision": "BUY", "reports": {"market": "bullish"}}
-        data_str = json.dumps(payload, default=str)
-        parsed = json.loads(data_str)
-        assert parsed["ticker"] == "RELIANCE"
-        assert parsed["decision"] == "BUY"
-        # Double-encoded would be json.dumps(json.dumps(payload))
-        double = json.dumps(json.dumps(payload))
-        assert json.loads(double) != payload  # first load yields string
-        assert isinstance(json.loads(double), str)
-
-    def test_trading_agents_se_helper_single_encode(self):
-        """Verify the se() helper in trading_agents.py uses single json.dumps."""
-        import api.trading_agents as ta_mod
-
-        def se(data: dict) -> str:
-            return json.dumps(data, default=str)
-
-        data = {"percent": 50, "step": 1, "total": 10, "nested": {"ts": datetime.now()}}
-        encoded = se(data)
-        # Should be parseable in one json.loads
-        decoded = json.loads(encoded)
-        assert decoded["percent"] == 50
-        assert "nested" in decoded
-
+class TestSseJsonSerialization:
     def test_live_stream_price_event_not_double_encoded_integration(self):
         inner = {"type": "price", "symbol": "TCS", "ltp": 2485.1}
         # Correct: single dumps

@@ -417,7 +417,8 @@ function checkManifest(feature) {
     if (resolved) {
       const changed = new Set();
       try {
-        for (const path of git(["diff", "--name-only", resolved, "--", "src/api"])
+        // deletion-only src/api changes (e.g. removing an un-rendered module) do not invalidate screenshot evidence
+        for (const path of git(["diff", "--name-only", "--diff-filter=d", resolved, "--", "src/api"])
           .split("\n")
           .filter(Boolean)) {
           changed.add(path);

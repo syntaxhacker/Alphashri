@@ -71,25 +71,6 @@
 - [x] updateStrategyConfig sends PUT with config body
 - [x] resetStrategyConfig sends POST to /api/paper/config/reset
 
-## trading_agents.ts
-- [x] getTradingAgentsConfig fetches config successfully
-- [x] getTradingAgentsConfig throws error on failure
-- [x] checkTradingAgentsHealth returns health status
-- [x] checkTradingAgentsHealth returns unavailable when service down
-- [x] analyzeStock sends POST with ticker and optional params
-- [x] analyzeStock returns decision, reports, stats
-- [x] analyzeStock throws on non-ok response
-- [x] streamStockAnalysis handles complete events
-- [x] streamStockAnalysis handles error events
-- [x] streamStockAnalysis throws on non-ok response
-- [x] streamStockAnalysis throws when response has no body
-- [x] listConversations fetches conversation list
-- [x] createConversation creates with optional title
-- [x] getMessages fetches messages for conversation
-- [x] addMessage adds message with role, content, optional ticker
-- [x] deleteConversation sends DELETE request
-- [x] fetchWithSSE reads SSE stream and calls onEvent callback
-
 ## chartPreview.ts
 - [x] fetchChartPreview returns null for empty symbol
 - [x] fetchChartPreview uses cache within TTL

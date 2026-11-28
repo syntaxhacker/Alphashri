@@ -31,11 +31,9 @@
      - *Status:* centralization achieved by deleting the unused copy; the shared builders in `src/utils/chart/` remain the single source.
   4. **Chart utils + zoom/trade**:
      - `src/utils/chartUtils.ts` <-> `src/components/backtest/zoomToTrade.ts` (multiple blocks for time/price handling)
-  5. **Internal in trading_agents.ts**:
-     - Dupe SSE/function call patterns (lines 115-124 vs 210-219, 158-178 vs 293-313)
-  6. **Replay vs Live prices streaming**:
+  5. **Replay vs Live prices streaming**:
      - `src/api/replay.ts` <-> `src/components/paper-trading/LivePriceUpdater.tsx` (SSE connection logic)
-  7. **Paper trading internal**:
+  6. **Paper trading internal**:
      - Duplicates in `src/api/paperTrading.ts`
 
 - Full test clones (in e2e/ and src/...test.ts): 100+ , mostly repeated assertions/selectors in trade-history, sector, screener, paper-trading specs. 
@@ -114,7 +112,6 @@ See full jscpd/knip output in terminal for exact clones.
    - api/backtest_routes.py self and cross with backtest/api.py (7-9 lines)
 
 6. **Other:**
-   - api/trading_agents.py (from earlier full run, SSE patterns)
    - trading/ likely has more (run targeted if needed: e.g. signals files)
 
 **Comparison to JS/TS:**
