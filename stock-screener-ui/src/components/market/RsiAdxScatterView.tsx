@@ -12,6 +12,8 @@ import { contrastRatio, parseColor } from "@/utils/contrast";
 import { loadEcharts } from "@/utils/loadEcharts";
 import type { MarketRow } from "@/types/marketScreener";
 import type { VisRenderProps } from "./MarketMapView";
+import { VisEmpty, VisFrame, VisToolbar } from "./vis/VisFrame";
+import { pnlRampCss } from "./vis/visScale";
 
 /**
  * Market → Vis "RSI × ADX": a D3-gallery *Scatterplot* rendered with ECharts.
@@ -297,18 +299,8 @@ export function RsiAdxScatterView(props: VisRenderProps) {
     `${selection().plotted.length} of ${total().toLocaleString()} eligible rows plotted (largest caps first)`;
 
   return (
-    <Box
-      className="flex-1 min-w-0 min-h-0 flex flex-col"
-      style={{ "background-color": VIZ_BG, color: VIZ_TEXT }}
-      data-testid="rsi-adx-view"
-    >
-      <ToolbarRow
-        gap={8}
-        wrap={false}
-        className="h-10 flex-shrink-0 border-b px-2"
-        style={{ "border-color": VIZ_GRID }}
-        data-testid="rsi-adx-toolbar"
-      >
+    <VisFrame testId="rsi-adx-view">
+      <VisToolbar testId="rsi-adx-toolbar">
         <Text span size="xs" fw={600} c={VIZ_TEXT}>
           RSI × ADX
         </Text>
@@ -323,20 +315,11 @@ export function RsiAdxScatterView(props: VisRenderProps) {
         >
           {selection().plotted.length} / {total()}
         </Text>
-      </ToolbarRow>
+      </VisToolbar>
 
       <Show
         when={selection().plotted.length > 0}
-        fallback={
-          <Box
-            className="flex-1 min-w-0 min-h-0 flex items-center justify-center p-4"
-            data-testid="rsi-adx-empty"
-          >
-            <Text span size="sm" c={VIZ_MUTED}>
-              No RSI/ADX data in the current filter.
-            </Text>
-          </Box>
-        }
+        fallback={<VisEmpty message="No RSI/ADX data in the current filter." testId="rsi-adx-empty" />}
       >
         <RsiAdxCanvas option={option()} onSymbolClick={props.onSymbolClick} />
       </Show>
@@ -349,7 +332,7 @@ export function RsiAdxScatterView(props: VisRenderProps) {
       >
         <Box
           className="h-2 w-24 flex-shrink-0 rounded-fin"
-          style={{ background: `linear-gradient(to right, ${VIZ_SCALE_PNL.join(",")})` }}
+          style={{ background: pnlRampCss() }}
           data-testid="rsi-adx-scale"
         />
         <Text span size="xs" c={VIZ_MUTED} data-testid="rsi-adx-scale-note">
@@ -359,6 +342,6 @@ export function RsiAdxScatterView(props: VisRenderProps) {
           area ∝ √market cap
         </Text>
       </ToolbarRow>
-    </Box>
+    </VisFrame>
   );
 }
