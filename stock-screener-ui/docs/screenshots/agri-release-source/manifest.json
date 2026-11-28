@@ -1,7 +1,7 @@
 {
   "feature": "agri-release-source",
   "route": "/agri?source=release:data-2026-11",
-  "head": "39f3c5d7",
+  "head": "f299dfcd",
   "viewports": [
     1600,
     390
