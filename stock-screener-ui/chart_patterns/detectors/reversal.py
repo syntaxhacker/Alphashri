@@ -46,7 +46,6 @@ from .common import (
 )
 
 LOOKBACK = 150
-MIN_SPAN = 15
 MIN_R2 = 0.45
 CONVERGE = 0.80  # end width must be < 80% of start width
 
@@ -273,23 +272,6 @@ def _build_wedge_hit(
         trendlines=trendlines,
         notes=notes,
         pivots=pivots,
-    )
-
-
-def _wedge_candidate(df: pd.DataFrame, ctx: dict, start: int, falling: bool):
-    env = _wedge_envelopes(df, ctx, start, falling)
-    if env is None:
-        return None
-    return _build_wedge_hit(
-        df,
-        env["eu"],
-        env["el"],
-        env["H"],
-        env["L"],
-        env["r2u"],
-        env["r2l"],
-        env["atr"],
-        falling,
     )
 
 

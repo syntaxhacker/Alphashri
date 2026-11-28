@@ -165,16 +165,6 @@ def iso_ts(ts) -> str:
         return str(ts)
 
 
-def line_points(
-    df: pd.DataFrame, slope: float, intercept: float, start: int, end: int
-) -> list[dict]:
-    index = df.index
-    return [
-        {"t": iso_ts(index[start]), "price": round(F.line_value(slope, intercept, start), 4)},
-        {"t": iso_ts(index[end]), "price": round(F.line_value(slope, intercept, end), 4)},
-    ]
-
-
 def pivot_line_points(
     df: pd.DataFrame,
     slope: float,
@@ -209,23 +199,6 @@ def pivot_line_points(
         {"t": iso_ts(index[xa]), "price": round(F.line_value(slope, intercept, xa), 4)},
         {"t": iso_ts(index[xb]), "price": round(F.line_value(slope, intercept, xb), 4)},
     ]
-
-
-def chord_value(pivots: list[tuple[int, float]], x: float) -> float | None:
-    """Value at ``x`` of the straight line through the first and last pivot.
-
-    This is the *same* line ``pivot_line_points`` draws, so breakout / target /
-    stop levels stay consistent with the visual boundary (rather than coming from
-    a separate regression fit).
-    """
-    ordered = sorted(pivots, key=lambda t: t[0]) if pivots else []
-    if len(ordered) < 2:
-        return None
-    (x0, q0), (x1, q1) = ordered[0], ordered[-1]
-    if x1 == x0:
-        return float(q0)
-    slope = (q1 - q0) / (x1 - x0)
-    return float(q0 + slope * (x - x0))
 
 
 def envelope_pair(
@@ -377,19 +350,6 @@ def mean_price(df: pd.DataFrame, start: int, end: int) -> float:
     return F.window_mean(df, start, end)
 
 
-def line_width(su: float, iu: float, sl: float, il: float, x: float) -> float:
-    """Vertical separation ``upper(x) - lower(x)`` of two lines."""
-    return F.line_value(su, iu, x) - F.line_value(sl, il, x)
-
-
-def cross_x(su: float, iu: float, sl: float, il: float) -> float:
-    """Bar position where two lines intersect (``inf`` when parallel)."""
-    denom = su - sl
-    if abs(denom) < 1e-12:
-        return float("inf")
-    return (il - iu) / denom
-
-
 def fit_window_pair(
     df: pd.DataFrame,
     ctx: dict,
@@ -528,28 +488,6 @@ def scan_windows(
             seen.add((hit.start_date, hit.end_date))
             hits.append(hit)
     return hits
-
-
-def pattern_end(
-    H: list[tuple[int, float]],
-    L: list[tuple[int, float]],
-    end: int,
-    pad: int = 2,
-) -> int:
-    """Effective pattern end: no further right than the last pivot used.
-
-    Trendlines fitted through pivots must not be extrapolated far past their
-    final touch, otherwise a breakout leg that ran away from the pattern makes
-    the line (and therefore the computed breakout level) meaningless. We cap the
-    evaluation x at ``min(end, last_pivot + pad)`` across both lines.
-    """
-    candidates = [int(end)]
-    for piv in (H, L):
-        if piv:
-            candidates.append(int(piv[-1][0]) + int(pad))
-    return max(0, min(candidates))
-
-
 
 
 def compute_levels(

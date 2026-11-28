@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import math
-import statistics
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +11,7 @@ ROOT = Path(__file__).parent.parent
 DATA = ROOT / "experiments" / "data"
 sys.path.insert(0, str(ROOT))
 
-from scripts.paper_sensex import load_candle_days, option_costs, strategy_configs, oi_anchors_from_live  # noqa: E402
+from scripts.paper_sensex import load_candle_days, option_costs, strategy_configs  # noqa: E402
 import config as root_config  # noqa: E402
 IST = root_config.IST
 

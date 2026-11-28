@@ -48,7 +48,6 @@ from __future__ import annotations
 
 import functools
 import importlib
-import json
 import logging
 import pandas as pd
 import pickle
@@ -483,7 +482,6 @@ def _near52w_row(symbol: str, df) -> Optional[dict]:
         for col in ("high", "low", "close", "volume"):
             if col not in df.columns:
                 return None
-        highs = df["high"].astype(float)
         lows = df["low"].astype(float)
         closes = df["close"].astype(float)
         vols = df["volume"].astype(float).fillna(0.0)
@@ -677,13 +675,6 @@ def _arm_computed(
          and (r["close_gap"] <= gap_max or bool(r.get("touched")))),
         key=lambda r: r["close_gap"],
     )
-
-
-def _fetch_1d(candles, symbol: str):
-    try:
-        return candles.fetch_for_timeframe(symbol, "1D")
-    except Exception:
-        return None
 
 
 def arm(
