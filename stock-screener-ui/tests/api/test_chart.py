@@ -35,7 +35,32 @@ def _make_chart_api(return_data=None, side_effect=None):
     return mock_api
 
 
+@pytest.fixture(autouse=True)
+def _isolated_chart_cache(monkeypatch):
+    """Keep the preview route's Redis cache in memory for a single test.
+
+    The route caches by (symbol, tf, days, or_minutes), so a result written by
+    one test would otherwise be served to the next test that reuses the key —
+    e.g. the exception case after the successful RELIANCE default case.
+    """
+    import cache.redis_client as redis_cache
+
+    store = {}
+
+    def _cache_get(key):
+        value = store.get(key)
+        return dict(value) if value is not None else None
+
+    def _cache_set(key, value, ttl=None):
+        store[key] = dict(value)
+        return True
+
+    monkeypatch.setattr(redis_cache, "cache_get", _cache_get)
+    monkeypatch.setattr(redis_cache, "cache_set", _cache_set)
+
+
 def _patch_chart_api(mock_api):
+    # The route imports UpstoxAPI from upstox_api, not free_indian_apis.
     return patch('upstox_trader.config_and_utils.upstox_api.UpstoxAPI', return_value=mock_api)
 
 
@@ -173,7 +198,6 @@ class TestChartPreview:
             assert isinstance(candle['time'], str) and len(candle['time']) >= 16
             assert isinstance(candle['open'], (int, float))
             assert isinstance(candle['high'], (int, float))
-            isinstance(candle['low'], (int, float))
             assert isinstance(candle['low'], (int, float))
             assert isinstance(candle['close'], (int, float))
             assert isinstance(candle['volume'], (int, float))

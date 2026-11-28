@@ -391,9 +391,13 @@ class TestSentimentCache:
             "impact_score": 8, "sentiment": "BULLISH", "trade_ideas": []
         }
 
-        response = client.get("/api/news/sentiment/RELIANCE")
+        with patch('news_api._aggregator.fetch_all', return_value=[
+            {'sourceUrl': 'http://test.com/sentiment-feed-item'}
+        ]) as mock_fetch_all:
+            response = client.get("/api/news/sentiment/RELIANCE")
 
         assert response.status_code == 200
+        mock_fetch_all.assert_called_once()
         mock_cache_set_smart.assert_called_once()
         call_kwargs = mock_cache_set_smart.call_args.kwargs
         assert call_kwargs.get("full_ttl") == 300
