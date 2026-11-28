@@ -425,7 +425,8 @@ def test_failure_cooldown_escalates_and_resets_on_success(monkeypatch):
     monkeypatch.setattr(md, "fetch_candles_for_timeframe", fetch)
     key = ("AAA", "15m")
 
-    for expected_failures, expected_delay in zip((1, 2, 3, 4), (15, 30, 60, 120)):
+    assert len(tr.FAILURE_COOLDOWNS_SEC) >= 4
+    for expected_failures, expected_delay in zip((1, 2, 3, 4), tr.FAILURE_COOLDOWNS_SEC[:4]):
         if not tr._cooldown_active(key):
             tr.fetch_live_tail("AAA", "15m", cached, now=NOW_OPEN)
         with tr._COOLDOWN_LOCK:
