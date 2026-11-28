@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from chart_patterns import levels
+from tests.helpers.levels_fixtures import SR_CLOSES
 
 
 def _frame(closes, *, high_low: float = 0.5) -> pd.DataFrame:
@@ -54,7 +55,7 @@ def _zone(kind, score, top, *, bars_since=0, touches=2):
 
 
 def test_two_touches_form_support_and_resistance():
-    closes = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
+    closes = list(SR_CLOSES)
     zones = levels.compute_sr_zones(_wire(closes), timeframe="1D")
     assert len(zones) == 2
     by_kind = {zone["kind"]: zone for zone in zones}
@@ -75,7 +76,7 @@ def test_two_touches_form_support_and_resistance():
 def test_public_zones_expose_touch_age():
     # Order-2 pivots on this frame: lows at bars 2/6, highs at bars 4/8, so the
     # last touches are knowable without reading the zone's own timestamps.
-    closes = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
+    closes = list(SR_CLOSES)
     n = len(closes)
     zones = levels.compute_sr_zones(_wire(closes), timeframe="1D")
     by_kind = {zone["kind"]: zone for zone in zones}
@@ -91,7 +92,7 @@ def test_public_zones_expose_touch_age():
 
 
 def test_intraday_zones_carry_exact_touch_timestamps():
-    closes = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
+    closes = list(SR_CLOSES)
     index = pd.date_range(
         "2026-01-05 09:15", periods=len(closes), freq="15min", tz="Asia/Kolkata"
     )
@@ -127,7 +128,7 @@ def test_intraday_zones_carry_exact_touch_timestamps():
 
 
 def test_daily_weekly_monthly_zones_keep_date_only_shape():
-    closes = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
+    closes = list(SR_CLOSES)
     for timeframe in ("1D", "1W", "1M"):
         zones = levels.compute_sr_zones(_wire(closes), timeframe=timeframe)
         assert zones, timeframe
@@ -247,7 +248,7 @@ def test_large_frame_uses_pivot_order_six():
 
 
 def test_wire_candles_and_frame_inputs_agree_and_stay_json_safe():
-    closes = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
+    closes = list(SR_CLOSES)
     wire = _wire(closes)
     from_frame = levels.compute_sr_zones(_frame(closes), timeframe="1D")
     from_wire = levels.compute_sr_zones(wire, timeframe="1D")
