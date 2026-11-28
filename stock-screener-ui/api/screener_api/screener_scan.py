@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import config
 from api.tv import get_scanner_data
 from db.database import SessionLocal
+from trading.week52.config import LEGACY_TOUCH_BAND_MULTIPLIER
 from trading.week52.math import gap_pct_from_price_to_52w_high
 
 from .screener_models import (
@@ -297,10 +298,10 @@ def _touch_stats_from_df(df, ref_high, today_high=None, eps_pct=None):
         period_high = max(period_high, today_high)
 
     # Legacy near-high logic (unchanged semantics).
-    if today_high is not None and today_high >= period_high * 0.98:
+    if today_high is not None and today_high >= period_high * LEGACY_TOUCH_BAND_MULTIPLIER:
         days_since_near = 0
     else:
-        days_since_near = _last_touch_days_ago(df, period_high * 0.98)
+        days_since_near = _last_touch_days_ago(df, period_high * LEGACY_TOUCH_BAND_MULTIPLIER)
 
     # True-touch logic against the gap reference high.
     touch_threshold = ref_high * (1 - eps / 100)
@@ -333,7 +334,7 @@ def _compute_days_ago(api, symbol, today_high=None):
     if today_high is not None:
         period_high = max(period_high, today_high)
 
-    threshold = period_high * 0.98
+    threshold = period_high * LEGACY_TOUCH_BAND_MULTIPLIER
 
     # If today's intraday high meets threshold, return 0 immediately
     if today_high is not None and today_high >= threshold:

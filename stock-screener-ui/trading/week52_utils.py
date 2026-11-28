@@ -2,6 +2,8 @@
 import math
 from typing import List, Optional, TYPE_CHECKING
 
+from trading.week52.config import LEGACY_TOUCH_BAND_MULTIPLIER
+
 if TYPE_CHECKING:
     import pandas as pd
 
@@ -80,7 +82,7 @@ def days_since_52w_high_touch(
     highs: List[float],
     high_52w: float,
     *,
-    threshold: float = 0.98,
+    threshold: float = LEGACY_TOUCH_BAND_MULTIPLIER,
 ) -> Optional[int]:
     """
     Trading bars since the last daily high reached threshold * 52w high.
@@ -99,7 +101,7 @@ def days_since_52w_high_touch_from_df(df: "pd.DataFrame", high_52w: float) -> Op
     """Calendar days from last 52w-high touch to the last bar date."""
     if df is None or df.empty or high_52w <= 0:
         return None
-    level = high_52w * 0.98
+    level = high_52w * LEGACY_TOUCH_BAND_MULTIPLIER
     try:
         touched = df[df["high"].astype(float) >= level]
         if touched.empty:
@@ -125,7 +127,7 @@ def check_intraday_52w_touch(
     high_52w: float,
     days_since_52w_high: int,
     *,
-    threshold: float = 0.98,
+    threshold: float = LEGACY_TOUCH_BAND_MULTIPLIER,
 ) -> int:
     """
     Detect if today's intraday high has broken above the 52W high.
@@ -138,7 +140,7 @@ def check_intraday_52w_touch(
         intraday_high: Today's highest price so far (from intraday data).
         high_52w: Current 52-week high (may or may not include today's candle).
         days_since_52w_high: Value computed from daily data only.
-        threshold: Fraction of 52W high considered a break (default 1.0).
+        threshold: Fraction of 52W high considered a break (default: legacy 2% band).
 
     Returns:
         Corrected days_since value (0 if broken today, original otherwise).

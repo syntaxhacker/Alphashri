@@ -11,7 +11,12 @@ import config
 from api.tv import get_scanner_data
 from db.database import SessionLocal
 
-from trading.week52.config import enrich_top_n, touch_band_gap_pct, touch_lookback_top
+from trading.week52.config import (
+    LEGACY_NEAR_HIGH_BAND_MULTIPLIER,
+    enrich_top_n,
+    touch_band_gap_pct,
+    touch_lookback_top,
+)
 from trading.week52.ranges import load_all_52w_ranges
 
 from .screener_models import (
@@ -215,7 +220,7 @@ def _fill_days_ago_from_upstox(stocks: list[dict], api, use_api: bool, touched_g
                     stock['price_as_of'] = _last_bar_date(df)
                     _sync_stock_metrics(stock, touched_gap_pct)
             ltp = _to_float(stock.get('upstox_price'), 0)
-            today_high = ltp if high_52w > 0 and ltp >= high_52w * 0.999 else None
+            today_high = ltp if high_52w > 0 and ltp >= high_52w * LEGACY_NEAR_HIGH_BAND_MULTIPLIER else None
             if _to_float(stock.get('to_52w_high'), 100) < touched_gap_pct:
                 today_high = today_high or ltp or high_52w
             near, touch = _touch_stats_from_df(df, high_52w, today_high)

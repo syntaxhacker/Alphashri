@@ -55,6 +55,20 @@ TV_BATCH_SIZE = 80
 #: Profiles whose rows carry the touched/retest/fresh bucket fields.
 PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout', 'touched_52w_high', '52w_high'}
 
+# Fixed legacy touch bands. These callers predate the configurable 0.5%
+# ``touch_eps_pct()`` knob and pin their own distance below the 52W high; their
+# screener/debug output depends on the historical values, so the 0.5% default
+# must NOT be imposed on them. ``*_PCT`` is the distance in percent, ``*_MULTIPLIER``
+# is the 1 - pct/100 form used by the older callers (bit-exact with the old floats).
+LEGACY_TOUCH_BAND_PCT = 2.0
+LEGACY_TOUCH_BAND_MULTIPLIER = 1 - LEGACY_TOUCH_BAND_PCT / 100
+
+LEGACY_RECENT_TOUCH_BAND_PCT = 1.0
+LEGACY_RECENT_TOUCH_BAND_MULTIPLIER = 1 - LEGACY_RECENT_TOUCH_BAND_PCT / 100
+
+LEGACY_NEAR_HIGH_BAND_PCT = 0.1
+LEGACY_NEAR_HIGH_BAND_MULTIPLIER = 1 - LEGACY_NEAR_HIGH_BAND_PCT / 100
+
 
 def touched_52w_gap_threshold_pct() -> float:
     """Within this % below 52W high (or above = breakout) => 'touched' bucket."""
@@ -136,6 +150,12 @@ __all__ = [
     "PRICE_CAP",
     "TV_BATCH_SIZE",
     "PROFILES_WITH_52W_BUCKETS",
+    "LEGACY_TOUCH_BAND_PCT",
+    "LEGACY_TOUCH_BAND_MULTIPLIER",
+    "LEGACY_RECENT_TOUCH_BAND_PCT",
+    "LEGACY_RECENT_TOUCH_BAND_MULTIPLIER",
+    "LEGACY_NEAR_HIGH_BAND_PCT",
+    "LEGACY_NEAR_HIGH_BAND_MULTIPLIER",
     "touched_52w_gap_threshold_pct",
     "touch_eps_pct",
     "retest_window_days",
