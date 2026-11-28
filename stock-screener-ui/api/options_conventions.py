@@ -1,8 +1,10 @@
 """Single owner for option-chain numeric conventions.
 
-Pure constants only — no I/O, no app imports, no side effects. Consumers import
-from here instead of restating a literal, so every convention has exactly one
-definition. None of these are tunables: they are data-verified guards and desk
+Pure constants only — no I/O and no side effects. Consumers import from here
+instead of restating a literal, so every convention has exactly one definition.
+The single import is :func:`api.options_underlying.index_lot_size`: index lot
+literals belong to that registry, and this module's lot default is only an
+alias of it. None of these are tunables: they are data-verified guards and desk
 conventions pinned by tests.
 
 One difference is deliberate and must NOT be "unified":
@@ -19,6 +21,8 @@ One difference is deliberate and must NOT be "unified":
 """
 
 from __future__ import annotations
+
+from api.options_underlying import index_lot_size
 
 # ---------------------------------------------------------------------------
 # IV bands
@@ -115,11 +119,12 @@ THIN_MAX_SINGLE_SHARE = 0.4
 #: 0-DTE is excluded from the ATM-IV series and forward-cone checks.
 DTE_FLOOR_DAYS = 1
 
-#: NIFTY's contract lot. Prefer resolving the real lot for the underlying from
-#: the instrument registry; this is the documented back-compat fallback used
-#: by the shared GEX helpers. Upstox reports OI in units, so the lot is accepted
-#: for signature compatibility but not applied to the exposure maths.
-DEFAULT_LOT_SIZE = 65
+#: NIFTY's contract lot. An alias of the canonical registry, not a second
+#: literal: prefer resolving the real lot for the underlying from the instrument
+#: registry; this is the documented back-compat fallback used by the shared GEX
+#: helpers. Upstox reports OI in units, so the lot is accepted for signature
+#: compatibility but not applied to the exposure maths.
+DEFAULT_LOT_SIZE = index_lot_size("NIFTY")
 
 # ---------------------------------------------------------------------------
 # Multi-expiry analytics — ladder size + coverage floors

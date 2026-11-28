@@ -73,6 +73,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from api.options_underlying import index_lot_size
 from api.reports_api._numeric import safe_float as _f
 from api.reports_api._numeric import safe_int as _i
 
@@ -80,10 +81,10 @@ from api.reports_api._numeric import safe_int as _i
 # the low-level options module — re-exported here so both endpoints agree.
 from api.positioning import class_sign, sentiment_code
 
-#: NIFTY lot size. Kept in the payload for clients, but never applied to OI:
-#: Upstox already reports option OI in units (shares), so the lot is not a
-#: factor in the crore conversion.
-NIFTY_LOT_SIZE = 65
+#: NIFTY lot size, aliased from the canonical index contract registry. Kept in
+#: the payload for clients, but never applied to OI: Upstox already reports
+#: option OI in units (shares), so the lot is not a factor in the crore conversion.
+NIFTY_LOT_SIZE = index_lot_size("NIFTY")
 
 __all__ = [
     "NIFTY_LOT_SIZE",
