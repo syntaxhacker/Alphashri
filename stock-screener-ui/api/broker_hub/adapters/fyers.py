@@ -19,6 +19,8 @@ import logging
 import os
 from typing import Callable, Optional
 
+import config
+
 from api.broker_hub.adapters.base import (
     OrderFlowAdapter,
     make_depth,
@@ -365,7 +367,9 @@ class FyersAdapter(OrderFlowAdapter):
         on_error=None,
         socket_factory: Optional[SocketFactory] = None,
     ) -> None:
-        token = self.access_token or os.getenv("FYERS_ACCESS_TOKEN")
+        # config owns the token; the raw env read is a fallback for a value
+        # injected after config was imported.
+        token = self.access_token or config.FYERS_ACCESS_TOKEN or os.getenv("FYERS_ACCESS_TOKEN")
         if not token:
             raise ValueError(
                 "Fyers access_token is required, formatted '<APP_ID>:<ACCESS_TOKEN>'"
@@ -654,7 +658,9 @@ class FyersTbtAdapter(OrderFlowAdapter):
         tbt_factory: Optional[Callable[..., object]] = None,
         data_factory: Optional[Callable[..., object]] = None,
     ) -> None:
-        token = self.access_token or os.getenv("FYERS_ACCESS_TOKEN")
+        # config owns the token; the raw env read is a fallback for a value
+        # injected after config was imported.
+        token = self.access_token or config.FYERS_ACCESS_TOKEN or os.getenv("FYERS_ACCESS_TOKEN")
         if not token:
             raise ValueError("Fyers access_token is required ('<APP_ID>:<ACCESS_TOKEN>')")
         fyers_symbols = {fyers_symbol(s) for s in symbols}

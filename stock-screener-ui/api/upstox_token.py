@@ -90,9 +90,10 @@ def resolve_upstox_token(
         except (ValueError, KeyError, OSError, TypeError):
             token = None
 
-    # 3. Env (opt-in).
+    # 3. Env (opt-in). config owns the token; the raw env read remains a fallback
+    # for a value injected after config was imported.
     if not token and use_env:
-        token = os.getenv("UPSTOX_ACCESS_TOKEN") or None
+        token = config.UPSTOX_ACCESS_TOKEN or os.getenv("UPSTOX_ACCESS_TOKEN") or None
 
     if cache_ttl > 0.0:
         _cache[key] = {"token": token, "ts": now}
