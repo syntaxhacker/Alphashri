@@ -119,6 +119,27 @@ class Level:
             raise ValueError(
                 f"schema_version must be a positive integer, got {self.schema_version!r}"
             )
+        if self.geometry == "horizontal":
+            if has_zone or has_segment:
+                raise ValueError(
+                    "horizontal geometry requires price only, got "
+                    f"bottom={self.bottom!r}, top={self.top!r}, "
+                    f"start_price={self.start_price!r}, end_price={self.end_price!r}"
+                )
+        elif self.geometry == "zone":
+            if has_price or has_segment:
+                raise ValueError(
+                    "zone geometry requires bottom+top only, got "
+                    f"price={self.price!r}, start_price={self.start_price!r}, "
+                    f"end_price={self.end_price!r}"
+                )
+
+        for name in (
+            "price", "bottom", "top", "start_price", "end_price", "strength"
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, float(value))
         if self.evidence is None:
             object.__setattr__(self, "evidence", {})
 
@@ -140,6 +161,7 @@ class LevelBook:
     def __post_init__(self) -> None:
         if self.spot is not None:
             _checked_finite("spot", self.spot)
+            object.__setattr__(self, "spot", float(self.spot))
         if not isinstance(self.levels, tuple):
             raise ValueError(
                 f"levels must be a tuple, got {type(self.levels).__name__}"
