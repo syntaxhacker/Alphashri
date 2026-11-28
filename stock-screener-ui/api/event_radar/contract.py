@@ -85,6 +85,8 @@ ANOMALY_COOLDOWN_MIN: Final[int] = 30     # per symbol, minutes
 #: 5 completed sessions. Yahoo caps 1-min history at 8 days per request, so a
 #: 20-session baseline would need 3 extra chunked calls per symbol for a
 #: precision gain we do not need — a robust MAD stabilises well before 5.
+#: Documented policy (expected count), not an enforced cap: anomaly.scan_symbol()
+#: profiles ALL completed sessions available in the fetch window instead.
 ANOMALY_BASELINE_SESSIONS: Final[int] = 5
 
 
