@@ -1,9 +1,12 @@
 """Guard: app layers have a single IST timezone source, ``config.IST``.
 
 AST-scans the app layers (``api/``, ``trading/``, ``chart_patterns/``,
-``cache/``) for locally constructed ``ZoneInfo("Asia/Kolkata")``. ``config.py``
-is the canonical definition and is deliberately outside the scan. Research
-scripts, ``india_board/`` and tests are out of scope.
+``cache/``) for locally constructed ``ZoneInfo("Asia/Kolkata")``. A second,
+narrower scan covers the consolidated fork files for the spellings that evade
+that check: zone literals passed to ``tz_convert``/``tz_localize``, ``+05:30``
+strings and ``timedelta(hours=5, ...)``. ``config.py`` is the canonical
+definition and is deliberately outside both scans. Research scripts,
+``india_board/`` and tests are out of scope.
 
 ``frame_last_date()`` and ``fmt_date()`` are the canonical IST display
 helpers in ``chart_patterns/``; this guard also prevents a second copy.
@@ -26,6 +29,17 @@ CANONICAL_DISPLAY_HELPERS = {
     "frame_last_date": "chart_patterns/candles.py",
     "fmt_date": "chart_patterns/detectors/common.py",
 }
+
+# The original scan only saw ZoneInfo("Asia/Kolkata"). The session-date lane's
+# leftover forks spelled the same zone as a tz_convert/tz_localize argument or
+# as an offset literal, which that scan could not see. These are the files that
+# lane consolidated; other app-layer modules still carrying legacy literals are
+# a separate cleanup and are deliberately not in this set.
+EVASIVE_SCAN_FILES = (
+    "chart_patterns/candles.py",
+    "api/chart_patterns.py",
+    "trading/calendar.py",
+)
 
 
 def _app_modules():
@@ -75,6 +89,57 @@ def test_app_layers_do_not_construct_kolkata_zoneinfo():
         "Local ZoneInfo('Asia/Kolkata') in an app layer — use config.IST:\n"
         + "\n".join(violations)
     )
+
+
+def _hardcoded_ist_lines(tree: ast.Module) -> list[tuple[int, str]]:
+    """IST spellings that evade the ZoneInfo-only scan above."""
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, str):
+                if node.value == KOLKATA:
+                    found.append((node.lineno, "hardcoded zone literal"))
+                elif "+05:30" in node.value:
+                    found.append((node.lineno, "hardcoded +05:30 offset"))
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+            if name == "timedelta" and any(
+                kw.arg == "hours"
+                and isinstance(kw.value, ast.Constant)
+                and kw.value.value == 5
+                for kw in node.keywords
+            ):
+                found.append((node.lineno, "IST offset as timedelta(hours=5, ...)"))
+    return sorted(found)
+
+
+def test_consolidated_forks_do_not_hardcode_an_ist_zone():
+    violations = []
+    for rel in EVASIVE_SCAN_FILES:
+        for lineno, why in _hardcoded_ist_lines(_parse(REPO / rel)):
+            violations.append(f"{rel}:{lineno} ({why})")
+    assert not violations, (
+        "Hardcoded IST zone/offset in a consolidated fork — use config.IST:\n"
+        + "\n".join(violations)
+    )
+
+
+def test_evasive_spelling_detector_catches_every_form():
+    sample = ast.parse('''
+import pandas as pd
+from datetime import timedelta
+from zoneinfo import ZoneInfo
+
+def clone(ts):
+    a = ts.tz_convert("Asia/Kolkata")
+    b = ts.tz_localize("Asia/Kolkata")
+    c = pd.Timestamp.now(tz="Asia/Kolkata")
+    d = timedelta(hours=5, minutes=30)
+    e = "2026-11-05T10:30:00+05:30"
+    return ZoneInfo("Asia/Kolkata")
+''')
+    assert len(_hardcoded_ist_lines(sample)) == 6
 
 
 def test_config_is_the_canonical_ist_source():

@@ -30,6 +30,7 @@ from typing import Any, Iterable, Optional, Union
 
 import pandas as pd
 
+import config as _app_config
 from common.numbers import to_float
 from market_data.market_data import _lookback_days, _resample_rule
 
@@ -146,9 +147,9 @@ def truncate_frame_to(df: pd.DataFrame, to_dt: datetime) -> Optional[pd.DataFram
         idx = df.index
         try:
             if idx.tz is None:
-                idx_ist = idx.tz_localize("UTC").tz_convert("Asia/Kolkata")
+                idx_ist = idx.tz_localize("UTC").tz_convert(_app_config.IST)
             else:
-                idx_ist = idx.tz_convert("Asia/Kolkata")
+                idx_ist = idx.tz_convert(_app_config.IST)
         except Exception:
             idx_ist = idx
         return df[idx_ist <= to_dt]
@@ -168,9 +169,7 @@ def _is_trading_day(d: date) -> bool:
 
 
 def _now_ist() -> datetime:
-    from trading.timezone import IST
-
-    return datetime.now(IST)
+    return datetime.now(_app_config.IST)
 
 
 def previous_trading_day(d: date) -> Optional[date]:
@@ -190,33 +189,16 @@ def previous_trading_day(d: date) -> Optional[date]:
 def _last_completed_session(now: Optional[datetime] = None) -> date:
     """Last NSE session whose 15:30 IST close has passed.
 
-    Returns today when ``now`` is at/after 15:30 IST on a trading day,
-    else the most recent previous trading day (walks back over
-    weekends/holidays). Self-contained: uses ``trading.utils`` +
-    ``trading.timezone`` only (no ``trading.calendar`` dependency).
+    The walkback lives once in ``trading.calendar.last_completed_session_lenient``;
+    this fork only injects its clock and trading-day predicate, preserving both
+    the historical monkeypatch points and the lenient holiday-calendar semantics.
     """
-    from trading.timezone import IST
-    from trading.utils import MARKET_CLOSE
+    from trading.calendar import last_completed_session_lenient
 
-    if now is None:
-        now = _now_ist()
-    if isinstance(now, datetime):
-        today = now.date()
-        try:
-            close = datetime(
-                today.year, today.month, today.day,
-                MARKET_CLOSE[0], MARKET_CLOSE[1],
-                tzinfo=now.tzinfo if now.tzinfo is not None else IST,
-            )
-            after_close = now >= close
-        except Exception:
-            after_close = now.hour * 60 + now.minute >= 15 * 60 + 30
-    else:
-        today = now
-        after_close = True
-    if _is_trading_day(today) and after_close:
-        return today
-    return previous_trading_day(today) or (today - timedelta(days=1))
+    return last_completed_session_lenient(
+        _now_ist() if now is None else now,
+        day_check=_is_trading_day,
+    )
 
 
 def current_session_date(now: Optional[datetime] = None) -> Optional[date]:
@@ -606,9 +588,9 @@ def _resample_session_binned(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     orig_tz = df.index.tz
     try:
         if orig_tz is None:
-            ist_index = df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
+            ist_index = df.index.tz_localize("UTC").tz_convert(_app_config.IST)
         else:
-            ist_index = df.index.tz_convert("Asia/Kolkata")
+            ist_index = df.index.tz_convert(_app_config.IST)
     except Exception:
         return df
     work = df.copy()
@@ -688,9 +670,9 @@ def _resample_ohlcv(
     orig_tz = df.index.tz
     try:
         if orig_tz is None:
-            ist_index = df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
+            ist_index = df.index.tz_localize("UTC").tz_convert(_app_config.IST)
         else:
-            ist_index = df.index.tz_convert("Asia/Kolkata")
+            ist_index = df.index.tz_convert(_app_config.IST)
     except Exception:
         ist_index = df.index
     work = df.copy()
@@ -1144,10 +1126,10 @@ def frame_last_date(df: pd.DataFrame) -> Optional[str]:
         # frames always carry a timestamp-like index; never invent one.
         if pd.api.types.is_numeric_dtype(df.index.dtype):
             return None
-        ts = pd.Timestamp(df.index[-1])
-        if ts.tz is None:
-            ts = ts.tz_localize("UTC")
-        return ts.tz_convert("Asia/Kolkata").strftime("%Y-%m-%d")
+        from chart_patterns._ist_date import ist_date
+
+        session = ist_date(df.index[-1])
+        return session.isoformat() if session is not None else None
     except Exception:
         return None
 
