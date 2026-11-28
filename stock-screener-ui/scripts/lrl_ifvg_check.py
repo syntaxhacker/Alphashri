@@ -27,11 +27,9 @@ TF_SEC = {"30s": 30, "1m": 60, "2m": 120, "3m": 180}
 
 
 from scripts.indicators import (  # noqa: E402  (shared indicator math)
-    atr_range as atr,
     build_bars,
     detect_fvg,
     detect_lrl,
-    swing_pivots,
 )
 
 

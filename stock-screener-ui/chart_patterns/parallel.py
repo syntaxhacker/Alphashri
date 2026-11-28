@@ -37,9 +37,6 @@ log = logging.getLogger(__name__)
 #: Auto-pick processes at/above this many symbols (when the platform forks).
 PROCESS_THRESHOLD = 200
 
-#: Valid ``run_symbols_with_mode`` mode strings.
-RUN_MODES = ("sequential", "threads", "processes")
-
 #: Hard ceiling for process pools (each worker re-imports pandas/numpy state).
 #: Leave two cores free for the interactive API/UI and the OS so a universe
 #: scan never saturates the box.

@@ -15,7 +15,6 @@ import threading
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from types import SimpleNamespace
 from typing import Optional
 
 import pandas as pd
