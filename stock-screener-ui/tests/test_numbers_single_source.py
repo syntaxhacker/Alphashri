@@ -32,7 +32,7 @@ VARIANT_NAMES = {
 }
 PRODUCTION_PATHS = (
     "common", "api", "trading", "chart_patterns", "scripts",
-    "options_paper", "edge_scanner_tv",
+    "options_paper",
 )
 # Analysis-only scripts share the same evasive-name guard: their private
 # helpers are thin adapters over common/numbers.py and own no coercion body.
@@ -45,7 +45,6 @@ AUDITED_ALIASES = {
     "api/options_levels.py": ("_f", "to_float"),
     "api/reports_api/_numeric.py": ("safe_float", "to_float"),
     "options_paper/tape.py": ("_f", "to_float"),
-    "edge_scanner_tv/tv_feed.py": ("_f", "nan_guarded_float"),
     "chart_patterns/tv_prefilter.py": ("_to_float", "strict_optional_float"),
 }
 # These wrappers keep their callers' fallback conventions (nullable fields or

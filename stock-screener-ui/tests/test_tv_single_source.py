@@ -5,9 +5,7 @@ or a local ``MARKETS`` transport constant, and nothing may import the legacy
 ``api.tv_auth`` module. ``api.tv.client.get_scanner_data`` must be the only
 ``get_scanner_data`` definition in app code. Legacy trees (``api/tv``,
 ``upstox_trader``, ``experiments``, ``reports``, ``tests`` — see
-``LEGACY_PREFIXES``) are exempt from the duplicate guards;
-``edge_scanner_tv/markets.py`` is exempt from the ``MARKETS`` check only
-(session-clock spec, not scanner transport).
+``LEGACY_PREFIXES``) are exempt from the duplicate guards.
 """
 
 from __future__ import annotations
@@ -20,18 +18,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-SCANNED_DIRS = ("api", "chart_patterns", "edge_scanner_tv", "scripts/market")
+SCANNED_DIRS = ("api", "chart_patterns", "scripts/market")
 
 # Grandfathered legacy code: pre-refactor modules, generated research output
 # and test mocks are exempt from the duplicate guards. api/tv is the owner
 # (it IS the single source); the rest are allowed to keep their current
 # shape until migrated, so they must never trip the guard.
 LEGACY_PREFIXES = ("api/tv/", "upstox_trader/", "experiments/", "reports/", "tests/")
-
-# edge_scanner_tv/markets.py declares session-clock MarketSpecs (open/close,
-# timezone, index, yf suffix) for the chart session, not the scanner's
-# MARKETS transport map — the shared name is coincidental.
-MARKETS_TRANSPORT_EXEMPT = frozenset({"edge_scanner_tv/markets.py"})
 
 # Transport patterns that may only live in api.tv.
 SCANNER_URL_RE = re.compile(r'SCANNER_URL\s*=\s*"https://scanner\.tradingview\.com')
@@ -127,7 +120,7 @@ def test_no_transport_duplicates_outside_api_tv():
             violations.append(f"{rel}: duplicate SCANNER_URL transport constant")
         if GET_SCANNER_DATA_RE.search(text):
             violations.append(f"{rel}: duplicate get_scanner_data definition")
-        if MARKETS_RE.search(text) and str(rel) not in MARKETS_TRANSPORT_EXEMPT:
+        if MARKETS_RE.search(text):
             violations.append(f"{rel}: local MARKETS transport constant")
     assert not violations, (
         "Transport definitions must live only in api/tv. Violations:\n  "
@@ -152,7 +145,7 @@ def test_get_scanner_data_single_definition_in_app_code():
     """api.tv.client.get_scanner_data is the only get_scanner_data definition in app code."""
     # upstox_trader/** is grandfathered as legacy (see LEGACY_PREFIXES) — the
     # owner api/tv is deliberately NOT skipped: it holds the one allowed definition.
-    app_dirs = ("api", "chart_patterns", "edge_scanner_tv", "scripts/market")
+    app_dirs = ("api", "chart_patterns", "scripts/market")
     definitions: list[str] = []
     for path in _iter_repo_files():
         rel = path.relative_to(ROOT)
