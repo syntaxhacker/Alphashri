@@ -64,15 +64,17 @@ def _token_from_file() -> tuple[str, str]:
 
 
 def _token_from_env() -> str:
-    tok = os.getenv("UPSTOX_ACCESS_TOKEN", "").strip()
-    if tok:
-        return tok
+    # config owns UPSTOX_ACCESS_TOKEN; a raw getenv first would shadow a value
+    # resolved there and invert the canonical DB -> file -> env precedence.
     try:
         import config
 
-        return str(getattr(config, "UPSTOX_ACCESS_TOKEN", "") or "").strip()
+        tok = str(getattr(config, "UPSTOX_ACCESS_TOKEN", "") or "").strip()
+        if tok:
+            return tok
     except Exception:
-        return ""
+        pass
+    return os.getenv("UPSTOX_ACCESS_TOKEN", "").strip()
 
 
 def token_with_source() -> tuple[str, str]:

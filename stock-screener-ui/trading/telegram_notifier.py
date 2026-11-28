@@ -5,7 +5,6 @@ All calls are non-blocking (fire-and-forget via thread pool) to avoid
 slowing down the scan loop. Failures are logged but never crash the bot.
 """
 
-import os
 import threading
 import time
 from collections import deque
@@ -20,7 +19,7 @@ import config
 
 console = Console()
 
-_ENABLED = os.getenv("TELEGRAM_ENABLED", "true").lower() in ("true", "1", "yes")
+_ENABLED = config.TELEGRAM_CONFIG.get("enabled", True)
 _BOT_TOKEN = config.TELEGRAM_CONFIG.get("bot_token", "")
 _CHAT_ID = config.TELEGRAM_CONFIG.get("chat_id", "")
 
