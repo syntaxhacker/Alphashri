@@ -35,8 +35,33 @@ def _make_chart_api(return_data=None, side_effect=None):
     return mock_api
 
 
+@pytest.fixture(autouse=True)
+def _isolated_chart_cache(monkeypatch):
+    """Keep the preview route's Redis cache in memory for a single test.
+
+    The route caches by (symbol, tf, days, or_minutes), so a result written by
+    one test would otherwise be served to the next test that reuses the key —
+    e.g. the exception case after the successful RELIANCE default case.
+    """
+    import cache.redis_client as redis_cache
+
+    store = {}
+
+    def _cache_get(key):
+        value = store.get(key)
+        return dict(value) if value is not None else None
+
+    def _cache_set(key, value, ttl=None):
+        store[key] = dict(value)
+        return True
+
+    monkeypatch.setattr(redis_cache, "cache_get", _cache_get)
+    monkeypatch.setattr(redis_cache, "cache_set", _cache_set)
+
+
 def _patch_chart_api(mock_api):
-    return patch('upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI', return_value=mock_api)
+    # The route imports UpstoxAPI from upstox_api, not free_indian_apis.
+    return patch('upstox_trader.config_and_utils.upstox_api.UpstoxAPI', return_value=mock_api)
 
 
 def _get_chart_response(client, symbol, data=None, side_effect=None, **params):
@@ -52,7 +77,7 @@ class TestChartPreview:
     ):
         mock_api = _make_chart_api(sample_candles_data)
 
-        with patch('upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI', return_value=mock_api), \
+        with patch('upstox_trader.config_and_utils.upstox_api.UpstoxAPI', return_value=mock_api), \
              patch('config.UPSTOX_API_KEY', 'test_key'), \
              patch('config.UPSTOX_API_SECRET', 'test_secret'):
 
@@ -146,7 +171,7 @@ class TestChartPreview:
     def test_chart_preview_exception_handling(self, client):
         mock_api = _make_chart_api(side_effect=Exception("Network error"))
 
-        with patch('upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI', return_value=mock_api), \
+        with patch('upstox_trader.config_and_utils.upstox_api.UpstoxAPI', return_value=mock_api), \
              patch('config.UPSTOX_API_KEY', 'test_key'), \
              patch('config.UPSTOX_API_SECRET', 'test_secret'):
 
@@ -166,14 +191,10 @@ class TestChartPreview:
         for candle in candles:
             # Contract (src/types/backtest.ts:82): time is the comparable ISO
             # string "YYYY-MM-DDTHH:MM", which the chart converts with toTime().
-            # It has never been epoch-ms — asserting an int could only ever pass
-            # when `candles` was EMPTY, which is what happened whenever the cache
-            # was cold (the mock below patches free_indian_apis.UpstoxAPI while
-            # the endpoint imports upstox_api.UpstoxAPI, so it is never applied).
+            # An int assertion could only pass against an empty candle list.
             assert isinstance(candle['time'], str) and len(candle['time']) >= 16
             assert isinstance(candle['open'], (int, float))
             assert isinstance(candle['high'], (int, float))
-            isinstance(candle['low'], (int, float))
             assert isinstance(candle['low'], (int, float))
             assert isinstance(candle['close'], (int, float))
             assert isinstance(candle['volume'], (int, float))
