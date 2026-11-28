@@ -6,6 +6,8 @@ no ``*.db`` files. ``live`` price/TV seams are monkeypatched (no network).
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -119,6 +121,26 @@ def _seed(job_id: str = "cpj_watch", hits=()) -> None:
     store.save_job({"job_id": job_id, "universe": "nifty500", "timeframe": "1D", "status": "completed"})
     if hits:
         store.save_hits(job_id, list(hits))
+
+
+@pytest.fixture
+def tag_instruments(tmp_path):
+    """Pin F&O/ETF membership locally: the canonical instruments file is
+    gitignored and absent in CI, which otherwise silently yields empty tags."""
+    from chart_patterns import universes
+    import chart_patterns.tags as tags_mod
+
+    path = tmp_path / "instruments.json"
+    path.write_text(json.dumps([
+        {"segment": "NSE_FO", "underlying_type": "EQUITY", "underlying_symbol": "RELIANCE"},
+        {"segment": "NSE_EQ", "instrument_type": "EQ", "isin": "INF204KB14I2", "trading_symbol": "NIFTYBEES"},
+        {"segment": "NSE_EQ", "instrument_type": "EQ", "isin": "INE982V01025", "trading_symbol": "JETFREIGHT"},
+    ]), encoding="utf-8")
+    universes.set_instruments_path(path)
+    tags_mod._membership.cache_clear()
+    yield
+    universes.set_instruments_path(None)
+    tags_mod._membership.cache_clear()
 
 
 def test_arm_empty_store_returns_empty(cp_store):
@@ -576,7 +598,7 @@ def test_watch_contract(cp_client, mock_quotes):
     assert item["tags"] == tags_for("AAA")
 
 
-def test_watch_row_tags_etf(cp_client, mock_quotes):
+def test_watch_row_tags_etf(cp_client, mock_quotes, tag_instruments):
     """NIFTYBEES carries an INF ISIN -> ``["ETF"]`` on every watch row."""
     _seed(hits=[_hit("NIFTYBEES", base_days=90, range_pct=10.0)])
     mock_quotes["NIFTYBEES"] = (400.0, 2.0)
@@ -585,7 +607,7 @@ def test_watch_row_tags_etf(cp_client, mock_quotes):
     assert resp.json()["items"][0]["tags"] == ["ETF"]
 
 
-def test_watch_row_tags_fno(cp_client, mock_quotes):
+def test_watch_row_tags_fno(cp_client, mock_quotes, tag_instruments):
     """RELIANCE is an F&O underlying with an INE ISIN -> ``["F&O"]``."""
     _seed(hits=[_hit("RELIANCE", base_days=90, range_pct=10.0)])
     mock_quotes["RELIANCE"] = (2600.0, 2.0)
@@ -594,7 +616,7 @@ def test_watch_row_tags_fno(cp_client, mock_quotes):
     assert resp.json()["items"][0]["tags"] == ["F&O"]
 
 
-def test_watch_row_tags_plain(cp_client, mock_quotes):
+def test_watch_row_tags_plain(cp_client, mock_quotes, tag_instruments):
     """JETFREIGHT is an INE company not in F&O -> ``[]``."""
     _seed(hits=[_hit("JETFREIGHT", base_days=90, range_pct=10.0)])
     mock_quotes["JETFREIGHT"] = (150.0, 2.0)
@@ -961,7 +983,7 @@ def test_near52w_live_passthrough(mock_quotes):
         assert out[key] == row[key]
 
 
-def test_live_attaches_tags(mock_quotes):
+def test_live_attaches_tags(mock_quotes, tag_instruments):
     """live() stamps every row with ``tags_for(symbol)`` even when armed rows
     carry none."""
     mock_quotes["AAA"] = (110.0, 2.0)
