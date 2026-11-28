@@ -11,6 +11,7 @@ from chart_patterns.levels import compute_sr_zones
 from market_levels import PRICE_ACTION, DetectorSpec
 from market_levels.detectors import price_action
 from market_levels.registry import DETECTORS
+from trading.timezone import TZ_IST
 
 CLOSES = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
 AS_OF = "2026-01-12"
@@ -33,7 +34,7 @@ def _wire(closes, *, high_low: float = 0.5):
 
 def _intraday_wire(closes):
     index = pd.date_range(
-        "2026-01-05 09:15", periods=len(closes), freq="15min", tz="Asia/Kolkata"
+        "2026-01-05 09:15", periods=len(closes), freq="15min", tz=TZ_IST
     )
     return [
         {
@@ -167,11 +168,11 @@ def test_intraday_timestamps_survive_unchanged():
     ctx = _ctx(
         candles,
         timeframe="15m",
-        session="Asia/Kolkata",
+        session=TZ_IST,
         market="india",
     )
     zones = compute_sr_zones(
-        candles, session="Asia/Kolkata", timeframe="15m", market="india"
+        candles, session=TZ_IST, timeframe="15m", market="india"
     )
     levels = price_action.detect(ctx)
 

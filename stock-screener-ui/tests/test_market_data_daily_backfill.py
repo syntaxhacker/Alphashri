@@ -28,6 +28,7 @@ import config
 import chart_patterns.candles as candles_mod
 from market_data import market_data as market_data_mod
 from market_data.market_data import fetch_candles_for_timeframe
+from trading.timezone import TZ_IST
 
 IST = config.IST
 
@@ -91,14 +92,14 @@ def _daily_history(end_exclusive: str, periods: int = 30) -> pd.DataFrame:
     """Official-style daily bars (IST midnight index) before ``end_exclusive``."""
     end = pd.bdate_range(end=end_exclusive, periods=1)[0] - pd.offsets.BDay(1)
     idx = pd.bdate_range(end=end.date().isoformat(), periods=periods, tz="UTC")
-    idx = idx.tz_convert("Asia/Kolkata").normalize().tz_convert("UTC")
+    idx = idx.tz_convert(TZ_IST).normalize().tz_convert("UTC")
     return _sane_frame(idx)
 
 
 def _session_tape_1m(date_str: str, base: float = 200.0) -> pd.DataFrame:
     """One full NSE session (09:15-15:29 IST) of 1-minute bars."""
     idx = pd.date_range(f"{date_str} 09:15", periods=375, freq="1min",
-                        tz="Asia/Kolkata")
+                        tz=TZ_IST)
     return _sane_frame(idx, base=base)
 
 
@@ -119,7 +120,7 @@ def _make_api(history: pd.DataFrame, tape_1m: pd.DataFrame,
 
 def _ist_dates(df: pd.DataFrame) -> list[str]:
     return sorted(
-        set(df.index.tz_convert("Asia/Kolkata").strftime("%Y-%m-%d"))
+        set(df.index.tz_convert(TZ_IST).strftime("%Y-%m-%d"))
     )
 
 
@@ -142,9 +143,9 @@ class TestBackfillsMissingCompletedSessions:
         # Backfilled bars are ordinary completed bars, never partial.
         assert not getattr(df, "attrs", {}).get("partial_today", False)
         # OHLCV aggregation of the session tape.
-        first = tape[tape.index.tz_convert("Asia/Kolkata")
+        first = tape[tape.index.tz_convert(TZ_IST)
                      .strftime("%Y-%m-%d") == missing[0]]
-        last_bar = df[df.index.tz_convert("Asia/Kolkata")
+        last_bar = df[df.index.tz_convert(TZ_IST)
                       .strftime("%Y-%m-%d") == missing[0]].iloc[0]
         assert last_bar["open"] == pytest.approx(float(first["open"].iloc[0]))
         assert last_bar["high"] == pytest.approx(float(first["high"].max()))
@@ -158,7 +159,7 @@ class TestBackfillsMissingCompletedSessions:
         missing = _recent_business_days(2)
         history = _daily_history(missing[0])
         # Official frame already caught up through the first missing session.
-        official_idx = (pd.Timestamp(missing[0]).tz_localize("Asia/Kolkata")
+        official_idx = (pd.Timestamp(missing[0]).tz_localize(TZ_IST)
                         .normalize().tz_convert("UTC"))
         official = _sane_frame(pd.DatetimeIndex([official_idx]), base=999.0)
         history = pd.concat([history, official]).sort_index()
@@ -172,7 +173,7 @@ class TestBackfillsMissingCompletedSessions:
         assert df is not None
         # Only the still-missing session is added; the official bar is kept.
         assert len(df) == len(history) + 1
-        kept = df[df.index.tz_convert("Asia/Kolkata")
+        kept = df[df.index.tz_convert(TZ_IST)
                   .strftime("%Y-%m-%d") == missing[0]].iloc[0]
         assert kept["open"] == pytest.approx(999.0)
 

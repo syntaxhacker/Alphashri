@@ -286,8 +286,8 @@ def test_ist_handling_with_naive_request():
     r = build_replay([leg()], naive, (T0 + timedelta(minutes=2)).replace(tzinfo=None),
                      FakeProvider(bars), lot_size=1, costs=False)
 
-    assert r.fill_time.utcoffset() == timedelta(hours=5, minutes=30)
-    assert all(datetime.fromisoformat(f["t"]).utcoffset() == timedelta(hours=5, minutes=30)
+    assert r.fill_time.utcoffset() == IST.utcoffset(None)
+    assert all(datetime.fromisoformat(f["t"]).utcoffset() == IST.utcoffset(None)
                for f in r.frames)
 
 
@@ -358,7 +358,7 @@ def test_snapshot_provider_chain_and_series_with_fake_session():
     assert q is not None and q.source == "snapshot"
     assert q.spot == 101.0 and q.ladder == (100.0, 110.0)
     assert q.premiums[(110.0, "PE")] == 2.5
-    assert q.t.utcoffset() == timedelta(hours=5, minutes=30)
+    assert q.t.utcoffset() == IST.utcoffset(None)
 
     series = p.premium_series("IRFC", EXPIRY, 100.0, "CE", T0,
                               T0 + timedelta(minutes=1))
@@ -442,7 +442,7 @@ def test_file_provider_reads_recorded_jsonl(tmp_path):
     assert q is not None and q.source == "file"
     assert q.spot == 101.0 and q.ladder == (100.0, 110.0)
     assert q.premiums[(100.0, "CE")] == 9.0
-    assert q.t.utcoffset() == timedelta(hours=5, minutes=30)
+    assert q.t.utcoffset() == IST.utcoffset(None)
 
     series = p.premium_series("IRFC", EXPIRY, 110.0, "PE", T0,
                               T0 + timedelta(minutes=2))
