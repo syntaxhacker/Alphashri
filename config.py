@@ -4,6 +4,10 @@ from datetime import timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 
+# stock-screener-ui/config.py re-exports the settings whose values match this
+# module. CORS, DATABASE_URL, UPSTOX_CONFIG and the .env load set diverge there
+# and are marked in that file; do not copy them across without a product decision.
+
 IST = timezone(timedelta(hours=5, minutes=30))
 
 BASE_DIR = Path(__file__).parent.absolute()
