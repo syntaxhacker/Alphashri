@@ -191,7 +191,10 @@ class TestChartPreview:
         for candle in candles:
             # Contract (src/types/backtest.ts:82): time is the comparable ISO
             # string "YYYY-MM-DDTHH:MM", which the chart converts with toTime().
-            # An int assertion could only pass against an empty candle list.
+            # It has never been epoch-ms — asserting an int could only ever pass
+            # when `candles` was EMPTY, which is what happened when the patch
+            # targeted free_indian_apis.UpstoxAPI instead of the module the
+            # endpoint imports (upstox_api.UpstoxAPI).
             assert isinstance(candle['time'], str) and len(candle['time']) >= 16
             assert isinstance(candle['open'], (int, float))
             assert isinstance(candle['high'], (int, float))
@@ -217,11 +220,12 @@ class TestChartPreview:
         assert response.status_code == 200
 
         for zone in response.json()['orb_zones']:
-            assert 'start' in zone or 'time' in zone
-            assert 'end' in zone
-            assert 'high' in zone
-            assert 'low' in zone
-            assert zone['high'] >= zone['low']
+            assert 'date' in zone
+            assert 'date_raw' in zone
+            assert 'or_end_time' in zone
+            assert 'or_high' in zone
+            assert 'or_low' in zone
+            assert zone['or_high'] >= zone['or_low']
 
     def test_chart_pivot_levels_structure(self, client, sample_candles_data):
         response = _get_chart_response(client, "RELIANCE", data=sample_candles_data)
