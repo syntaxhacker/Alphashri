@@ -73,11 +73,20 @@ Burned down the first discrete slice of the unquantified Misc bucket: **6 failin
 - **Environment note**: the task venv was missing two declared dependencies (`yfinance`, `scrapling[fetchers]`) from `api/requirements.txt`; installing them was required for a faithful reproduction. Failures seen before that repair in `test_market_ticker.py` / `test_news_scraper.py` / `test_news_poller.py` / `test_nifty_futures_capture.py` were missing-import artifacts, **not** debt, and were left untouched.
 - **Deliberately out of scope this slice** (still failing, need a separate scoped lane — not silently waived): `test_backtest.py::test_run_endpoint_unknown_strategy_returns_400` (route now returns 503 when Upstox credentials are absent, before strategy validation — looks like fixture drift: patch credentials), `test_screeners.py::Test52wSkeletonTruthfulness::test_cold_timeout_keeps_lock_and_does_not_start_second_compute`, `test_value_scan/test_cache_singleflight.py::test_second_wave_uses_the_cached_frame`, and the order-dependent `test_market_screen.py::test_snapshot_default_universe` (passes in isolation). None were changed here.
 
+### Burn-down 2026-11-28 (options paper setup / options parity)
+
+- **Options parity — stale daily-candle mock target (6 → 0 failures)** — `tests/test_options_parity_fields.py`: the `mocked_live` fixture still patched `opr.fetch_candles_for_timeframe("1d")`, but the report now builds pivots/baseline through `opr._fetch_daily_rows` (a direct `fetch_upstox` call, deliberately moved off the index path). In CI, with no Upstox token, the real fetch 401'd on every attempt → `pivots=None` → `TypeError` at `report["pivots"]["pp"]`. The fixture now stubs `_fetch_daily_rows` with raw daily rows in the shape `compute_pivots` consumes; no assertion weakened, no production change.
+- **Options-paper sim — gitignored parquet panel (3 → 0 failures)** — `tests/test_options_paper_sim.py`: three tests read the gitignored `NSE_NIFTY50-INDEX__1.parquet` panel (via `panel.index_day` / `panel.sessions`) without the data-layer stub a sibling test already uses; on a machine without `pyarrow` they died at `pd.read_parquet`. A `_synthetic_panel` fixture now supplies a small coherent index plus deterministic `candidate_sessions`, so the build-screen/JSON and week-choice assertions run offline.
+- **Options-paper manual flags — unseeded agent account (1 → 0 failures)** — `tests/test_options_paper_manual_flags.py`: the ratchet-close test booked its generated trade to the `options-paper@alphashri.local` DB account that only `options-paper setup` creates, so it raised `RuntimeError: no account …; run setup first`. The test now stubs `manual.book.record_trades` at that seam; the ratchet/close assertion is unchanged.
+- Verification: `CI_MODE=1 <task-venv>/python -m pytest $(find tests -name '*option*.py' | sort) -q -o addopts="" -m "not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)" --tb=line` → **1183 passed, 24 pre-existing skips, 0 failures** (was 10 failed / 1173 passed / 24 skipped). Narrow re-run of the three touched modules → **49 passed, 4 pre-existing skips**. All fixture/test drift — no production code changed, no skip/xfail/allowlist added.
+
 ## Remaining clusters (rough counts — re-measure before quoting)
 
 No exact total is claimed here. The figures are approximate, grouped by the
 owner/area that should fix them; they are **fixture/test drift**, not production
-bugs.
+bugs. The options paper setup / options parity failures that were flagged by the
+earlier CI-debt lane are **no longer in this bucket** — see the dated burn-down
+above.
 
 | Cluster | Owner / area | Rough count |
 | --- | --- | --- |
