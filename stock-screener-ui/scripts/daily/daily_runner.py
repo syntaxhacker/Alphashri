@@ -1,20 +1,19 @@
 
-import sys
 import time
 import argparse
 import json
 import signal
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List
+from typing import List
 
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-from trading.paper_trader import PaperTrader, OrderSide, get_paper_trader
-from trading.orb_signals import ORBSignalGenerator, SignalType, create_entry_signal
-from trading.risk_manager import RiskManager, get_risk_manager
+from trading.paper_trader import get_paper_trader
+from trading.orb_signals import ORBSignalGenerator, SignalType
+from trading.risk_manager import get_risk_manager
 from trading.utils import PRE_MARKET, MARKET_OPEN, OR_END, FORCE_EXIT, MARKET_CLOSE
 
 from .daily_scanner import (

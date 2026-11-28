@@ -6,7 +6,6 @@ Frozen output: reports/irfc_2026-11-09_90ce/trade.html + data.json.
 from __future__ import annotations
 
 import json
-import math
 import os
 import sys
 import requests
