@@ -1,7 +1,8 @@
 """Single-source guards for numeric coercion.
 
 ``common/numbers.py`` owns the bodies. api.utils, trading.week52.math, agri,
-TV prefilter and the sync script only re-export or delegate to them.
+TV prefilter, the sync script and the analysis scripts only re-export or
+delegate to them.
 """
 from __future__ import annotations
 
@@ -19,8 +20,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_PATH = "common/numbers.py"
 CANONICAL_MODULE = "common.numbers"
 TARGET_NAMES = {"to_float", "optional_float", "finite_or_none"}
-# These spellings used to evade TARGET_NAMES entirely: seven of the audited
-# modules owned a real float() body under one of them.
+# These spellings used to evade TARGET_NAMES entirely: modules across the app
+# and analysis layers owned a real float() body under one of them.
 EVASIVE_NAMES = {"_f", "safe_float", "_to_float", "float_or_none"}
 VARIANT_NAMES = {
     "strict_float", "float_or_default", "nan_guarded_float", "strict_optional_float",
@@ -29,10 +30,9 @@ PRODUCTION_PATHS = (
     "common", "api", "trading", "chart_patterns", "scripts",
     "options_paper", "edge_scanner_tv",
 )
-# research/one-off scripts are analysis-only (AGENTS.md); their private _f
-# clones are a separate cleanup. The canonical-name scan above still covers
-# every production path, scripts included.
-EVASIVE_SCAN_PATHS = tuple(p for p in PRODUCTION_PATHS if p != "scripts")
+# Analysis-only scripts share the same evasive-name guard: their private
+# helpers are thin adapters over common/numbers.py and own no coercion body.
+EVASIVE_SCAN_PATHS = PRODUCTION_PATHS
 # Each audited module binds its old helper name to one canonical helper object.
 AUDITED_ALIASES = {
     "chart_patterns/candles.py": ("_f", "to_float"),
@@ -44,10 +44,15 @@ AUDITED_ALIASES = {
     "edge_scanner_tv/tv_feed.py": ("_f", "nan_guarded_float"),
     "chart_patterns/tv_prefilter.py": ("_to_float", "strict_optional_float"),
 }
-# aggregate.to_float is the one documented wrapper: it keeps the nullable
-# semantics its callers already rely on while delegating to the canonical body.
+# These wrappers keep their callers' fallback conventions (nullable fields or
+# caller-supplied defaults) while delegating to the canonical bodies.
 # Values map the local wrapper name to the canonical helper it delegates to.
-DELEGATING_WRAPPERS = {"api/agri/aggregate.py": ("to_float", "optional_float")}
+DELEGATING_WRAPPERS = {
+    "api/agri/aggregate.py": ("to_float", "optional_float"),
+    "scripts/eval_desk_day.py": ("_f", "nan_guarded_float"),
+    "scripts/market/agri_eda.py": ("_to_float", "float_or_default"),
+    "scripts/market/nifty_tape_review_quant.py": ("_f", "to_float"),
+}
 
 
 class _BadFloat:

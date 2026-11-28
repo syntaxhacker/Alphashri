@@ -41,6 +41,12 @@ from pathlib import Path
 
 import requests
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from common.numbers import float_or_default  # noqa: E402
+
 API_KEY = os.getenv("DATA_GOV_IN_API_KEY", "")
 RESOURCE_ID = "9ef84268-d588-465a-a308-a864a43d0070"
 API_URL = f"https://api.data.gov.in/resource/{RESOURCE_ID}"
@@ -90,10 +96,9 @@ def fetch_today(commodity: str, date_str: str):
 
 
 def _to_float(v):
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return None
+    # A missing mandi price must stay missing; float_or_default's 0.0 fallback
+    # would invent a real market price.
+    return float_or_default(v, None)
 
 
 def summarize(records):

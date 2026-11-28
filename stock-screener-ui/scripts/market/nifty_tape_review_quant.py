@@ -44,6 +44,11 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from common.numbers import to_float  # noqa: E402
+
 DATA = ROOT / "experiments" / "data"
 
 TAPE_DIR = DATA / "nifty_tape"
@@ -63,12 +68,8 @@ SESSION_OPEN_MIN = 9 * 60 + 15
 
 
 def _f(value, default=None):
-    """float or ``default``; never raises, never returns NaN/inf."""
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return default
-    return out if math.isfinite(out) else default
+    # Tape fields use None as the missing marker, not to_float's 0.0 default.
+    return to_float(value, default)
 
 
 def _i(value, default=0):
