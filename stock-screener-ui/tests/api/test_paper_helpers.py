@@ -11,13 +11,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from unittest.mock import MagicMock
 
+import config
 from api.paper.helpers import build_trade_log_entry
 from trading.paper.paper_models import OrderSide, ExitReason
 
-IST = timezone(timedelta(hours=5, minutes=30))
+IST = config.IST
 
 
 def _make_trade(**overrides):

@@ -66,7 +66,7 @@ class TestUpstoxExpiryTimezone:
 
         parsed = datetime.fromisoformat(status["expires_at"])
         assert parsed.tzinfo is not None
-        assert parsed.utcoffset() == timedelta(hours=5, minutes=30)
+        assert parsed.utcoffset() == IST.utcoffset(None)
         assert parsed == datetime(2026, 11, 19, 3, 30, tzinfo=IST)
 
     def test_near_expiry_eleven_minutes_is_still_connected(self):
@@ -112,7 +112,7 @@ class TestFyersExpiryTimezone:
 
         parsed = datetime.fromisoformat(status["expires_at"])
         assert parsed.tzinfo is not None
-        assert parsed.utcoffset() == timedelta(hours=5, minutes=30)
+        assert parsed.utcoffset() == IST.utcoffset(None)
 
     def test_a_token_older_than_its_expiry_is_disconnected(self):
         # Created 2026-11-18 01:00 IST -> expires 2026-11-18 06:00 IST, long gone.
