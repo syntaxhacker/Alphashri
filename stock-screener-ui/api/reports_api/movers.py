@@ -104,11 +104,6 @@ NIFTY50_SYMBOLS = list(NIFTY50_WEIGHTS.keys())
 # Upstox v2 quotes needs NSE_EQ|SYMBOL for equity quotes.
 # Index quotes use NSE_INDEX|Nifty 50 or BSE_INDEX|SENSEX.
 # For movers we need constituent equity quotes, not the index itself.
-def _eq_key(symbol: str) -> str:
-    """Legacy fallback only — prefer the real key from the instruments table."""
-    return f"NSE_EQ|{symbol}"
-
-
 def _resolve_instrument_keys(symbols: list[str]) -> dict[str, str]:
     """Map trading symbols to their canonical Upstox NSE_EQ instrument keys.
 
