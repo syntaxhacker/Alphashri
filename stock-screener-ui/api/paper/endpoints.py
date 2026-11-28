@@ -858,6 +858,9 @@ def update_strategy_config_endpoint(
 @router.post("/config/reset")
 def reset_strategy_config_endpoint(name: str = "orb_default", user: "User" = Depends(get_current_user)):
     """Reset strategy configuration to defaults."""
+    # backtest.__init__ imports .api eagerly, so a module-level import cycles.
+    from backtest import costs
+
     try:
         with SessionLocal() as db:
             config_data = db.query(StrategyConfig).filter(
@@ -881,13 +884,13 @@ def reset_strategy_config_endpoint(name: str = "orb_default", user: "User" = Dep
             config_data.max_trade_value = 100000
             config_data.cooldown_minutes = 30
             config_data.max_distance_from_or_pct = 1.5
-            config_data.brokerage_pct = 0.0003
-            config_data.min_brokerage = 20
-            config_data.stt_pct = 0.00025
-            config_data.exchange_pct = 0.0000297
-            config_data.sebi_pct = 0.000001
-            config_data.stamp_pct = 0.00003
-            config_data.gst_pct = 0.18
+            config_data.brokerage_pct = costs.BROKERAGE_PCT
+            config_data.min_brokerage = costs.MIN_BROKERAGE
+            config_data.stt_pct = costs.STT_PCT
+            config_data.exchange_pct = costs.EXCHANGE_CHARGES_PCT
+            config_data.sebi_pct = costs.SEBI_FEE_PCT
+            config_data.stamp_pct = costs.STAMP_DUTY_PCT
+            config_data.gst_pct = costs.GST_PCT
 
             db.commit()
             db.refresh(config_data)
