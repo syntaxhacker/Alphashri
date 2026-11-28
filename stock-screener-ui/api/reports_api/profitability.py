@@ -181,7 +181,6 @@ def _signal_at(
     highs: list[float],
     lows: list[float],
     closes: list[float],
-    vols: list[float],
     i: int,
     ema: Optional[tuple[list[float], list[float]]] = None,
 ) -> bool:
@@ -238,7 +237,6 @@ def _frame_to_lists(df: Any) -> Optional[dict]:
         for col in ("open", "high", "low", "close"):
             if col not in df.columns:
                 return None
-        vols = df["volume"].tolist() if "volume" in df.columns else [0.0] * n
         # Keep the raw index: formatting every bar's date up front cost ~2 ms
         # per frame while only bars that become signals ever read a label.
         dates = getattr(df, "index", None)
@@ -247,7 +245,6 @@ def _frame_to_lists(df: Any) -> Optional[dict]:
             "high": [float(v) for v in df["high"].tolist()],
             "low": [float(v) for v in df["low"].tolist()],
             "close": [float(v) for v in df["close"].tolist()],
-            "volume": [float(v or 0.0) for v in vols],
             "dates": dates,
         }
     except Exception:
@@ -273,7 +270,7 @@ def _extract_trades(
                 if not _signal_at(
                     strategy_id,
                     lists["open"], lists["high"], lists["low"],
-                    closes, lists["volume"], i, ema=ema,
+                    closes, i, ema=ema,
                 ):
                     continue
                 entry = closes[i]

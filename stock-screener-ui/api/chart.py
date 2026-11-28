@@ -3,10 +3,9 @@ Chart API — helpers for resampling candles, ORB zones, pivot points, and chart
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
 
 import config
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query
 
 from api.screener import _to_float, _sanitize_for_json
 from api.utils import _ensure_datetime_index, _make_empty_chart_response
@@ -19,7 +18,7 @@ def _is_weekend(d: datetime) -> bool:
     return d.weekday() >= 5
 
 
-def _get_last_trading_day(symbol: str) -> str:
+def _get_last_trading_day() -> str:
     """
     Find the most recent trading day using:
     1. Weekend check (datetime.weekday)
@@ -257,7 +256,7 @@ def get_chart_preview(
 
     try:
         # Compute the last trading day using weekend + holiday checks
-        last_trading_day = _get_last_trading_day(symbol)
+        last_trading_day = _get_last_trading_day()
 
         # Fetch enough calendar days to cover N trading days (+ buffer for weekends/holidays)
         calendar_days_back = days * 3  # 3x buffer is plenty since we're starting from a known trading day
@@ -277,7 +276,6 @@ def get_chart_preview(
                 if df is None or (hasattr(df, 'empty') and df.empty):
                     df = df_intraday
                 else:
-                    import pandas as pd
                     df = pd.concat([df, df_intraday]).drop_duplicates(keep='last').sort_index()
         except Exception:
             pass
