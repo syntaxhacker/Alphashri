@@ -1,0 +1,87 @@
+{
+  "feature": "viz-options-dock",
+  "route": "/?tab=market (1600 dock) · /screener/fno (390 dock) · /options (IV skew SVG)",
+  "head": "c0ba43a66cc2a1eb150921df711ba747e69253c7",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "contract-1600.png": "c1c320a4bb951f5deb69a2602a5c4a4b6959cfa96ceda86be05225b87e2328bc",
+    "contract-390.png": "c42e82fd0f0792c620fc65640287071fa6084f8313cfd3ac98cecce7db9da52b",
+    "iv-skew-1600.png": "6da7543223f8aa4afaf539df971f4abb7ddbda8d7c7eb1a26984f230e747828d",
+    "iv-skew-390.png": "b4bb822c2952fad963244cfe7426242f15c5077c571d3dec26f96d3b06fc882e",
+    "payoff-1600.png": "fb28c01019f23918ef7eec67cb92d28246ad02954ae36c429c45d3cba7f20f24",
+    "payoff-390.png": "e448ed7c31d7ddbef582c065891782e65c9d3f921e854e2deb4c1a28640a8448",
+    "payoff-empty-1600.png": "90c0be37a3ac60785f2ebb75e75bd3380d474eef936a258b618205f84f96af29",
+    "payoff-empty-390.png": "07de39d511b90836ebb8ae13e2dd5411cc1be3da6df73c09f4b81ff5ffab3136",
+    "prob-1600.png": "be55c0005c942c97ea7e19ea78831f6446ebb14e57ab3081692de1e6ef15028c",
+    "prob-390.png": "7c28c1a64405fcbe08edfb0a433eea9eb18e9dd772cb286058fe0677a661e179",
+    "smile-1600.png": "d86424e07baff21e30010f6c57150acd9dadc95d16eaa2a19e0c6cc4a3e9baf9",
+    "smile-390.png": "8dbf805b864ef8297de42b074de11c33d2d95a6a1258c712809a24c63c4a2fc0"
+  },
+  "states": [
+    {
+      "id": "payoff-empty",
+      "files": {
+        "390": "payoff-empty-390.png",
+        "1600": "payoff-empty-1600.png"
+      },
+      "covers": "Options dock with no legs: the PAYOFF placeholder and tab strip render instead of a payoff canvas.",
+      "mock": true,
+      "primary": "options-payoff-placeholder"
+    },
+    {
+      "id": "payoff",
+      "files": {
+        "390": "payoff-390.png",
+        "1600": "payoff-1600.png"
+      },
+      "covers": "One 1420 CE leg in the maximized dock: payoff curve, spot and max-pain guides, and the four-cell footer from the consolidated payoff math.",
+      "mock": true,
+      "primary": "options-payoff-chart"
+    },
+    {
+      "id": "smile",
+      "files": {
+        "390": "smile-390.png",
+        "1600": "smile-1600.png"
+      },
+      "covers": "Analytics tab IV BY STRIKE (SmilePanel) in the maximized dock, using the shared canvas core and chart defaults.",
+      "mock": true,
+      "primary": "smile-chart"
+    },
+    {
+      "id": "prob",
+      "files": {
+        "390": "prob-390.png",
+        "1600": "prob-1600.png"
+      },
+      "covers": "Analytics tab POSITION ODDS (ProbPanel) showing the shaded payoff, flat/skew POP, expected P&L and move cells.",
+      "mock": true,
+      "primary": "prob-chart"
+    },
+    {
+      "id": "contract",
+      "files": {
+        "390": "contract-390.png",
+        "1600": "contract-1600.png"
+      },
+      "covers": "ContractChartPanel for RELIANCE 1420 CE with premium line and volume bars painted through the shared AnalyticsChartCore.",
+      "mock": true,
+      "primary": "contract-chart"
+    },
+    {
+      "id": "iv-skew",
+      "files": {
+        "390": "iv-skew-390.png",
+        "1600": "iv-skew-1600.png"
+      },
+      "covers": "SVG-rendered IVSkewChart in the standalone /options Deep OI Analysis view, confirming ECharts SVG paths are painted (the dock's Smile tab uses the canvas core).",
+      "mock": true,
+      "primary": "options-iv-skew-chart"
+    }
+  ],
+  "source": "route-mocked-live-app",
+  "configIsolated": true
+}
