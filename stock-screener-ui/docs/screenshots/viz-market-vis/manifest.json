@@ -1,0 +1,99 @@
+{
+  "feature": "viz-market-vis",
+  "route": "/screener?view=vis",
+  "head": "eaa017ef5fcc1e82557861d0e03c5a34184304ea",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "money-flow-1600.png": "8d684a2e8c994be717a3d9547557e2aa9c406b07333529b9575384112d4c4390",
+    "money-flow-390.png": "09ea9a8a15c187147dfe8c9be5d692a37841d516e62b240d9dd9c1b603c39884",
+    "money-flow-empty-1600.png": "e042969426b20059a4a79b3f1ddd47e08bae6a6ca9cc495f886a62ef35ca1c5d",
+    "money-flow-empty-390.png": "c82df879c0d53ce28400dc5a9b86239d9a456880a17086509db0a8b1cf829725",
+    "range-52-1600.png": "e5322b75775098d7d52eeeda4367f45b6d9fd6d3c061a2ecbd063f2a1ccb4750",
+    "range-52-390.png": "ff5670f8fc70f4d74d0b591b546beea16c8a7b2a1aac775976ebec93d23b2e09",
+    "rel-vol-1600.png": "6259733cf6cc2d702d861b672a5cb385ffa5a1a5745650a4cd8bd84ae9c7dd39",
+    "rel-vol-390.png": "a091b974bc9e3b140c34a3658c083793d4502d3d95a138dcc3db21c91872eda5",
+    "rel-vol-empty-1600.png": "a24a91b0d6fba24e4c1fd4ae2e240ea7f88ffce039292d56284fb3392ba19e9c",
+    "rel-vol-empty-390.png": "cea733d891ce53b16315ee58f91d36718ae76b8a6a2940dfa3209d1f31300f46",
+    "rsi-adx-1600.png": "3649e7d631be3852985f6d8bec6521c4a7492a3a07e1b6d9792f8b8ddf5c7375",
+    "rsi-adx-390.png": "c685945e7a17408933fccdee7d34b765f9ef686b3832fedec037c4178a53e788",
+    "sector-52-breadth-1600.png": "09e9d4d7545527b9aaf2c5a6333760f1661b84e797cc2bf57f7e53bab14281b4",
+    "sector-52-breadth-390.png": "e0924246fadde5d7cef5b80f70c6e75546ef73494b1f2762a15605580e93f35e"
+  },
+  "states": [
+    {
+      "id": "money-flow",
+      "files": {
+        "390": "money-flow-390.png",
+        "1600": "money-flow-1600.png"
+      },
+      "covers": "Money flow tab (VIS_OPTIONS value `flow`, label `Money flow`) after the VisFrame/visScale extraction: sector ring, signed-turnover proxy rails, heat tiles and the shared scale legend, driven by a mocked 15-row NSE snapshot.",
+      "mock": false,
+      "primary": "market-flow-svg"
+    },
+    {
+      "id": "money-flow-empty",
+      "files": {
+        "390": "money-flow-empty-390.png",
+        "1600": "money-flow-empty-1600.png"
+      },
+      "covers": "Money flow empty state with sector and day change nulled on every mocked row: the no-sector-data treatment inside the shared VisFrame, with the legend retained.",
+      "mock": true,
+      "primary": "market-flow-empty"
+    },
+    {
+      "id": "range-52",
+      "files": {
+        "390": "range-52-390.png",
+        "1600": "range-52-1600.png"
+      },
+      "covers": "52W range tab (value `range52`, label `52W range`) after extraction: position histogram, within-percent filters, the 15-row list and the shared count/scale treatment.",
+      "mock": false,
+      "primary": "range52-list"
+    },
+    {
+      "id": "rel-vol",
+      "files": {
+        "390": "rel-vol-390.png",
+        "1600": "rel-vol-1600.png"
+      },
+      "covers": "Relative volume tab (value `relvol`, label `Relative volume`) after extraction: threshold chips, lollipop tracks, the 2x reference line and the shared colour scale.",
+      "mock": false,
+      "primary": "relvol-list"
+    },
+    {
+      "id": "rel-vol-empty",
+      "files": {
+        "390": "rel-vol-empty-390.png",
+        "1600": "rel-vol-empty-1600.png"
+      },
+      "covers": "Relative volume empty state with relative_volume nulled on every mocked row: the no-relative-volume-data treatment with count and legend retained.",
+      "mock": true,
+      "primary": "relvol-empty"
+    },
+    {
+      "id": "rsi-adx",
+      "files": {
+        "390": "rsi-adx-390.png",
+        "1600": "rsi-adx-1600.png"
+      },
+      "covers": "RSI x ADX tab (value `rsiadx`, label `RSI × ADX`) after extraction: ECharts scatter, quadrant bands and the shared visScale legend inside VisFrame.",
+      "mock": false,
+      "primary": "rsi-adx-canvas"
+    },
+    {
+      "id": "sector-52-breadth",
+      "files": {
+        "390": "sector-52-breadth-390.png",
+        "1600": "sector-52-breadth-1600.png"
+      },
+      "covers": "Sector 52W tab (value `sector52`, label `Sector 52W`) after extraction: breadth bars, near-high/near-low toggle and sector cohort counts.",
+      "mock": false,
+      "primary": "sector-52w-breadth"
+    }
+  ],
+  "source": "fully-mocked-api-with-real-app-route",
+  "configIsolated": true
+}
