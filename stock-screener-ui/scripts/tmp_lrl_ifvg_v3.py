@@ -36,7 +36,6 @@ from scripts.indicators import (  # noqa: E402  (shared indicator math)
     detect_lrl,
     prev_trading_day,
     session_profile,
-    swing_pivots,
 )
 
 

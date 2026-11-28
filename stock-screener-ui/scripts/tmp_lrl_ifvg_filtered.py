@@ -31,7 +31,6 @@ from scripts.indicators import (  # noqa: E402  (shared indicator math)
     build_bars,
     detect_fvg,
     detect_lrl,
-    swing_pivots,
 )
 
 
