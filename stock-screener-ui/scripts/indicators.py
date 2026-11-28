@@ -15,6 +15,10 @@ must never be merged:
   fallback for spot-only series. This is the desk speed panel's ATR
   (``scripts/desk_check.py``).
 
+Both means now live in :mod:`trading.indicators.volatility` as
+``atr_mean_range`` / ``atr_mean_true_range``; the names below are the study and
+desk-facing aliases and must keep producing the same numbers.
+
 Bar shape: the study helpers take dicts with ``high``/``low``/``close`` keys;
 :func:`atr_true` and :func:`candle_field` accept Upstox candles as dicts or
 positional lists.
@@ -23,6 +27,14 @@ positional lists.
 from __future__ import annotations
 
 import itertools
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from trading.indicators import atr_mean_range, atr_mean_true_range  # noqa: E402
 
 #: Mean true range over this many candles (desk speed panel default).
 ATR_TRUE_PERIOD = 14
@@ -34,9 +46,7 @@ def atr_range(bars, i, n: int = 14) -> float:
     NOT a true range (no previous-close term) — see the module docstring.
     Returns 0.0 when fewer than ``n`` bars are available.
     """
-    if i < n:
-        return 0.0
-    return sum(bars[k]["high"] - bars[k]["low"] for k in range(i - n + 1, i + 1)) / n
+    return atr_mean_range(bars, i, n)
 
 
 def candle_field(candle, name: str, idx: int):
@@ -59,23 +69,7 @@ def candle_field(candle, name: str, idx: int):
 
 
 def atr_true(candles, period: int = ATR_TRUE_PERIOD):
-    trs: list[float] = []
-    prev_close = None
-    for c in candles or []:
-        high = candle_field(c, "high", 2)
-        low = candle_field(c, "low", 3)
-        close = candle_field(c, "close", 4)
-        if close is None or close <= 0:
-            continue
-        if high is not None and low is not None and prev_close is not None:
-            trs.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
-        elif prev_close is not None:
-            trs.append(abs(close - prev_close))
-        prev_close = close
-    if not trs:
-        return None
-    window = trs[-max(1, period):]
-    return sum(window) / len(window)
+    return atr_mean_true_range(candles, period)
 
 
 def build_bars(ticks, sec):
