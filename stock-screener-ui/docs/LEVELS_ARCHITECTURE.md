@@ -30,7 +30,8 @@ api.options_levels ─────┘                                   ├─�
 - **Adapters** (`market_levels/detectors/*.py`): each module declares a
   `DetectorSpec` (id, version, kind, `required_inputs`, params schema) and a
   pure `detect(ctx)` that returns `Level` objects, then calls `register` at
-  import. `price_action`, `pivot`, `gex` and `walls` are the Phase 1 lanes.
+  import. `price_action`, `pivot`, `gex` and `walls` are the Phase 1 lanes;
+  `trendline` is the fifth lane, added in Phase 2.
 - **Service** (`market_levels/service.py`): `build_level_book(...)` builds a
   context, runs every detector whose `required_inputs` are present, and fuses
   the results. `_ensure_adapters()` imports the known lanes lazily; a missing
@@ -88,7 +89,9 @@ Note: fusion deliberately collapses same-price call/put walls into one `oi`
 `wall` level (wall side is not part of the identity). `max_pain` has its own
 `kind` and is never collapsed with a wall.
 
-## Adding a trendline detector later
+## Trendline detector (Phase 2 recipe)
+
+The recipe below is implemented by `market_levels/detectors/trendline.py`.
 
 1. Add one file, `market_levels/detectors/trendline.py`. Declare a
    `DetectorSpec(id="trendline", version="1", kind=TRENDLINE,
@@ -120,9 +123,10 @@ Note: fusion deliberately collapses same-price call/put walls into one `oi`
 | `tests/test_levels_price_action_parity.py` | every zone field reconstructed exactly from `Level` + `evidence` |
 | `tests/test_levels_pivot_parity.py` | `calculate_pivot_points` values key-by-key, unrounded |
 | `tests/test_levels_options_parity.py` | `api.options_levels.build_levels` GEX/wall blocks, lazy import, degraded branches |
-| `tests/test_levels_integration.py` | all four lanes through `build_level_book`: determinism, unique ids, side fill, provenance, raw-source immutability |
+| `tests/test_levels_integration.py` | all four wrapping lanes through `build_level_book`: determinism, unique ids, side fill, provenance, raw-source immutability |
 | `tests/test_levels_adversarial.py` | non-finite/partial geometry, degraded and malformed option blocks, fusion side/order/provenance invariants, service validation and cold-registry registration |
 | `tests/test_levels_trendline_extension.py` | segment geometry validation, date-aware segment identity, segment fields preserved by fusion, deterministic book with no source or consumer change |
+| `tests/test_levels_trendline_detector.py` | deterministic rising/falling/flat segment detection, ATR-tolerance touches, date-aware endpoints and ids, configurable pivot count, short-frame rejection, registry spec, pure detect and book integration |
 | `scripts/perf/bench_levels.py` | deterministic warmup + 50-rep median/p95 for raw S/R and the full book |
 
 The contract is enforced by comparing the book back to the raw functions
@@ -144,15 +148,16 @@ unchanged afterward. No suite edits an existing consumer payload.
 
 ## Scope and phases
 
-- **Phase 1 (current):** additive contract, four wrapping adapters, pure fusion,
-  parity/integration tests and a deterministic benchmark. Zero consumer
+- **Phase 1 (foundation):** additive contract, four wrapping adapters, pure
+  fusion, parity/integration tests and a deterministic benchmark. Zero consumer
   changes.
-- **Phase 2:** migrate consumers to read `LevelBook` behind a feature flag,
-  keeping their existing payloads byte-identical during the transition.
+- **Phase 2 (current):** the trendline segment detector joins the same registry
+  with no consumer migration; the planned consumer migration keeps existing
+  payloads byte-identical behind a feature flag.
 - **Phase 3:** expose a levels API endpoint backed by `build_level_book`, with
   the endpoint as the only new consumer of the book.
-- **Phase 4:** add the trendline segment detector (see above), then retire any
-  leftover standalone level plumbing once consumers are fully migrated.
+- **Phase 4:** retire any leftover standalone level plumbing once consumers are
+  fully migrated (the trendline detector itself is already in place; see above).
 
 ## Phase 1 limitations / P2 hardening
 
@@ -166,5 +171,5 @@ unchanged afterward. No suite edits an existing consumer payload.
 - Same-price call/put wall collapse in fusion is intentional and documented.
 - `min_bars` and `params_schema` are metadata-only; the service does not enforce
   them.
-- No consumer reads the book in Phase 1; the trendline detector and API migration
-  come in later phases.
+- No consumer reads the book in Phase 1; the trendline detector is registered in
+  Phase 2, and the API migration comes in a later phase.

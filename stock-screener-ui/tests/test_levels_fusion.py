@@ -433,6 +433,7 @@ def test_cold_registry_rebuilds_all_four_real_adapters():
         "pivot",
         "gex",
         "walls",
+        "trendline",
     }
     assert {level.source for level in book.levels} == {
         PRICE_ACTION,

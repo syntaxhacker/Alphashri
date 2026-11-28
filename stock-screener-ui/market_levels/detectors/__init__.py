@@ -5,4 +5,4 @@
 foundation remains usable before every lane exists.
 """
 
-ADAPTER_MODULES = ("price_action", "pivot", "gex", "walls")
+ADAPTER_MODULES = ("price_action", "pivot", "gex", "walls", "trendline")

@@ -970,7 +970,7 @@ def test_service_all_four_real_adapters_produce_one_levelbook(four_adapters):
     assert len({lv.id for lv in book.levels}) == len(book.levels)
     assert all(lv.side in {"below", "above", "inside"} for lv in book.levels)
     assert {spec.id for spec in [s for s, _ in iter_detectors()]} == {
-        "price_action", "pivot", "gex", "walls"
+        "price_action", "pivot", "gex", "walls", "trendline"
     }
     assert {lv.kind for lv in book.levels if lv.source == PRICE_ACTION} == {
         SUPPORT, RESISTANCE
@@ -995,7 +995,7 @@ def test_cold_registry_build_book_registers_all_four_adapters(clean_registry):
     )
 
     assert {spec.id for spec in list_specs()} == {
-        "price_action", "pivot", "gex", "walls"
+        "price_action", "pivot", "gex", "walls", "trendline"
     }
     assert {lv.source for lv in book.levels} == {
         PRICE_ACTION, PIVOT, GEX, OI
