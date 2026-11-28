@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+import config
 from config import IST
 from api.tv.cache import FrameDescriptor, invalidate, scan_frame_cached
 from db.database import SessionLocal
@@ -127,7 +128,7 @@ def _build_sector_response(df: pd.DataFrame, market: str) -> SectorResponse:
     """Aggregate the raw TradingView frame into the dashboard payload."""
     if df.empty:
         return SectorResponse(
-            sectors=[], top_stock_movers=[], last_updated=datetime.now(), market=market
+            sectors=[], top_stock_movers=[], last_updated=datetime.now(config.IST), market=market
         )
 
     # Deduplicate and calculate weighted average
@@ -187,7 +188,7 @@ def _build_sector_response(df: pd.DataFrame, market: str) -> SectorResponse:
     return SectorResponse(
         sectors=sectors,
         top_stock_movers=top_stock_movers,
-        last_updated=datetime.now(),
+        last_updated=datetime.now(config.IST),
         market=market
     )
 
@@ -1002,7 +1003,7 @@ async def get_group_performance(
                 classify=classify,
                 period=period,
                 market=market,
-                last_updated=datetime.now(),
+                last_updated=datetime.now(config.IST),
                 groups=[],
             )
 
@@ -1018,7 +1019,7 @@ async def get_group_performance(
             classify=classify,
             period=period,
             market=market,
-            last_updated=datetime.now(),
+            last_updated=datetime.now(config.IST),
             groups=groups,
         )
         _group_cache[cache_key] = (
@@ -1031,7 +1032,7 @@ async def get_group_performance(
             classify=classify,
             period=period,
             market=market,
-            last_updated=datetime.now(),
+            last_updated=datetime.now(config.IST),
             groups=[],
         )
 
