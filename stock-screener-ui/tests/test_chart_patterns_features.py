@@ -66,7 +66,7 @@ class TestNormalizeOhlcv:
         assert F.normalize_ohlcv(pd.Series([1.0, 2.0])) is None
 
     def test_empty_dataframe_returns_none(self):
-        empty = pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+        empty = pd.DataFrame(columns=F.OHLCV_COLUMNS)
         assert F.normalize_ohlcv(empty) is None
 
     @pytest.mark.parametrize("missing", ["open", "high", "low", "close"])
@@ -78,7 +78,7 @@ class TestNormalizeOhlcv:
     def test_uppercase_columns_are_lowercased(self):
         df = make_frame([100.0, 101.0]).rename(columns=str.upper)
         out = F.normalize_ohlcv(df)
-        assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+        assert list(out.columns) == F.OHLCV_COLUMNS
         assert out["close"].tolist() == [100.0, 101.0]
 
     def test_mixed_case_columns_are_lowercased(self):
@@ -86,7 +86,7 @@ class TestNormalizeOhlcv:
             columns={"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"}
         )
         out = F.normalize_ohlcv(df)
-        assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+        assert list(out.columns) == F.OHLCV_COLUMNS
 
     def test_missing_volume_is_filled_with_zero(self):
         df = make_frame([100.0, 101.0]).drop(columns=["volume"])

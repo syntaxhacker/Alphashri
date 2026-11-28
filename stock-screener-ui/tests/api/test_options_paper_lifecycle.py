@@ -7,12 +7,13 @@ replay and per-contract marking. In-memory SQLite only, no network.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import pytest
 
 os.environ.setdefault("CI_MODE", "1")
 
+import config  # noqa: E402
 from api_server_fastapi import app  # noqa: E402
 from api.auth import get_current_user  # noqa: E402
 from api.options_paper import service  # noqa: E402
@@ -26,7 +27,7 @@ EXPIRY = "2026-11-23"
 SESSION = "2026-11-17"
 ENTRY_TS = f"{SESSION}T09:47:00+05:30"
 STRIKES = (82.5, 85.0)
-IST = timezone(timedelta(hours=5, minutes=30))
+IST = config.IST
 
 
 @pytest.fixture(autouse=True)

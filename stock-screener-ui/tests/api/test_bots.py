@@ -39,6 +39,8 @@ from fastapi import FastAPI
 
 from api.bots_api import router as bots_router
 
+import config
+
 
 
 @pytest.fixture
@@ -720,8 +722,7 @@ class TestBotTradesFromDB:
 
     def test_get_bot_trades_from_db(self, db, single_strategy_bot, auth_headers, client):
         from db.models import Trade, User, StrategyConfig
-        from datetime import datetime, timezone, timedelta
-        IST = timezone(timedelta(hours=5, minutes=30))
+        IST = config.IST
 
         user = db.query(User).order_by(User.id.desc()).first()
         bot = single_strategy_bot
@@ -765,8 +766,7 @@ class TestBotTradesFromDB:
 
     def test_get_bot_trades_filter_by_strategy_db(self, db, multi_strategy_bot, auth_headers, client):
         from db.models import Trade, User, StrategyConfig
-        from datetime import datetime, timezone, timedelta
-        IST = timezone(timedelta(hours=5, minutes=30))
+        IST = config.IST
 
         user = db.query(User).order_by(User.id.desc()).first()
         bot = multi_strategy_bot
@@ -807,8 +807,7 @@ class TestBotTradesFromDB:
 
     def test_get_bot_trades_exclude_test_data_db(self, db, single_strategy_bot, auth_headers, client):
         from db.models import Trade, User, StrategyConfig
-        from datetime import datetime, timezone, timedelta
-        IST = timezone(timedelta(hours=5, minutes=30))
+        IST = config.IST
 
         user = db.query(User).order_by(User.id.desc()).first()
         bot = single_strategy_bot
@@ -853,8 +852,7 @@ class TestBotPositionsFromDB:
 
     def test_get_bot_positions_db_fallback(self, db, single_strategy_bot, auth_headers, client):
         from db.models import Position, User, StrategyConfig
-        from datetime import datetime, timezone, timedelta
-        IST = timezone(timedelta(hours=5, minutes=30))
+        IST = config.IST
 
         user = db.query(User).order_by(User.id.desc()).first()
         bot = single_strategy_bot
@@ -1527,8 +1525,7 @@ class TestBotTradesFromDB:
     @pytest.mark.integration
     def test_get_bot_trades_from_db(self, client_with_db, test_db, test_user, test_strategy):
         from db.models import Trade
-        from datetime import datetime, timezone, timedelta
-        IST = timezone(timedelta(hours=5, minutes=30))
+        IST = config.IST
 
         bot_data = {
             "name": f"Trades DB Bot {uuid_module.uuid4()}",
@@ -1575,8 +1572,7 @@ class TestBotTradesFromDB:
     @pytest.mark.integration
     def test_get_bot_trades_filter_by_strategy_db(self, client_with_db, test_db, test_user):
         from db.models import Trade, StrategyConfig, BotConfig, bot_strategies
-        from datetime import datetime, timezone, timedelta
-        IST = timezone(timedelta(hours=5, minutes=30))
+        IST = config.IST
 
         strat1 = StrategyConfig(name=f"Strat A {uuid_module.uuid4()}", strategy_type="ORB", is_template=True, is_active=True, max_positions=5)
         strat2 = StrategyConfig(name=f"Strat B {uuid_module.uuid4()}", strategy_type="ORB", is_template=True, is_active=True, max_positions=5)
@@ -1633,8 +1629,7 @@ class TestBotTradesFromDB:
     @pytest.mark.integration
     def test_get_bot_trades_exclude_test_data_db(self, client_with_db, test_db, test_user, test_strategy):
         from db.models import Trade
-        from datetime import datetime, timezone, timedelta
-        IST = timezone(timedelta(hours=5, minutes=30))
+        IST = config.IST
 
         bot_data = {
             "name": f"Exclude Test Bot {uuid_module.uuid4()}",
@@ -1682,8 +1677,7 @@ class TestBotPositionsFromDB:
     @pytest.mark.integration
     def test_get_bot_positions_db_fallback(self, client_with_db, test_db, test_user, test_strategy):
         from db.models import Position, BotConfig
-        from datetime import datetime, timezone, timedelta
-        IST = timezone(timedelta(hours=5, minutes=30))
+        IST = config.IST
 
         bot_data = {
             "name": f"Pos DB Bot {uuid_module.uuid4()}",
@@ -1781,8 +1775,7 @@ class TestBotSummary:
 
     def test_summary_position_count(self, client_with_db, test_db, test_user, test_strategy):
         from db.models import Position, BotConfig, bot_strategies
-        from datetime import datetime, timezone, timedelta
-        IST = timezone(timedelta(hours=5, minutes=30))
+        IST = config.IST
 
         bot = BotConfig(
             name="Pos Count Bot",

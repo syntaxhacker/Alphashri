@@ -10,7 +10,7 @@ import pytest
 import sys
 import json
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 
 import pandas as pd
@@ -18,7 +18,9 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-IST = timezone(timedelta(hours=5, minutes=30))
+import config
+
+IST = config.IST
 
 
 

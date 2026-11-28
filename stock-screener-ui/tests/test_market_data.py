@@ -18,6 +18,7 @@ from market_data.market_data import (
     _TF_TO_UPSTOX,
     _RESAMPLE_RULE,
 )
+from market_data.providers.base import OHLCV
 
 
 
@@ -67,7 +68,7 @@ class TestResampleCandles:
         df = _make_1m_candles(75)
         result = resample_candles(df, 5)
         assert len(result) == 15
-        assert all(c in result.columns for c in ["open", "high", "low", "close", "volume"])
+        assert all(c in result.columns for c in OHLCV)
 
     def test_1m_to_15m(self):
         df = _make_1m_candles(75)

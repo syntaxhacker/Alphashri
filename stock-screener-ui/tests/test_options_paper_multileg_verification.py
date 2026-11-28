@@ -24,6 +24,7 @@ from options_paper.costs import (
     option_entry_cost,
     option_round_trip_cost,
 )
+from options_paper.spec import CHARGES
 from options_paper.multi_day_replay import build_replay
 from options_paper.replay_data import ChainQuote
 
@@ -261,7 +262,7 @@ def test_parse_leg_spec_rejects_invalid_lots(bad_lots):
 # ---------------------------------------------------------------------------
 def _assert_side_charges(side: dict, premium_value: float, is_buy: bool):
     assert side["brokerage"] == pytest.approx(
-        min(30.0, premium_value * BROKERAGE_PCT_OF_TURNOVER), abs=1e-3)
+        min(CHARGES.brokerage_per_order, premium_value * BROKERAGE_PCT_OF_TURNOVER), abs=1e-3)
     if is_buy:
         assert side["stamp"] > 0 and side["stt"] == 0
     else:
