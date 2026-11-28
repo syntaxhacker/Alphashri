@@ -370,9 +370,14 @@ class TestSentimentCache:
     @patch('cache.redis_client.cache_get')
     @patch('cache.redis_client.cache_set_smart')
     @patch('cache.redis_client.is_cache_available')
+    # Sentiment reads the feed via _aggregator.fetch_all, which conftest stubs
+    # empty; without a feed item it returns NO_RECENT_NEWS before any cache write.
+    @patch('news_api._aggregator.fetch_all', return_value=[
+        {'sourceUrl': 'http://test.com/sentiment'}
+    ])
     def test_caches_sentiment_result_with_smart_ttl(
-        self, mock_cache_avail, mock_cache_set_smart, mock_cache_get,
-        mock_fetcher, mock_analyzer
+        self, mock_fetch_all, mock_cache_avail, mock_cache_set_smart,
+        mock_cache_get, mock_fetcher, mock_analyzer
     ):
         mock_cache_avail.return_value = True
         mock_cache_get.return_value = None

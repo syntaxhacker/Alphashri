@@ -21,6 +21,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+import config
+
 
 class TestHealthCheck:
     """
@@ -68,7 +70,8 @@ class TestHealthCheck:
 
         try:
             parsed_time = datetime.fromisoformat(timestamp)
-            time_diff = (datetime.now() - parsed_time).total_seconds()
+            # /health stamps with config.IST, so compare against a tz-aware now.
+            time_diff = (datetime.now(config.IST) - parsed_time).total_seconds()
             assert time_diff >= 0
             assert time_diff < 60  # Within last minute
         except ValueError:

@@ -36,7 +36,7 @@ def _make_chart_api(return_data=None, side_effect=None):
 
 
 def _patch_chart_api(mock_api):
-    return patch('upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI', return_value=mock_api)
+    return patch('upstox_trader.config_and_utils.upstox_api.UpstoxAPI', return_value=mock_api)
 
 
 def _get_chart_response(client, symbol, data=None, side_effect=None, **params):
@@ -52,7 +52,7 @@ class TestChartPreview:
     ):
         mock_api = _make_chart_api(sample_candles_data)
 
-        with patch('upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI', return_value=mock_api), \
+        with patch('upstox_trader.config_and_utils.upstox_api.UpstoxAPI', return_value=mock_api), \
              patch('config.UPSTOX_API_KEY', 'test_key'), \
              patch('config.UPSTOX_API_SECRET', 'test_secret'):
 
@@ -146,7 +146,7 @@ class TestChartPreview:
     def test_chart_preview_exception_handling(self, client):
         mock_api = _make_chart_api(side_effect=Exception("Network error"))
 
-        with patch('upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI', return_value=mock_api), \
+        with patch('upstox_trader.config_and_utils.upstox_api.UpstoxAPI', return_value=mock_api), \
              patch('config.UPSTOX_API_KEY', 'test_key'), \
              patch('config.UPSTOX_API_SECRET', 'test_secret'):
 
@@ -167,9 +167,9 @@ class TestChartPreview:
             # Contract (src/types/backtest.ts:82): time is the comparable ISO
             # string "YYYY-MM-DDTHH:MM", which the chart converts with toTime().
             # It has never been epoch-ms — asserting an int could only ever pass
-            # when `candles` was EMPTY, which is what happened whenever the cache
-            # was cold (the mock below patches free_indian_apis.UpstoxAPI while
-            # the endpoint imports upstox_api.UpstoxAPI, so it is never applied).
+            # when `candles` was EMPTY, which is what happened when the patch
+            # targeted free_indian_apis.UpstoxAPI instead of the module the
+            # endpoint imports (upstox_api.UpstoxAPI).
             assert isinstance(candle['time'], str) and len(candle['time']) >= 16
             assert isinstance(candle['open'], (int, float))
             assert isinstance(candle['high'], (int, float))
@@ -196,11 +196,12 @@ class TestChartPreview:
         assert response.status_code == 200
 
         for zone in response.json()['orb_zones']:
-            assert 'start' in zone or 'time' in zone
-            assert 'end' in zone
-            assert 'high' in zone
-            assert 'low' in zone
-            assert zone['high'] >= zone['low']
+            assert 'date' in zone
+            assert 'date_raw' in zone
+            assert 'or_end_time' in zone
+            assert 'or_high' in zone
+            assert 'or_low' in zone
+            assert zone['or_high'] >= zone['or_low']
 
     def test_chart_pivot_levels_structure(self, client, sample_candles_data):
         response = _get_chart_response(client, "RELIANCE", data=sample_candles_data)

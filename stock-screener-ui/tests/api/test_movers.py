@@ -117,7 +117,12 @@ class TestFetchQuotes:
 
     @pytest.mark.asyncio
     async def test_fetch_quotes_success(self):
-        with patch("api.reports_api.movers.token_with_source", return_value=("test-token", "test")):
+        # Prod resolves NSE_EQ keys from the instruments table; stub that lookup
+        # so the mocked quote payload is actually requested.
+        with patch("api.reports_api.movers.token_with_source", return_value=("test-token", "test")), \
+             patch("api.reports_api.movers._resolve_instrument_keys", return_value={
+                 "HDFCBANK": "NSE_EQ|HDFCBANK", "ICICIBANK": "NSE_EQ|ICICIBANK",
+             }):
             with patch("api.reports_api.movers.get") as mock_get:
                 mock_get.return_value = {
                     "data": {

@@ -54,6 +54,22 @@ from commit messages or a freshly measured local run (noted in the row).
 
 - **Symbol aliases missing gitignored data** — `tests/test_symbol_aliases.py` now loads a tmp `symbol_aliases.json` and validates targets against a tmp NSE_EQ instrument DB via local fixtures. Previously the module depended on the local alias file (absent → 31 failed / 17 passed) and the target check skipped when `db/alphashri.db` was missing. **49 passed, 0 failures, 0 skips** with the alias file forced absent; no production code changed.
 
+### Misc burn-down 2026-11-28 (Misc API / date / source drift)
+
+Burned down the first discrete slice of the unquantified Misc bucket: **6 failing tests across 4 files**, all fixture/test drift (no production change, no assertion weakened beyond updating to the live contract).
+
+| File | Tests fixed | Root cause |
+| --- | --- | --- |
+| `tests/api/test_health.py` | 1 | `test_health_check_timestamp_valid` compared a tz-aware `/health` timestamp (`datetime.now(config.IST)`) against a tz-naive `datetime.now()` → `TypeError`. Test now compares against `datetime.now(config.IST)`. |
+| `tests/api/test_movers.py` | 1 | `test_fetch_quotes_success` mocked the quote HTTP call but not the new DB-backed `_resolve_instrument_keys`; no keys → empty quotes. Test now stubs the resolver. |
+| `tests/api/test_chart.py` | 3 | Two tests patched `free_indian_apis.UpstoxAPI` while the route imports `upstox_api.UpstoxAPI` (same drift already fixed for week52), so the mock never applied; the ORB-zone test asserted the retired `start/end/high/low` shape instead of the live `date/date_raw/or_end_time/or_high/or_low`. Re-pointed every patch target in the module (including the `_patch_chart_api` helper) and updated the zone assertions to the live contract. |
+| `tests/api/test_news_integration.py` | 1 | `test_caches_sentiment_result_with_smart_ttl` never supplied a feed item, so `/api/news/sentiment/{symbol}` short-circuited to `NO_RECENT_NEWS` before any cache write. Test now patches `news_api._aggregator.fetch_all` with one item. |
+
+- **Before** (narrow 11-file reproduction, CI marker expression): **8 failed / 373 passed**; the six items above were the failures in these four files.
+- **After**: `CI_MODE=1 <task-venv>/python -m pytest tests/api/test_health.py tests/api/test_movers.py tests/api/test_chart.py tests/api/test_news_integration.py -q -o addopts="" --tb=short` → **70 passed, 0 failed** (18 + 22 + 15 + 15).
+- **Environment note**: the task venv was missing two declared dependencies (`yfinance`, `scrapling[fetchers]`) from `api/requirements.txt`; installing them was required for a faithful reproduction. Failures seen before that repair in `test_market_ticker.py` / `test_news_scraper.py` / `test_news_poller.py` / `test_nifty_futures_capture.py` were missing-import artifacts, **not** debt, and were left untouched.
+- **Deliberately out of scope this slice** (still failing, need a separate scoped lane — not silently waived): `test_backtest.py::test_run_endpoint_unknown_strategy_returns_400` (route now returns 503 when Upstox credentials are absent, before strategy validation — looks like fixture drift: patch credentials), `test_screeners.py::Test52wSkeletonTruthfulness::test_cold_timeout_keeps_lock_and_does_not_start_second_compute`, `test_value_scan/test_cache_singleflight.py::test_second_wave_uses_the_cached_frame`, and the order-dependent `test_market_screen.py::test_snapshot_default_universe` (passes in isolation). None were changed here.
+
 ## Remaining clusters (rough counts — re-measure before quoting)
 
 No exact total is claimed here. The figures are approximate, grouped by the
