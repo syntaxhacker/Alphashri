@@ -94,13 +94,6 @@ class RunnerSignalsMixin:
         return f"{strategy_name}_{symbol}"[:40]
 
     @staticmethod
-    def _calc_pnl(side: str, entry_price: float, exit_price: float, quantity: int) -> float:
-        """Calculate PnL for a trade."""
-        if side.upper() in ("BUY", "LONG"):
-            return (exit_price - entry_price) * quantity
-        return (entry_price - exit_price) * quantity
-
-    @staticmethod
     def _calc_costs(entry_price: float, exit_price: float, quantity: int, side: str) -> float:
         """Calculate total trading costs."""
         from backtest.costs import calculate_trading_costs
@@ -121,10 +114,6 @@ class RunnerSignalsMixin:
     @staticmethod
     def _safe_low_price(pos, entry_price: float) -> float:
         return getattr(pos, 'low_price', None) or entry_price
-
-    @staticmethod
-    def _safe_net_pnl(pnl: float, costs: float) -> float:
-        return (pnl or 0) - (costs or 0)
 
     def _check_cooldown(self, symbol: str, runner) -> bool:
         sid = getattr(runner, 'strategy_id', None)

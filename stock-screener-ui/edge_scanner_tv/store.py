@@ -46,18 +46,6 @@ def save_list(market_key: str, name: str, items: list) -> None:
     _path(market_key, name).write_text(json.dumps(items))
 
 
-def load_dict(market_key: str, name: str) -> dict:
-    try:
-        data = json.loads(_path(market_key, name).read_text())
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
-
-
-def save_dict(market_key: str, name: str, payload: dict) -> None:
-    _path(market_key, name).write_text(json.dumps(payload))
-
-
 # ── sanitizer / timestamps ────────────────────────────────────────────────
 
 def sanitize(obj: Any) -> Any:

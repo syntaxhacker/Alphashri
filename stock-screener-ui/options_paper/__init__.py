@@ -14,5 +14,3 @@ See ``OPTIONS_PAPER.md`` (repo root) for the daily playbook.
 
 __all__ = ["spec", "costs", "tape", "strategies", "book", "runner", "eod",
            "greeks", "panel", "sim", "live", "books"]
-
-VERSION = "1.1.0"

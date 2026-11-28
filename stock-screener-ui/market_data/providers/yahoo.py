@@ -10,7 +10,6 @@ from .symbol_map import normalize_us_symbol
 
 US_SESSION_TZ = "America/New_York"
 # Yahoo serves at most 8 days of 1m bars per request; 5d stays inside that cap.
-MAX_1M_DAYS = 8
 
 # timeframe -> (yfinance interval, period)
 TIMEFRAMES: dict[str, tuple[str, str]] = {

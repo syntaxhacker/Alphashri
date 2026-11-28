@@ -58,30 +58,6 @@ class SMCSignalGenerator(BaseSignalGenerator):
         cur = candles[-1]
         return cur["close"] > cur["open"] and cur["close"] > prev["open"] and cur["open"] < prev["close"]
 
-    def _is_bearish_engulfing(self, candles) -> bool:
-        if len(candles) < 2:
-            return False
-        prev = candles[-2]
-        cur = candles[-1]
-        return cur["close"] < cur["open"] and cur["close"] < prev["open"] and cur["open"] > prev["close"]
-
-    def _is_double_top(self, highs) -> bool:
-        if len(highs) < 6:
-            return False
-        recent = highs[-6:]
-        max1 = max(recent[:3])
-        max2 = max(recent[3:])
-        mid_min = min(recent[2:4])
-        tol = self.demand_tolerance_pct / 100 * max1
-        return abs(max1 - max2) <= tol and mid_min < max1 - tol
-
-    def _is_inside_bar(self, candles) -> bool:
-        if len(candles) < 2:
-            return False
-        prev = candles[-2]
-        cur = candles[-1]
-        return cur["high"] < prev["high"] and cur["low"] > prev["low"]
-
     def _is_double_bottom(self, lows) -> bool:
         if len(lows) < 6:
             return False
