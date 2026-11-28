@@ -11,6 +11,7 @@ from rich.console import Console
 from trading.orb_signals import SignalType
 from trading.shared_portfolio import OrderSide
 from trading.strategy_runner import INTRADAY_STRATEGY_TYPES, SWING_STRATEGY_TYPES
+from trading.week52.math import gap_pct_from_price_to_52w_high
 from backtest.costs import calculate_trading_costs
 
 console = Console()
@@ -518,7 +519,7 @@ class RunnerSignalsMixin:
                     min_ratio = getattr(runner.signal_generator, 'min_volume_ratio', 2.0)
                     self._mark_skipped(scan_item, f'Volume {vol_ratio:.1f}x < {min_ratio:.1f}x avg')
                 else:
-                    distance_pct = ((daily_data['high_52w'] - daily_data['current_price']) / daily_data['current_price']) * 100 if daily_data['current_price'] > 0 else 0
+                    distance_pct = gap_pct_from_price_to_52w_high(daily_data['high_52w'], daily_data['current_price']) if daily_data['current_price'] > 0 else 0
                     self._mark_skipped(scan_item, f'52W high distance: {distance_pct:.1f}%')
 
             scan_items.append(scan_item)

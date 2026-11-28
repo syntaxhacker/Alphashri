@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import config
 from api.tv import get_scanner_data
 from db.database import SessionLocal
+from trading.week52.math import gap_pct_from_price_to_52w_high
 
 from .screener_models import (
     MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float, touched_52w_gap_threshold_pct,
@@ -175,7 +176,7 @@ def estimate_days_to_52w(current_price, high_52w, adx, atr, recent_return_5d, pe
     if current_price >= high_52w:
         return 0, "HIGH"
 
-    gap_pct = ((high_52w - current_price) / current_price) * 100
+    gap_pct = gap_pct_from_price_to_52w_high(high_52w, current_price)
     if gap_pct > 15:
         return None, None
 

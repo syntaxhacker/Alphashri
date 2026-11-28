@@ -38,6 +38,11 @@ from api.tv.status import tv_feed_status
 from chart_patterns.tags import etf_symbols, fno_symbols
 from chart_patterns.universes import get_universe
 from config import IST
+from trading.week52.math import (
+    pct_from_52w_low,
+    position_pct_in_52w_range,
+    signed_gap_pct_to_52w_high,
+)
 
 from .config import (
     ALLOWED_UNIVERSES,
@@ -406,18 +411,18 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
         high = _num(raw.get("price_52_week_high"))
         pos_52w: float | None = None
         if close is not None and low is not None and high is not None and high != low:
-            pos_52w = (close - low) / (high - low) * 100.0
-        # Mover-preset ratios. Mirror dashboard._to_52w_pct/_from_52w_low_pct
-        # and its (hi-lo)/atr loop, but ship the raw signed percentages -- the
-        # "hair above/below" tolerance belongs to the preset filter, not here.
-        # `_num` guarantees finite operands; the divisor guards rule out inf/NaN.
+            pos_52w = position_pct_in_52w_range(low, high, close)
+        # Mover-preset ratios use the canonical signed/range variants (same as
+        # dashboard), not the high-denominator gap: the "hair above/below"
+        # tolerance belongs to the preset filter, not here. `_num` guarantees
+        # finite operands; the divisor guards rule out inf/NaN.
         to_52w_high_pct = (
-            (close - high) / high * 100.0
+            signed_gap_pct_to_52w_high(high, close)
             if close is not None and high is not None and high > 0
             else None
         )
         from_52w_low_pct = (
-            (close - low) / low * 100.0
+            pct_from_52w_low(low, close)
             if close is not None and low is not None and low > 0
             else None
         )

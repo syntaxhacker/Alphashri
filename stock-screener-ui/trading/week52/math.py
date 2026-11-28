@@ -23,6 +23,13 @@ __all__ = [
     "classify_approach",
     "has_live_data",
     "gap_pct_to_52w_high",
+    "signed_gap_pct_to_52w_high",
+    "ratio_gap_pct_from_52w_high",
+    "pct_from_52w_low",
+    "position_pct_in_52w_range",
+    "gap_pct_to_52w_high_unrounded",
+    "gap_pct_from_price_to_52w_high",
+    "rounded_gap_pct_to_52w_high",
     "is_within_52w_touch_gap",
     "is_plausible_52w_gap",
 ]
@@ -86,6 +93,56 @@ def gap_pct_to_52w_high(high: float, price: float) -> Optional[float]:
     """Percent below 52W high (negative = price above high). None if inputs invalid."""
     if high <= 0 or price <= 0:
         return None
+    return round(((high - price) / high) * 100, 2)
+
+
+# Alternate sign / denominator / rounding contracts. Historical call sites
+# depended on these exact numbers (scores, sort keys, signal gates), so the
+# operand order and the presence or absence of round() are part of the contract.
+# All variants are RAW arithmetic: the caller keeps its own None/zero guard.
+# Reordering operands or adding a round() changes the last ULP (e.g. (100, 95)
+# is -5.0 signed but -5.000000000000004 ratio-form).
+
+def signed_gap_pct_to_52w_high(high: float, price: float) -> float:
+    """(price - high) / high * 100 — positive ABOVE the high (inverse of canonical sign)."""
+    return (price - high) / high * 100.0
+
+
+def ratio_gap_pct_from_52w_high(high: float, price: float) -> float:
+    """(price / high - 1.0) * 100 — divide-first form used by value scoring.
+
+    Deliberately distinct from ``signed_gap_pct_to_52w_high``: the division
+    happens before the subtraction, which changes the float result.
+    """
+    return (price / high - 1.0) * 100.0
+
+
+def pct_from_52w_low(low: float, price: float) -> float:
+    """(price - low) / low * 100 — percent above the 52W low."""
+    return (price - low) / low * 100.0
+
+
+def position_pct_in_52w_range(low: float, high: float, price: float) -> float:
+    """(price - low) / (high - low) * 100 — position inside the 52W range."""
+    return (price - low) / (high - low) * 100.0
+
+
+def gap_pct_to_52w_high_unrounded(high: float, price: float) -> float:
+    """((high - price) / high) * 100 — canonical sign, no rounding (signal gates)."""
+    return ((high - price) / high) * 100.0
+
+
+def gap_pct_from_price_to_52w_high(high: float, price: float) -> float:
+    """(high - price) / price * 100 — canonical sign, PRICE denominator.
+
+    Drives the days-to-high estimate and the debug distance readout; it is not
+    the canonical high-denominator gap and diverges whenever price != high.
+    """
+    return (high - price) / price * 100.0
+
+
+def rounded_gap_pct_to_52w_high(high: float, price: float) -> float:
+    """round(((high - price) / high) * 100, 2) — canonical arithmetic, no input guard."""
     return round(((high - price) / high) * 100, 2)
 
 
