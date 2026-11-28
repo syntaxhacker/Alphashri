@@ -154,18 +154,6 @@ class ORBSignalGenerator(BaseSignalGenerator):
 
         return result
 
-    def get_cached_or_levels(self, symbol: str) -> Optional[dict]:
-        """
-        Get cached OR levels for a symbol.
-
-        Args:
-            symbol: Stock symbol
-
-        Returns:
-            Cached OR levels or None if not cached
-        """
-        return self.or_levels.get(symbol)
-
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
         current_price = market_data.get("current_price")
         or_levels = market_data.get("or_levels")

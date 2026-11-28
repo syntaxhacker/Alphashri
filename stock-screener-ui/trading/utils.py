@@ -37,14 +37,6 @@ DERIVATIVES_CLOSE = (15, 40)
 #: MARKET_CLOSE, or a flawless day can never reach 100%.
 CONTINUOUS_CLOSE = (15, 15)
 
-#: NSE cash-market session phases, in order, for display.
-MARKET_PHASES = (
-    ("pre-open", PRE_MARKET),
-    ("open", MARKET_OPEN),
-    ("cas", CONTINUOUS_CLOSE),
-    ("closed", MARKET_CLOSE),
-)
-
 _cache: Optional[dict] = None
 _cache_timestamp: float = 0
 _CACHE_TTL_SECONDS = 3600

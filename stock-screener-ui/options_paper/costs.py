@@ -237,58 +237,6 @@ def break_even_move_points_multi(
     return BreakEven(round(total, 2), found)
 
 
-def reprice_trade_costs(row: dict, ch: Charges = CHARGES) -> dict:
-    """Recompute gross/costs/net/points for a booked trade under ``ch``.
-
-    ``row`` is a journal/DB-shaped dict. A straddle is repriced leg by leg
-    (four orders) when its leg premiums are known, otherwise as one leg.
-    Returns the corrected fields plus the schedule version — the caller
-    decides whether to write them back.
-    """
-    entry = float(row.get("entry_premium") or 0.0)
-    exit_px = float(row.get("exit_premium") or 0.0)
-    qty = int(row.get("qty") or 0)
-    is_short = str(row.get("direction") or "LONG").upper() == "SHORT"
-    opt = str(row.get("opt") or "").upper()
-
-    entry_ce = float(row.get("entry_ce") or 0.0)
-    entry_pe = float(row.get("entry_pe") or 0.0)
-    exit_ce = float(row.get("exit_ce") or 0.0)
-    exit_pe = float(row.get("exit_pe") or 0.0)
-
-    legs: list[tuple[float, float]] = []
-    if opt == "STRADDLE" and entry_ce > 0 and entry_pe > 0:
-        legs.append((entry_ce, exit_ce))
-        legs.append((entry_pe, exit_pe))
-    elif entry > 0:
-        legs.append((entry, exit_px))
-
-    if not legs or qty <= 0:
-        return {
-            "gross_pnl": float(row.get("gross_pnl") or 0.0),
-            "costs": float(row.get("costs") or 0.0),
-            "net_pnl": float(row.get("net_pnl") or 0.0),
-            "points": float(row.get("points") or 0.0),
-            "costs_version": COSTS_VERSION,
-            "repriced": False,
-        }
-
-    gross = costs_total = net = 0.0
-    for leg_entry, leg_exit in legs:
-        rc = option_round_trip_cost(leg_entry, leg_exit, qty, is_short, ch)
-        gross += rc["gross_pnl"]
-        costs_total += rc["costs"]
-        net += rc["net_pnl"]
-    return {
-        "gross_pnl": round(gross, 2),
-        "costs": round(costs_total, 2),
-        "net_pnl": round(net, 2),
-        "points": round(net / qty, 3),
-        "costs_version": COSTS_VERSION,
-        "repriced": True,
-    }
-
-
 def sell_margin_estimate(spot: float, lot: int, lots: int = 1) -> float:
     """Rough SPAN+exposure margin for a naked short option position (₹).
 

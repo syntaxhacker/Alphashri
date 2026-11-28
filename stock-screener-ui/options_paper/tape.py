@@ -414,17 +414,3 @@ def upstox_token() -> str | None:
         return upstox_common.token() or None
     except Exception:
         return None
-
-
-def live_option_quote(instrument_key: str, token: str | None = None) -> float | None:
-    """Real-time LTP for one option instrument key (Upstox v3 market quote).
-
-    Returns None (never raises) when there is no token or the call fails — the
-    caller treats that as "live data unavailable today".
-    """
-    return upstox_common.rest_spot(
-        instrument_key,
-        token or upstox_token(),
-        timeout=15,
-        base=upstox_common.BASE_V3,
-    )

@@ -45,7 +45,6 @@ PANEL_DEGRADED = {"nifty_wall_bounce"}   # no OI -> cannot signal from this pane
 # The short-straddle control is a premium *seller* and is excluded from it.
 NAKED_BUYERS = ("nifty_momentum", "nifty_gap", "nifty_wall_bounce",
                 "nifty_iv_delta", "nifty_open_straddle", "nifty_spot_scalp")
-SELLERS = ("nifty_vrp",)
 
 
 # --------------------------------------------------------------------------
