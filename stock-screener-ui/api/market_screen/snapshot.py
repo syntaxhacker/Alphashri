@@ -32,7 +32,13 @@ from typing import Any
 import pandas as pd
 import requests
 
-from api.tv import INTRADAY_CHANGE_FIELDS, scan_frame, to_tv_ticker, tv_name_to_symbol
+from api.tv import (
+    FRAME_LIMIT,
+    INTRADAY_CHANGE_FIELDS,
+    scan_frame,
+    to_tv_ticker,
+    tv_name_to_symbol,
+)
 from api.tv.auth import refresh_tv_cookies
 from api.tv.status import tv_feed_status
 from chart_patterns.tags import etf_symbols, fno_symbols
@@ -61,7 +67,9 @@ log = logging.getLogger("market_screen.snapshot")
 LIVE_TTL_SECONDS = max(3.0, float(os.getenv("MARKET_SCREEN_LIVE_TTL_SEC", "5")))
 #: Closed-market TTL. Prices do not move between sessions, so reuse is free.
 OFF_TTL_SECONDS = 60.0
-MAX_LIMIT = 4000
+#: India and USA TV scans both cap at 4000 rows, so the request cap and the
+#: ladder's top rung share the canonical frame limit.
+MAX_LIMIT = FRAME_LIMIT["india"]
 #: Upper bound for the optional `symbols` filter on GET /api/market/snapshot.
 MAX_SYMBOLS = 20
 #: Bound the shaped-frame cache defensively. India's scan window is quantized

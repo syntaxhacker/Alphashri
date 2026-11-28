@@ -25,6 +25,7 @@ from .requests import StrategyConfigUpdate
 from .paper_api import router, _get_user_id, _get_symbol_trades_from_db
 from .chart_cache import get_cached_candles, save_cached_candles
 from trading.timeframe_utils import parse_timeframe_minutes, calculate_or_candle_count
+from trading.week52.keys import PAPER_52W_CACHE_DIR, PAPER_52W_FILE_TTL_MINUTES
 
 console = Console()
 
@@ -906,8 +907,8 @@ def reset_strategy_config_endpoint(name: str = "orb_default", user: "User" = Dep
         raise HTTPException(status_code=500, detail=f"Failed to reset config: {e}")
 
 
-CACHE_52W_DIR = Path(__file__).parent.parent.parent / "experiments" / "data" / "52w_cache"
-_52W_TTL_MINUTES = 5
+CACHE_52W_DIR = Path(__file__).parent.parent.parent / PAPER_52W_CACHE_DIR
+_52W_TTL_MINUTES = PAPER_52W_FILE_TTL_MINUTES
 
 
 def _read_52w_cache(symbol: str) -> dict | None:
