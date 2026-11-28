@@ -8,9 +8,10 @@ explicitly (FastAPI's ``Query`` defaults are ``Param`` objects outside HTTP).
 
 from __future__ import annotations
 
+import builtins
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -349,6 +350,122 @@ class TestBlasts:
     def test_missing_day_is_empty_200(self, data_root):
         out = oh.get_options_blasts(SYM, date=DATE, lookback_min=5, limit=40)
         assert out == {"date": DATE, "count": 0, "lookback_min": 5, "blasts": []}
+
+
+# ------------------------------------------------------ 4b. newest-240 snapshot tail
+
+def _dense_row(ts: str, strikes: int = 160) -> dict:
+    """A chain frame whose nested rows make 240 lines exceed 1.5 MB."""
+    return {
+        "t": ts,
+        "spot": 2900.0,
+        "expiry": "2026-10-29",
+        "rows": [[2900.0 + 0.05 * j, 40.0, 1000.0, 10.0, 35.0, 1200.0, 12.0]
+                 for j in range(strikes)],
+    }
+
+
+def _dense_chain_file(root: Path, n: int = 260) -> tuple[Path, list[dict]]:
+    base = datetime.fromisoformat(_t("13:30:00"))
+    rows = [_dense_row((base + timedelta(seconds=10 * i)).isoformat()) for i in range(n)]
+    path = root / oh.CHAIN10S_DIR / SYM / f"{DATE}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as fh:
+        fh.write("not-json-at-start\n")
+        for i, row in enumerate(rows):
+            fh.write(json.dumps(row) + "\n")
+            if i == n // 2:
+                fh.write("{broken json\n")
+        fh.write('{"t": "partial", "rows": [1, 2')  # truncated final line
+    return path, rows
+
+
+class TestNewestSnapshots:
+    def _get_snaps(self, monkeypatch):
+        """Capture the reader the blast detector is handed."""
+        captured: dict = {}
+
+        def fake_blasts(**kwargs):
+            captured["get_snaps"] = kwargs["get_snaps"]
+            return []
+
+        monkeypatch.setattr(oh, "_shared_chain_blasts", fake_blasts)
+        oh._chain_blasts(SYM, DATE, 5)
+        return captured["get_snaps"]
+
+    def test_dense_file_yields_newest_240_in_file_order(self, data_root, monkeypatch):
+        path, rows = _dense_chain_file(data_root)
+        assert path.stat().st_size > 1_500_000
+        snaps = self._get_snaps(monkeypatch)(DATE)
+        assert len(snaps) == 240
+        assert [s["t"] for s in snaps] == [r["t"] for r in rows[-240:]]
+        assert snaps[0]["t"] == rows[-240]["t"]
+        assert snaps[-1]["t"] == rows[-1]["t"]
+        # The byte-window contract stays intact for the other callers.
+        assert len(oh._read_jsonl_tail(path)) < 240
+
+    def test_small_and_missing_files_are_unchanged(self, data_root, monkeypatch):
+        rows = [_chain10s_row(f"13:3{i}:00") for i in range(4)]
+        path = _write(data_root, oh.CHAIN10S_DIR, DATE, rows)
+        get_snaps = self._get_snaps(monkeypatch)
+        assert get_snaps(DATE) == oh._read_jsonl_tail(path)[-240:] == rows
+        empty = oh._path(oh.CHAIN10S_DIR, SYM, "2026-10-12")
+        empty.parent.mkdir(parents=True, exist_ok=True)
+        empty.write_text("")
+        assert get_snaps("2026-10-12") == []
+
+    def test_poll_reads_once_and_warm_poll_reads_nothing(self, data_root, monkeypatch):
+        path, _ = _dense_chain_file(data_root)
+        get_snaps = self._get_snaps(monkeypatch)
+        real_open = open
+        stats = {"opens": 0, "bytes": 0}
+
+        class CountingReader:
+            def __init__(self, fh):
+                self.fh = fh
+
+            def seek(self, *a):
+                return self.fh.seek(*a)
+
+            def tell(self):
+                return self.fh.tell()
+
+            def read(self, *a):
+                data = self.fh.read(*a)
+                stats["bytes"] += len(data)
+                return data
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return self.fh.__exit__(*a)
+
+        def counted_open(file, *a, **k):
+            if str(file) == str(path):
+                stats["opens"] += 1
+                return CountingReader(real_open(file, *a, **k))
+            return real_open(file, *a, **k)
+
+        oh._JSONL_CACHE.clear()
+        with monkeypatch.context() as m:
+            m.setattr(builtins, "open", counted_open)
+            cold = get_snaps(DATE)
+            cold_stats = dict(stats)
+            warm = get_snaps(DATE)
+            warm_stats = dict(stats)
+            assert any(k[1] == oh._NEWEST_SNAPS_WINDOW for k in oh._JSONL_CACHE)
+            oh._JSONL_CACHE.clear()
+            stats.update(opens=0, bytes=0)
+            old = oh._read_jsonl_tail(path)   # byte-window reader, for comparison
+            old_stats = dict(stats)
+
+        assert len(cold) == len(warm) == 240
+        assert cold_stats["opens"] == 1
+        assert warm_stats == cold_stats       # no re-open / re-read while unchanged
+        assert len(old) < 240
+        assert old_stats["bytes"] >= 1_000_000
+        assert cold_stats["bytes"] > old_stats["bytes"]
 
 
 # -------------------------------------------------------- 5/6. replay dates+frames
