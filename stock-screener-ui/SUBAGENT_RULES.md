@@ -67,7 +67,7 @@ Capture matrix, naming, manifest and replacement checks: [`docs/SCREENSHOT_EVIDE
 - No DB writes, migrations, or seed runs.
 - No server start/stop/restart, no `start.sh`, no killing processes.
 - No dependency installs, no lockfile edits.
-- **Codespaces: never put worktrees, virtualenvs, fixtures, screenshots, logs or benchmark JSON in `/tmp`** — a container rebuild erases them. Use `/workspaces/react/.agent-worktrees/<task>/` for worktrees and `/workspaces/react/.agent-artifacts/<task>/` for everything else (outside the repo, so `Alphashri/` stays clean). `/tmp/opencode` is allowed only outside Codespaces, or for single-use files a committed script regenerates in one command.
+- **Codespaces: never put worktrees, virtualenvs, fixtures, screenshots, logs or benchmark JSON in `/tmp`** — a container rebuild erases them. Use `/workspaces/test-rag/.agent-worktrees/<task>/` for worktrees and `/workspaces/test-rag/.agent-artifacts/<task>/` for everything else (outside the repo, so `Alphashri/` stays clean). `/tmp/opencode` is allowed only outside Codespaces, or for single-use files a committed script regenerates in one command.
 
 Violation risk → abort, report `blocked: <command>` + reason.
 
@@ -506,7 +506,7 @@ review, a green unit suite or a clean build does not waive performance.
   reports the exact command as a blocker and **only reports numbers it actually
   observed**. Never copy a number from a previous run or from the budget file.
 - **Artifacts.** Fixtures, screenshots, matrix JSON and logs go to
-  `/workspaces/react/.agent-artifacts/<task>/` in Codespaces (or
+  `/workspaces/test-rag/.agent-artifacts/<task>/` in Codespaces (or
   `/tmp/opencode/<task>/` outside); `perf/chart-perf-results.json` is the small
   gitignored result file. A report that leaves evidence only in `/tmp` is
   incomplete.

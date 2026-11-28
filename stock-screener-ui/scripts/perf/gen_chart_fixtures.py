@@ -10,13 +10,13 @@ timeframes. It also records backend timings (1 warm-up + N measured runs).
 Usage:
     source .venv/bin/activate
     python scripts/perf/gen_chart_fixtures.py \
-        --out /workspaces/react/.agent-artifacts/chart-perf/fixtures \
+        --out /workspaces/test-rag/.agent-artifacts/chart-perf/fixtures \
         --symbol POWERGRID.NS --bars 500 --as-of 2026-11-24
 
     # No network: re-time the candles already in fixtures.json and refresh
     # only manifest.json (5 warm-ups + 30 measured runs by default).
     python scripts/perf/gen_chart_fixtures.py --from-fixtures \
-        --out /workspaces/react/.agent-artifacts/chart-perf/fixtures
+        --out /workspaces/test-rag/.agent-artifacts/chart-perf/fixtures
 
 Artifacts (under --out):
     fixtures.json   per-timeframe {candles, indicators, sr_zones}
@@ -82,7 +82,7 @@ def _artifact_root() -> Path:
     if override:
         return Path(override).expanduser()
     if os.environ.get("CODESPACES"):
-        return Path("/workspaces/react/.agent-artifacts/chart-perf")
+        return Path("/workspaces/test-rag/.agent-artifacts/chart-perf")
     return Path("/tmp/opencode/chart-perf")
 
 

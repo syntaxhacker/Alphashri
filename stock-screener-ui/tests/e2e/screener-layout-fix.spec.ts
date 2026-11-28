@@ -12,7 +12,7 @@ import {
 } from "../mocks/screenerEvidence";
 
 const TABLE_ROWS = '[data-testid="screener-table"] tbody tr';
-const FIX_DIR = "/workspaces/react/.agent-artifacts/ui-a-plus/fixes";
+const FIX_DIR = "/workspaces/test-rag/.agent-artifacts/ui-a-plus/fixes";
 const PHASE = process.env.SCREENER_FIX_PHASE;
 
 async function openScreener(page: Page, width: number, height: number) {
