@@ -43,6 +43,64 @@ def atr_first_bar(high: SeriesLike, low: SeriesLike, close: SeriesLike,
     return shape(out, was_series, full, len(c))
 
 
+def _candle_field(candle, name: str, idx: int):
+    """Tolerant OHLC getter for Upstox candles as dicts or positional lists."""
+    if isinstance(candle, dict):
+        value = candle.get(name)
+    else:
+        try:
+            value = candle[idx]
+        except (IndexError, TypeError):
+            value = None
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    return out if out == out else None
+
+
+def atr_mean_range(bars, i: int, n: int = 14) -> float:
+    """Mean ``high - low`` over the ``n`` bars ending at index ``i``.
+
+    This is deliberately NOT a true range (no previous-close term) and NOT
+    Wilder-smoothed: the LRL-iFVG studies call this number "ATR" and feed it to
+    collinearity tolerances. Returns 0.0 when fewer than ``n`` bars are available.
+    Plain ``sum`` keeps the desk number bit-identical to its historical home in
+    ``scripts/indicators.py``; do not swap in numpy for speed.
+    """
+    if i < n:
+        return 0.0
+    return sum(bars[k]["high"] - bars[k]["low"] for k in range(i - n + 1, i + 1)) / n
+
+
+def atr_mean_true_range(candles, period: int = 14):
+    """Mean TRUE range over the last ``period`` valid candles.
+
+    Unlike :func:`atr`, this is a bounded arithmetic mean, not Wilder smoothing.
+    Candles with a non-positive or unparseable close are skipped without moving
+    the previous close; a missing high/low falls back to ``|close - prev_close|``.
+    Returns None when no true range can be formed. Plain ``sum`` and Python
+    floats preserve the desk speed panel's historical result bit-for-bit.
+    """
+    trs: list[float] = []
+    prev_close = None
+    for c in candles or []:
+        high = _candle_field(c, "high", 2)
+        low = _candle_field(c, "low", 3)
+        close = _candle_field(c, "close", 4)
+        if close is None or close <= 0:
+            continue
+        if high is not None and low is not None and prev_close is not None:
+            trs.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
+        elif prev_close is not None:
+            trs.append(abs(close - prev_close))
+        prev_close = close
+    if not trs:
+        return None
+    window = trs[-max(1, period):]
+    return sum(window) / len(window)
+
+
 def atr_pct(high: SeriesLike, low: SeriesLike, close: SeriesLike, period: int = 14) -> float:
     """Latest ATR as a percentage of the latest close (0.0 when undefined)."""
     c, _ = as_series(close)

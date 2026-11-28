@@ -12,6 +12,7 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
 from options_paper import greeks as _gr  # noqa: E402
+from trading.pivot_utils import calculate_pivot_points  # noqa: E402
 
 try:
     from scripts.paper_sensex import option_costs
@@ -90,8 +91,8 @@ def load_hourly() -> dict:
 
 def pivot_levels(prev_ohlc: dict) -> dict:
     o, h, l, c = prev_ohlc["open"], prev_ohlc["high"], prev_ohlc["low"], prev_ohlc["close"]
-    pp = (h + l + c) / 3 if c else (h + l + o) / 3
-    return {"s1": 2 * pp - h, "r1": 2 * pp - l}
+    levels = calculate_pivot_points(h, l, c if c else o, "classic")
+    return {"s1": levels.s1, "r1": levels.r1}
 
 
 def build_configs():

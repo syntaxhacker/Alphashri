@@ -13,7 +13,8 @@ swapping the underlying library. Streaming callers should use ``_stream``.
 from .momentum import macd, rsi, rsi_wilder, stoch
 from .strength import adx, adx_di
 from .trend import ema, ema_first_close, ema_sma_seed, sma
-from .volatility import atr, atr_first_bar, atr_pct, bbands, supertrend
+from .volatility import (atr, atr_first_bar, atr_mean_range,
+                         atr_mean_true_range, atr_pct, bbands, supertrend)
 from .volume import vwap
 
 __all__ = [
@@ -29,6 +30,8 @@ __all__ = [
     "adx_di",
     "atr",
     "atr_first_bar",
+    "atr_mean_range",
+    "atr_mean_true_range",
     "atr_pct",
     "bbands",
     "supertrend",

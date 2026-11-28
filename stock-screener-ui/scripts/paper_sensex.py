@@ -37,6 +37,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts import upstox_common  # noqa: E402
 
+from trading.pivot_utils import calculate_pivot_points  # noqa: E402
+
 import config as root_config
 IST = root_config.IST
 
@@ -205,14 +207,18 @@ def next_id(positions: list) -> int:
     return max([p["id"] for p in positions], default=0) + 1
 
 
+#: Legacy dict/JSON field order — preserved so reports stay byte-identical.
+PIVOT_KEY_ORDER = ("r3", "r2", "r1", "pp", "s1", "s2", "s3")
+
+
 def pivot_levels(o, h, l, c, style: str = "classic") -> dict:
-    pp = (h + l + c) / 3 if c else (h + l + o) / 3
-    hl = h - l
-    if style == "fibonacci":
-        return {"r3": pp + hl, "r2": pp + 0.618 * hl, "r1": pp + 0.382 * hl,
-                "pp": pp, "s1": pp - 0.382 * hl, "s2": pp - 0.618 * hl, "s3": pp - hl}
-    return {"r3": h + 2 * (pp - l), "r2": pp + hl, "r1": 2 * pp - l, "pp": pp,
-            "s1": 2 * pp - h, "s2": pp - hl, "s3": l - 2 * (h - pp)}
+    # The desk fallback used the open when the close was missing/zero.
+    base_close = c if c else o
+    # Historically any style other than "fibonacci" meant classic (including
+    # "camarilla"), so do not pass arbitrary strings through to the calculator.
+    pivot_type = "fibonacci" if style == "fibonacci" else "classic"
+    levels = calculate_pivot_points(h, l, base_close, pivot_type)
+    return {k: getattr(levels, k) for k in PIVOT_KEY_ORDER}
 
 
 def oi_levels(chain: dict, top_n: int = 6, min_oi: float = 1_000_000) -> dict:
