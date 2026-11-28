@@ -255,7 +255,7 @@ async def get_chart_data(
 
                 if df_tf is not None and not df_tf.empty:
                     if df_tf.index.tz is not None:
-                        df_tf.index = df_tf.index.tz_convert('Asia/Kolkata').tz_localize(None)
+                        df_tf.index = df_tf.index.tz_convert(app_config.IST).tz_localize(None)
                     candles_df = df_tf
                 else:
                     candles_df = native_candles_df
