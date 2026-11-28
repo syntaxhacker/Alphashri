@@ -10,7 +10,7 @@ IST timezone and json.dumps serialization tests
 import sys
 import json
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import pytest
 import pandas as pd
@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT.parent))
 
-IST = timezone(timedelta(hours=5, minutes=30))
+from config import IST
 
 
 def _filter_to_date_or_recent(df_full, target_date_str):

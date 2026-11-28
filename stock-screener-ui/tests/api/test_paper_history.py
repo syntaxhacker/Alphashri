@@ -7,12 +7,12 @@ Uses the `client` and `auth_headers` fixtures from tests/api/conftest.py.
 
 import pytest
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from unittest.mock import patch, MagicMock
 from contextlib import contextmanager
 from sqlalchemy.orm import Session
 
-IST = timezone(timedelta(hours=5, minutes=30))
+from config import IST
 
 
 @contextmanager

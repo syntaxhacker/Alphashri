@@ -2,7 +2,7 @@
 
 import sys
 import types
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch, PropertyMock
 
@@ -11,7 +11,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-IST = timezone(timedelta(hours=5, minutes=30))
+from config import IST
 
 
 
@@ -1549,8 +1549,8 @@ class TestReplayUtils:
             exit_reason="TP",
             costs=50.0,
             net_pnl=450.0,
-            entry_time=datetime(2026, 1, 1, 10, 0, tzinfo=timezone(timedelta(hours=5, minutes=30))),
-            exit_time=datetime(2026, 1, 1, 11, 0, tzinfo=timezone(timedelta(hours=5, minutes=30))),
+            entry_time=datetime(2026, 1, 1, 10, 0, tzinfo=IST),
+            exit_time=datetime(2026, 1, 1, 11, 0, tzinfo=IST),
         )
         runner = types.SimpleNamespace(strategy_name="ORB Test")
 
@@ -1582,8 +1582,8 @@ class TestReplayUtils:
             exit_reason="TP",
             costs=50.0,
             net_pnl=450.0,
-            entry_time=datetime(2026, 1, 1, 10, 0, tzinfo=timezone(timedelta(hours=5, minutes=30))),
-            exit_time=datetime(2026, 1, 1, 11, 0, tzinfo=timezone(timedelta(hours=5, minutes=30))),
+            entry_time=datetime(2026, 1, 1, 10, 0, tzinfo=IST),
+            exit_time=datetime(2026, 1, 1, 11, 0, tzinfo=IST),
         )
 
         event = build_trade_close_event(trade, runner=None)
@@ -1603,8 +1603,8 @@ class TestReplayUtils:
             exit_reason="SL",
             costs=50.0,
             net_pnl=-550.0,
-            entry_time=datetime(2026, 1, 1, 10, 0, tzinfo=timezone(timedelta(hours=5, minutes=30))),
-            exit_time=datetime(2026, 1, 1, 11, 0, tzinfo=timezone(timedelta(hours=5, minutes=30))),
+            entry_time=datetime(2026, 1, 1, 10, 0, tzinfo=IST),
+            exit_time=datetime(2026, 1, 1, 11, 0, tzinfo=IST),
         )
         runner = types.SimpleNamespace(strategy_name="ORB Test")
 
