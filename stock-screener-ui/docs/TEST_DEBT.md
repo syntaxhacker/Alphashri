@@ -48,6 +48,10 @@ in the row).
 - **Watch F&O / ETF tags** — `test_chart_patterns_watch.py` gained a local `tag_instruments` fixture so tag assertions no longer depend on the gitignored `nse_instruments.json` (absent in CI → empty tags).
 - **Partial-today synthetic bar** — `TestPartialToday` pins `_is_trading_day=True`; production intentionally skips the bar on weekends/holidays (commit `84efd0fb`), so the fixed tape fixture now runs deterministically.
 
+### Burn-down 2026-11-28 (symbol aliases)
+
+- **Symbol aliases missing gitignored data** — `tests/test_symbol_aliases.py` now loads a tmp `symbol_aliases.json` and validates targets against a tmp NSE_EQ instrument DB via local fixtures. Previously the module depended on the local alias file (absent → 31 failed / 17 passed) and the target check skipped when `db/alphashri.db` was missing. **49 passed, 0 failures, 0 skips** with the alias file forced absent; no production code changed.
+
 ## Remaining clusters (rough counts — re-measure before quoting)
 
 No exact total is claimed here. The figures are approximate, grouped by the
@@ -57,7 +61,6 @@ bugs.
 | Cluster | Owner / area | Rough count |
 | --- | --- | --- |
 | Broker / bot DB `SessionLocal` isolation | `tests/` broker + bot modules; shared in-memory SQLite / `SessionLocal` fixtures | **~30** (estimate) |
-| Symbol aliases missing gitignored data | tests relying on symbol-alias data under gitignored local paths | **~30** (estimate) |
 | Event-radar missing fixtures | `tests/api/test_event_radar/`; missing local fixtures/data | **~13** (estimate) |
 | Misc API / date / source drift | assorted API tests, date/session assumptions, source-name drift | **remaining** (unquantified) |
 
