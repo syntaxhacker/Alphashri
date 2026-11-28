@@ -434,15 +434,16 @@ export function marketTileTextColor(
   return pickTextColor(marketTileColor(metricOrValue, valueOrMin, minOrMax, max), TEXT_ON_ACCENT);
 }
 
-/** The exact 17-stop ramp used by the tiles, for the legend swatch. */
+/** The exact red→green ramp used by the tiles, for the legend swatch. */
 export function marketColorRampCss(): string {
   return `linear-gradient(to right, ${VIRIDIS_STOPS.join(", ")})`;
 }
 
 /**
- * Viridis is sequential: hue is the value's position in the clamped domain,
- * never a gain/loss pole. Both legends print this one string so they cannot
- * drift apart, and a loss and a gain near the midpoint read alike by design.
+ * The stops are RED_GREEN_HEATMAP_STOPS (aliased as VIRIDIS_STOPS for the
+ * shared ramp consumers) — red → neutral → green, not sequential viridis.
+ * Both legends print the one string below so they cannot drift apart; the
+ * rendered note is a position caption, not a claim about gain/loss semantics.
  */
 export const MARKET_COLOR_SCALE_NOTE = "low → high · position in range, not gain/loss";
 
@@ -630,71 +631,128 @@ export function marketTileLabelText(
 }
 
 /**
- * The flat map uses the nested map's exact gate and area proxy: a tile that
- * cannot fit its symbol gets `label.show = false`, so ECharts paints nothing
- * instead of an ellipsised stub. The datum's name, fill, tooltip and click
- * target are untouched, and every label keeps the inherited full-symbol
- * formatter — no short/ellipsis variant exists for either map.
+ * Flat-map typography is the 12px `micro` floor with a 14px line box: two
+ * lines need ~30px of height and the longer line needs ~44px of width. The
+ * nested map's 38×26 proxy is not enough here — ECharts squarifies into strips,
+ * so a leaf whose √(area) is 46px can really be 60×34 and its two lines are
+ * pixel-clipped to `SO…` / `+20…`.
  */
-export function suppressTinyFlatLabels<
-  T extends { value: number; label?: Record<string, unknown> },
->(tiles: T[], widthPx?: number, heightPx?: number): T[] {
+export const FLAT_LABEL_MIN_WIDTH_PX = 44;
+export const FLAT_LABEL_MIN_HEIGHT_PX = 30;
+/** Worst squarify aspect the area proxy must survive before a label is allowed. */
+export const FLAT_LABEL_ASPECT_SAFETY = 1.4;
+/**
+ * A full snapshot has thousands of tiles competing for a few readable areas.
+ * Past this many, paint only the largest labels; every other name stays fully
+ * reachable on hover through the datum's tooltip fields.
+ */
+export const MAX_FLAT_LABELS = 24;
+
+export interface TileLabelRect {
+  width: number;
+  height: number;
+}
+
+export interface TileLabelPolicy {
+  show: boolean;
+  symbol: string;
+  change: string;
+}
+
+/**
+ * One decision for the whole label block. There is deliberately no short or
+ * ellipsised branch: a two-character stub identifies no company and is worse
+ * than an unlabelled tile. Callers that cannot fit both lines must paint
+ * nothing, while `symbol` and `change` stay complete for the tooltip.
+ */
+export function labelPolicy(
+  row: { symbol?: string; name?: string; change?: number | null; metricValue?: string },
+  rect: TileLabelRect,
+): TileLabelPolicy {
+  const raw = typeof row.symbol === "string" ? row.symbol : row.name;
+  const symbol = typeof raw === "string" ? raw.trim() : "";
+  const change =
+    typeof row.change === "number" && Number.isFinite(row.change)
+      ? pct(row.change)
+      : typeof row.metricValue === "string" && row.metricValue !== ""
+        ? row.metricValue
+        : dash;
+  // ECharts squarifies into strips, so the short edge — not the width — is what
+  // clips two lines. Gate on the smaller side and require the worst tolerated
+  // aspect to clear both typography floors.
+  const shortSide = Math.min(rect.width, rect.height);
+  const show =
+    symbol.length > 0 &&
+    Number.isFinite(shortSide) &&
+    shortSide >= FLAT_LABEL_MIN_WIDTH_PX * FLAT_LABEL_ASPECT_SAFETY &&
+    shortSide >= FLAT_LABEL_MIN_HEIGHT_PX * FLAT_LABEL_ASPECT_SAFETY;
+  return { show, symbol, change };
+}
+
+interface FlatLabelTile {
+  value: number;
+  name?: string;
+  symbol?: string;
+  change?: number | null;
+  metricValue?: string;
+  label?: Record<string, unknown>;
+}
+
+/**
+ * Decides the flat map's labels once for the whole option: gate each tile by a
+ * conservative short-side proxy, then keep only the largest `MAX_FLAT_LABELS`
+ * readable ones. The datum's name, fill, tooltip and click target are
+ * untouched, and a shown label keeps the inherited full-symbol formatter —
+ * no short/ellipsis variant exists for either map.
+ */
+export function suppressTinyFlatLabels<T extends FlatLabelTile>(
+  tiles: T[],
+  widthPx?: number,
+  heightPx?: number,
+): T[] {
   const total = tiles.reduce((sum, tile) => sum + tile.value, 0);
-  const sideOf = (tile: T) => estimatedTileHeightPx(tile.value, total, widthPx, heightPx);
-  const isTwoLine = (side: number) => side >= MIN_LABEL_WIDTH_PX && side >= MIN_LABEL_HEIGHT_PX;
-  const isOneLine = (side: number) =>
-    !(side >= MIN_LABEL_WIDTH_PX && side >= MIN_LABEL_HEIGHT_PX) &&
-    side >= MIN_LABEL_LINE_HEIGHT_PX &&
-    side >= MIN_LABEL_WIDTH_PX;
+  const sides = tiles.map((tile) =>
+    estimatedTileHeightPx(tile.value, total, widthPx, heightPx),
+  );
+  // A handful of leaves get near-square cells from ECharts, so the established
+  // nested-map gate is enough and a small map's option stays byte-identical.
+  // With thousands of leaves squarify produces strips, where the √area proxy
+  // overstates the short edge and ECharts clips a two-line label into `SO…`.
+  const dense = tiles.length > MAX_FLAT_LABELS;
+  const readable = sides.map((side, index) =>
+    dense
+      ? labelPolicy(tiles[index]!, { width: side, height: side }).show
+      : stockTileLabelVisible(tiles[index]!.value, total, widthPx, heightPx),
+  );
+
+  const keep = new Set<number>();
+  sides
+    .map((side, index) => ({ side, index }))
+    .filter(({ index }) => readable[index])
+    .sort((a, b) => b.side - a.side || a.index - b.index)
+    .slice(0, MAX_FLAT_LABELS)
+    .forEach(({ index }) => keep.add(index));
 
   // Re-suppressing already-decorated tiles (a resize that moves no label across
   // a threshold) must not allocate a new array and a new label for every tile.
-  // Comparing against the real inputs keeps this free of stale caches.
+  // Comparing against the real inputs keeps this free of stale caches. A stale
+  // one-line formatter from an earlier decision is always a change: no stub may
+  // survive, even on a tile whose show flag has not moved.
   let needsChange = false;
-  for (const tile of tiles) {
-    const side = sideOf(tile);
-    const show = isTwoLine(side) || isOneLine(side);
-    const oneLine = isOneLine(side);
-    const hasFormatter = typeof tile.label?.formatter === "function";
-    if (tile.label?.show !== show || hasFormatter !== oneLine) {
+  for (let index = 0; index < tiles.length; index++) {
+    const show = keep.has(index);
+    if (tiles[index]!.label?.show !== show || "formatter" in (tiles[index]!.label ?? {})) {
       needsChange = true;
       break;
     }
   }
   if (!needsChange) return tiles;
 
-  return tiles.map((tile) => {
-    const side = sideOf(tile);
-    const twoLine = isTwoLine(side);
-    const oneLine = isOneLine(side);
-    // Drop a formatter left by a previous one-line decision: otherwise a tile
-    // that grows back into two-line territory would keep the short formatter.
+  return tiles.map((tile, index) => {
+    // Drop a formatter left by a previous one-line decision: a growing tile
+    // must inherit the full two-line formatter, not a 6-character stub.
     const { formatter: _previous, ...label } = tile.label ?? {};
-    return {
-      ...tile,
-      label: {
-        ...label,
-        show: twoLine || oneLine,
-        /*
-         * Between the one-line and two-line floors, abbreviate to the existing
-         * 6-char convention instead of letting ECharts clip the value line to
-         * a fragment (`+0.|`), which reads as a real number. Below the one-line
-         * floor nothing is painted at all — "no label rather than a stub".
-         *
-         * Known limitation: the width here is the √area proxy, which cannot
-         * predict a squarified tile's true aspect ratio, so a few wide-and-short
-         * tiles still ellipsise a long ticker (`KOTAKB…`). Fixing that properly
-         * needs the post-layout rect, which ECharts does not expose to a label
-         * formatter.
-         */
-        ...(oneLine
-          ? {
-              formatter: (p: { name?: string }) =>
-                `{sym|${shortTreemapSymbol(p.name ?? "")}}`,
-            }
-          : {}),
-      },
-    };
+    return { ...tile, label: { ...label, show: keep.has(index) } };
   });
 }
 

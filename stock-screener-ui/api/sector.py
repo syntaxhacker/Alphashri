@@ -650,6 +650,7 @@ GROUP_COLUMNS = (
     'name', 'sector', 'industry', 'change',
     'Perf.W', 'Perf.1M', 'Perf.3M', 'Perf.6M', 'Perf.YTD', 'Perf.Y',
     'market_cap_basic',
+    'close', 'price_52_week_high', 'price_52_week_low',
 )
 
 GROUP_CACHE_TTL_SECONDS = 60
@@ -684,6 +685,9 @@ class GroupPerformanceItem(BaseModel):
     declines: int
     # Stable key for themes (/themes/{slug}); null for sector/industry groups.
     slug: Optional[str] = None
+    near_high_pct: Optional[float] = None
+    near_low_pct: Optional[float] = None
+    median_pos_52w: Optional[float] = None
 
 
 class GroupPerformanceResponse(BaseModel):
@@ -710,6 +714,41 @@ def _fetch_group_data(market: str, limit: int) -> pd.DataFrame:
         SHARED_FRAMES[market], ttl_seconds=GROUP_CACHE_TTL_SECONDS
     )
     return frame.head(limit) if 0 < limit < SHARED_FRAME_LIMIT else frame
+
+
+def _range52_stats(
+    group: pd.DataFrame,
+) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    """52-week breadth for one group; (None, None, None) without usable rows."""
+    required = ('close', 'price_52_week_high', 'price_52_week_low')
+    if group is None or not set(required).issubset(group.columns):
+        return None, None, None
+
+    close = pd.to_numeric(group['close'], errors='coerce')
+    high = pd.to_numeric(group['price_52_week_high'], errors='coerce')
+    low = pd.to_numeric(group['price_52_week_low'], errors='coerce')
+    frame = pd.DataFrame({
+        'close': close.to_numpy(),
+        'high': high.to_numpy(),
+        'low': low.to_numpy(),
+    }).astype(float)
+    valid = (
+        np.isfinite(frame).all(axis=1)
+        & (frame['close'] > 0)
+        & (frame['high'] > frame['low'])
+    )
+    frame = frame[valid]
+    if frame.empty:
+        return None, None, None
+
+    near_high_pct = (frame['close'] >= 0.95 * frame['high']).mean() * 100
+    near_low_pct = (frame['close'] <= 1.10 * frame['low']).mean() * 100
+    position = (frame['close'] - frame['low']) / (frame['high'] - frame['low']) * 100
+    return (
+        round(float(near_high_pct), 1),
+        round(float(near_low_pct), 1),
+        round(float(position.median()), 1),
+    )
 
 
 def _aggregate_groups(
@@ -739,12 +778,16 @@ def _aggregate_groups(
             change = float((vals[valid] * weights[valid]).sum() / total_w)
         else:
             change = 0.0
+        near_high_pct, near_low_pct, median_pos_52w = _range52_stats(group)
         items.append(GroupPerformanceItem(
             name=str(group_name),
             change=round(change, 2),
             stock_count=int(len(group)),
             advances=int((vals > 0).sum()),
             declines=int((vals < 0).sum()),
+            near_high_pct=near_high_pct,
+            near_low_pct=near_low_pct,
+            median_pos_52w=median_pos_52w,
         ))
 
     items.sort(key=lambda g: g.change, reverse=True)
@@ -840,7 +883,7 @@ def _aggregate_theme_groups(
             if not wanted:
                 continue
             ordered_slugs.append(slug)
-            stats[slug] = [0, 0, 0, [], []]
+            stats[slug] = [0, 0, 0, [], [], [], [], []]
             for symbol in wanted:
                 symbol_slugs.setdefault(symbol, []).append(slug)
 
@@ -851,8 +894,13 @@ def _aggregate_theme_groups(
         # Series.sum() does on the comparison mask.
         positive = (vals > 0).fillna(False).to_numpy(dtype=bool)
         negative = (vals < 0).fillna(False).to_numpy(dtype=bool)
-        for name, val, weight, valid, up, down in zip(
-            norm_names, vals, weights, valid_mask, positive, negative
+        range_cols = ('close', 'price_52_week_high', 'price_52_week_low')
+        if set(range_cols).issubset(df_unique.columns):
+            range_values = tuple(df_unique[col] for col in range_cols)
+        else:
+            range_values = (pd.Series([None] * len(df_unique)),) * 3
+        for name, val, weight, valid, up, down, close, high, low in zip(
+            norm_names, vals, weights, valid_mask, positive, negative, *range_values
         ):
             slugs = symbol_slugs.get(name)
             if not slugs:
@@ -867,11 +915,14 @@ def _aggregate_theme_groups(
                 if valid:
                     acc[3].append(val)
                     acc[4].append(weight)
+                acc[5].append(close)
+                acc[6].append(high)
+                acc[7].append(low)
 
         info = slug_to_info or {}
         items: List[GroupPerformanceItem] = []
         for slug in ordered_slugs:
-            count, advances, declines, valid_vals, valid_weights = stats[slug]
+            count, advances, declines, valid_vals, valid_weights, closes, highs, lows = stats[slug]
             if not count:
                 continue
             if valid_vals:
@@ -884,6 +935,12 @@ def _aggregate_theme_groups(
                 )
             else:
                 change = 0.0
+            range52_frame = pd.DataFrame({
+                'close': closes,
+                'price_52_week_high': highs,
+                'price_52_week_low': lows,
+            })
+            near_high_pct, near_low_pct, median_pos_52w = _range52_stats(range52_frame)
             items.append(GroupPerformanceItem(
                 name=str(info.get(slug, {}).get("name") or slug),
                 slug=str(slug),
@@ -891,6 +948,9 @@ def _aggregate_theme_groups(
                 stock_count=int(count),
                 advances=int(advances),
                 declines=int(declines),
+                near_high_pct=near_high_pct,
+                near_low_pct=near_low_pct,
+                median_pos_52w=median_pos_52w,
             ))
 
         items.sort(key=lambda g: g.change, reverse=True)

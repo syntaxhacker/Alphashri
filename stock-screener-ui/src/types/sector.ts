@@ -64,6 +64,12 @@ export interface SectorGroup {
   stock_count: number;
   advances: number;
   declines: number;
+  /** Stable key for /api/sector/themes/{slug}; absent on sector/industry groups. */
+  slug?: string | null;
+  /** 52-week breadth percentages (0–100); null when the scan has no coverage. */
+  near_high_pct?: number | null;
+  near_low_pct?: number | null;
+  median_pos_52w?: number | null;
 }
 
 export interface SectorGroupsPayload {

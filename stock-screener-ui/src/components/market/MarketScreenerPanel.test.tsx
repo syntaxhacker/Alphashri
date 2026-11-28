@@ -12,7 +12,12 @@ import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userCo
 import * as marketFilters from "./marketFilters";
 import { defaultMarketConfig, serializeMarketConfig } from "./useMarketConfig";
 import type { MarketRow } from "../../types/marketScreener";
-import { marketMetricOptions, NARROW_TREEMAP_MAX_WIDTH } from "./marketTreemap";
+import {
+  DEFAULT_HEATMAP_SIZE_METRIC,
+  DEFAULT_MARKET_SIZE_METRIC,
+  marketMetricOptions,
+  NARROW_TREEMAP_MAX_WIDTH,
+} from "./marketTreemap";
 import { getPanelSpec } from "../window/panelRegistry";
 import type { ValueRow, ValueScanResponse } from "../../api/valueScan";
 import type { ScreenerDashboardResponse } from "../../types/screenerDashboard";
@@ -82,6 +87,48 @@ const echartsStub = vi.hoisted(() => ({
 vi.mock("../../utils/loadEcharts", () => ({
   loadEcharts: vi.fn(async () => ({ init: vi.fn(() => echartsStub.chart) })),
 }));
+
+// V1 owns the real ThemeBoard. Stub it here so this suite asserts the wiring
+// (option registered, renderer mounted, props/controls handed over) without
+// depending on the board's implementation or its own data path.
+const themeBoardStub = vi.hoisted(() => ({
+  latestProps: null as null | {
+    rows?: readonly { symbol: string }[];
+    allRows?: readonly { symbol: string }[];
+  },
+}));
+vi.mock("./ThemeBoard", () => ({
+  ThemeBoard: (props: {
+    rows?: readonly { symbol: string }[];
+    allRows?: readonly { symbol: string }[];
+  }) => {
+    themeBoardStub.latestProps = props;
+    return <div data-testid="theme-board" />;
+  },
+}));
+
+// The scatter owns an ECharts instance and the matrix fires a network request.
+// This suite asserts registry wiring, so both render as their identity node.
+vi.mock("./RsiAdxScatterView", () => ({
+  RsiAdxScatterView: () => <div data-testid="rsi-adx-view" />,
+}));
+vi.mock("./CorrelationMatrixView", () => ({
+  CorrelationMatrixView: () => <div data-testid="correlation-matrix-view" />,
+}));
+
+const VIS_TEST_IDS: Record<string, string> = {
+  Heatmap: "market-map-view",
+  "Sector treemap": "market-sector-map-view",
+  Themes: "theme-board",
+  "Money flow": "market-flow-view",
+  "52W range": "range52-view",
+  "Sector 52W": "sector-52w-breadth-view",
+  "RSI × ADX": "rsi-adx-view",
+  "Trend alignment": "trend-alignment-view",
+  "Relative volume": "relvol-view",
+  "Sector × period": "sector-period-view",
+  Correlation: "correlation-matrix-view",
+};
 
 function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
   return {
@@ -599,7 +646,7 @@ describe("MarketScreenerPanel — the table owns sorting, the map only sizes", (
 
     const metric = () =>
       (screen.getByTestId("market-map-metric").querySelector("select") as HTMLSelectElement).value;
-    expect(metric()).toBe("change_pct");
+    expect(metric()).toBe(DEFAULT_HEATMAP_SIZE_METRIC);
     // The map owns no sort control that could write back into the table.
     expect(screen.queryByTestId("market-map-sort")).toBeNull();
 
@@ -775,26 +822,91 @@ describe("MarketScreenerPanel — Movers view", () => {
     expect(screen.getByTestId("market-map-canvas")).toBeInTheDocument();
   });
 
-  test("the Vis selector reaches both registered visualizations", async () => {
+  test("the Vis selector cycles all eleven registered visualizations", async () => {
     r(() => <MarketScreenerPanel />);
     await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
     expect(await screen.findByTestId("market-vis-selector")).toBeInTheDocument();
 
-    const selector = screen.getByTestId("market-vis-selector");
-    expect(within(selector).getByText("Heatmap")).toHaveAttribute("aria-pressed", "true");
-    expect(within(selector).getByText("Sector treemap")).toBeInTheDocument();
+    const selector = () => screen.getByTestId("market-vis-selector");
+    expect(within(selector()).getByText("Heatmap")).toHaveAttribute("aria-pressed", "true");
+    for (const label of Object.keys(VIS_TEST_IDS)) {
+      expect(within(selector()).getByText(label)).toBeInTheDocument();
+    }
 
-    fireEvent.click(within(selector).getByText("Sector treemap"));
-    expect(await screen.findByTestId("market-sector-map-view")).toBeInTheDocument();
-    expect(screen.queryByTestId("market-map-view")).not.toBeInTheDocument();
-    expect(within(screen.getByTestId("market-vis-selector")).getByText("Sector treemap")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    for (const [label, testId] of Object.entries(VIS_TEST_IDS)) {
+      fireEvent.click(within(selector()).getByText(label));
+      expect(await screen.findByTestId(testId)).toBeInTheDocument();
+      expect(within(selector()).getByText(label)).toHaveAttribute("aria-pressed", "true");
+    }
 
-    fireEvent.click(within(screen.getByTestId("market-vis-selector")).getByText("Heatmap"));
+    fireEvent.click(within(selector()).getByText("Heatmap"));
     expect(await screen.findByTestId("market-map-view")).toBeInTheDocument();
-    expect(screen.queryByTestId("market-sector-map-view")).not.toBeInTheDocument();
+    expect(within(selector()).getByText("Heatmap")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("Size by is present only in the two treemap modes, not Money flow; the selector stays mounted", async () => {
+    r(() => <MarketScreenerPanel />);
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    const toolbar = screen.getByTestId("market-vis-toolbar");
+    const sizeControl = () => within(toolbar).queryByTestId("market-map-metric");
+    const selector = () => screen.getByTestId("market-vis-selector");
+
+    expect(within(toolbar).getByText("Size by")).toBeInTheDocument();
+    expect(sizeControl()).toBeInTheDocument();
+    expect(toolbar.querySelectorAll("select")).toHaveLength(1);
+
+    for (const label of [
+      "Themes",
+      "Money flow",
+      "52W range",
+      "Sector 52W",
+      "RSI × ADX",
+      "Trend alignment",
+      "Relative volume",
+      "Sector × period",
+      "Correlation",
+    ]) {
+      fireEvent.click(within(selector()).getByText(label));
+      expect(await screen.findByTestId(VIS_TEST_IDS[label]!)).toBeInTheDocument();
+      expect(selector()).toBeInTheDocument();
+      expect(within(toolbar).queryByText("Size by")).toBeNull();
+      expect(sizeControl()).toBeNull();
+      expect(toolbar.querySelectorAll("select")).toHaveLength(0);
+    }
+
+    fireEvent.click(within(selector()).getByText("Sector treemap"));
+    expect(await screen.findByTestId("market-sector-map-view")).toBeInTheDocument();
+    expect(sizeControl()).toBeInTheDocument();
+    expect(toolbar.querySelectorAll("select")).toHaveLength(1);
+
+    fireEvent.click(within(selector()).getByText("Heatmap"));
+    expect(await screen.findByTestId("market-map-view")).toBeInTheDocument();
+    expect(sizeControl()).toBeInTheDocument();
+  });
+
+  test("a rail filter narrows rows but leaves the renderer's allRows as the full snapshot", async () => {
+    const CAP_ROWS: MarketRow[] = [
+      row("DEFENCE1", { capTier: "mid" }),
+      row("HEAVY1", { capTier: "large" }),
+      row("TINY1", { capTier: "small" }),
+    ];
+    mockUseMarketSnapshot.mockReturnValue(
+      hookResult({ rows: CAP_ROWS, total: CAP_ROWS.length }),
+    );
+    r(() => <MarketScreenerPanel />);
+
+    // Cap: Mid is the filter from the 390 capture: it drops most constituents.
+    fireEvent.click(screen.getByTestId("market-cap-mid"));
+    expect(screen.getByTestId("market-filter-chip-capTier:mid")).toBeInTheDocument();
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("1 / 3");
+
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    fireEvent.click(within(screen.getByTestId("market-vis-selector")).getByText("Themes"));
+    await screen.findByTestId("theme-board");
+
+    const props = themeBoardStub.latestProps!;
+    expect(props.allRows?.map((item) => item.symbol)).toEqual(["DEFENCE1", "HEAVY1", "TINY1"]);
+    expect(props.rows?.map((item) => item.symbol)).toEqual(["DEFENCE1"]);
   });
 
   test("fullscreen sector treemap survives a data refresh (rows change does not remount the viz)", async () => {
@@ -2533,6 +2645,74 @@ describe("MarketScreenerPanel — one hoisted Size by control in Vis mode", () =
   });
 });
 
+describe("MarketScreenerPanel — Vis heatmap default size and toolbar row height", () => {
+  const sizeSelect = () =>
+    screen.getByTestId("market-map-metric").querySelector("select") as HTMLSelectElement;
+
+  test("starts sized by market cap and the config store's default echo does not reset it", async () => {
+    r(() => <MarketScreenerPanel initialView="vis" />);
+    await screen.findByTestId("market-vis-toolbar");
+    expect(sizeSelect().value).toBe(DEFAULT_HEATMAP_SIZE_METRIC);
+
+    await waitFor(() => expect(mockGetUserConfig).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The store hydrates defaults (colorBy=change_pct) even with no saved row.
+    // That legacy default is not a user choice and must not undo this one.
+    expect(mockGetUserConfig).toHaveBeenCalled();
+    expect(sizeSelect().value).toBe(DEFAULT_HEATMAP_SIZE_METRIC);
+    expect(
+      (
+        echartsStub.chart.setOption.mock.calls.at(-1)?.[0] as
+          | { series?: Array<{ data?: Array<{ metricLabel?: string }> }> }
+          | undefined
+      )?.series?.[0]?.data?.[0]?.metricLabel,
+    ).toBe("Market Cap");
+  });
+
+  test("a persisted size metric still wins over the heatmap default", async () => {
+    mockGetUserConfig.mockResolvedValue({
+      scope: "market.filters",
+      version: 1,
+      saved: true,
+      updated_at: "2026-11-15T09:41:22.192Z",
+      config: serializeMarketConfig(
+        defaultMarketConfig({ colorBy: "rsi", view: "vis" }),
+      ),
+    });
+
+    r(() => <MarketScreenerPanel />);
+    await waitFor(() => expect(sizeSelect().value).toBe("rsi"));
+    expect(sizeSelect().value).not.toBe(DEFAULT_HEATMAP_SIZE_METRIC);
+    expect(DEFAULT_HEATMAP_SIZE_METRIC).not.toBe(DEFAULT_MARKET_SIZE_METRIC);
+  });
+
+  test("the toolbar grows with its children and has no fixed row height", async () => {
+    r(() => <MarketScreenerPanel initialView="vis" />);
+    await screen.findByTestId("market-vis-toolbar");
+
+    const toolbar = screen.getByTestId("market-vis-toolbar");
+    for (const cls of ["h-auto", "min-h-9", "py-1"]) expect(toolbar).toHaveClass(cls);
+    expect(toolbar.className).not.toMatch(/(?:^|\s)h-(?:9|10|\[[^\]]+\])(?:\s|$)/);
+  });
+
+  test("the size band is not basis-full at sm and shares the selector's row", async () => {
+    r(() => <MarketScreenerPanel initialView="vis" />);
+    await screen.findByTestId("market-vis-toolbar");
+
+    const cell = screen.getByTestId("market-vis-selector-cell");
+    const band = screen.getByTestId("market-vis-size-band");
+    expect(band).toHaveClass("sm:basis-auto");
+    expect(band).toHaveClass("sm:w-auto");
+    expect(band.classList.contains("basis-full")).toBe(true);
+    // A bare basis-full would keep the band on its own line at 1600px.
+    expect(band.className).toContain("sm:basis-auto");
+    // The cell's auto base would resolve to its inline width:100% and wrap the
+    // band anyway, so the sm base must be explicit.
+    expect(cell).toHaveClass("sm:basis-0");
+    expect(within(band).getByTestId("market-map-metric")).toBeInTheDocument();
+  });
+});
+
 describe("MarketScreenerPanel — Vis toolbar at phone width (390px)", () => {
   afterEach(() => {
     cleanup();
@@ -2579,9 +2759,65 @@ describe("MarketScreenerPanel — Vis toolbar at phone width (390px)", () => {
     await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
     const toolbar = screen.getByTestId("market-vis-toolbar");
     expect(within(toolbar).getByText("Visualization")).toBeInTheDocument();
-    expect(toolbar).toHaveClass("h-9");
+    // The row grows with its children; a fixed h-9 painted the Size by band on
+    // top of the visualization below it at 1600px.
+    for (const cls of ["h-auto", "min-h-9", "py-1"]) expect(toolbar).toHaveClass(cls);
+    expect(toolbar.className).not.toMatch(/(?:^|\s)h-(?:9|10|\[[^\]]+\])(?:\s|$)/);
     expect(within(toolbar).getAllByTestId("market-map-metric")).toHaveLength(1);
     expect(within(toolbar).getAllByTestId("market-vis-selector")).toHaveLength(1);
+  });
+});
+
+describe("MarketScreenerPanel — Vis selector bounded cell", () => {
+  async function openVis() {
+    r(() => <MarketScreenerPanel />);
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    return screen.getByTestId("market-vis-toolbar");
+  }
+
+  test("the selector lives in a bounded cell, not as a direct flex child of the toolbar row", async () => {
+    const toolbar = await openVis();
+    const selector = screen.getByTestId("market-vis-selector");
+    const cell = screen.getByTestId("market-vis-selector-cell");
+
+    expect(cell.parentElement).toBe(toolbar);
+    // The primitive owns one wrapper between its track and the bounded cell.
+    expect(selector.parentElement?.parentElement).toBe(cell);
+    expect(selector.parentElement).not.toBe(toolbar);
+    expect(cell).toHaveClass("min-w-0");
+    expect(cell).toHaveClass("flex-1");
+    // Pins the primitive's inline-flex wrapper to the cell instead of letting
+    // its w-full track resolve to the sum of the min-w-max items.
+    expect(cell).toHaveClass("[&>div]:w-full");
+  });
+
+  test("Size by is a separate sm-gated band that cannot share the selector's row", async () => {
+    const toolbar = await openVis();
+    const cell = within(toolbar).getByTestId("market-vis-selector-cell");
+    const band = within(toolbar).getByTestId("market-vis-size-band");
+
+    expect(band).not.toBe(cell);
+    expect(band.contains(cell)).toBe(false);
+    expect(within(band).getByTestId("market-map-metric")).toBeInTheDocument();
+    // jsdom has no layout: the wrap is asserted from the gating classes.
+    // basis-full below sm forces the band onto its own line; sm:basis-auto
+    // lets it return to the selector's row on wider viewports. The cell needs
+    // sm:basis-0: its inline width:100% would otherwise stay the flex base and
+    // force the band onto a second line despite flex-1.
+    expect(cell).toHaveClass("basis-full");
+    expect(cell).toHaveClass("sm:basis-0");
+    expect(band).toHaveClass("basis-full");
+    expect(band).toHaveClass("sm:basis-auto");
+  });
+
+  test("the bounded cell carries no fixed width or nowrap hack", async () => {
+    await openVis();
+    const cell = screen.getByTestId("market-vis-selector-cell") as HTMLElement;
+
+    expect(cell.className).not.toMatch(/w-\[\d+px\]/);
+    expect(cell.className).not.toContain("whitespace-nowrap");
+    expect(cell.style.width).toBe("100%");
+    expect(cell.style.maxWidth).toBe("100%");
   });
 });
 

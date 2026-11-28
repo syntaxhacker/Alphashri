@@ -38,6 +38,15 @@ import {
 import type { CurrencyCode } from "@/config/currency";
 import type { MarketRow } from "@/types/marketScreener";
 import { MarketSectorTreemap } from "./MarketSectorTreemap";
+import { ThemeBoard } from "./ThemeBoard";
+import { Range52View } from "./Range52View";
+import { Sector52BreadthView } from "./Sector52BreadthView";
+import { RsiAdxScatterView } from "./RsiAdxScatterView";
+import { TrendAlignmentView } from "./TrendAlignmentView";
+import { RelVolView } from "./RelVolView";
+import { SectorPeriodView } from "./SectorPeriodView";
+import { CorrelationMatrixView } from "./CorrelationMatrixView";
+import { MarketFlowView } from "./MarketFlowView";
 
 export interface MarketMapViewProps {
   rows: MarketRow[];
@@ -90,11 +99,27 @@ export function normalizeMarketView(raw: unknown): MarketViewMode {
 export const VIS_OPTIONS = [
   { value: "heatmap", label: "Heatmap" },
   { value: "sector", label: "Sector treemap" },
+  { value: "themes", label: "Themes" },
+  { value: "flow", label: "Money flow" },
+  { value: "range52", label: "52W range" },
+  { value: "sector52", label: "Sector 52W" },
+  { value: "rsiadx", label: "RSI × ADX" },
+  { value: "trend", label: "Trend alignment" },
+  { value: "relvol", label: "Relative volume" },
+  { value: "sectorperiod", label: "Sector × period" },
+  { value: "corrmatrix", label: "Correlation" },
 ] as const;
 export type VisMode = (typeof VIS_OPTIONS)[number]["value"];
 
 export interface VisRenderProps {
+  /** Filtered rows: the heatmap and sector treemap tile only what is in view. */
   rows: MarketRow[];
+  /**
+   * Unfiltered snapshot. Renderers that need a universe-wide join (the Themes
+   * detail resolves its constituents here) use `allRows` instead of `rows`, so
+   * a rail filter cannot turn a quoted member into "no quote".
+   */
+  allRows?: MarketRow[];
   onSymbolClick?: (symbol: string) => void;
   currency?: CurrencyCode;
   sizeBy?: MarketSizeMetric;
@@ -106,6 +131,15 @@ export interface VisRenderProps {
 export const VIS_RENDERERS: Record<VisMode, (props: VisRenderProps) => JSX.Element> = {
   heatmap: (props) => <MarketMapView {...props} />,
   sector: (props) => <MarketSectorTreemap {...props} />,
+  themes: (props) => <ThemeBoard {...props} />,
+  flow: (props) => <MarketFlowView {...props} />,
+  range52: (props) => <Range52View {...props} />,
+  sector52: (props) => <Sector52BreadthView {...props} />,
+  rsiadx: (props) => <RsiAdxScatterView {...props} />,
+  trend: (props) => <TrendAlignmentView {...props} />,
+  relvol: (props) => <RelVolView {...props} />,
+  sectorperiod: (props) => <SectorPeriodView {...props} />,
+  corrmatrix: (props) => <CorrelationMatrixView {...props} />,
 };
 
 const EMPTY: MarketRow[] = [];
@@ -214,24 +248,52 @@ function MarketTreemapCanvas(props: {
 
   return (
     <Box data-testid="market-map" className="flex-1 min-w-0 min-h-0 flex flex-col">
-      <Box className="flex-1 w-full flex p-2" style={{ "min-height": "320px" }}>
-        <div ref={(el) => (chartEl = el)} data-testid="market-map-canvas" style={{ height: "100%", width: "100%" }} />
+      <Box className="relative flex-1 w-full flex p-2" style={{ "min-height": "320px" }}>
+        <div
+          ref={(el) => (chartEl = el)}
+          role="img"
+          aria-label={`Stock heatmap sized by ${sizeConfig().label}, coloured by ${colorConfig().label}`}
+          data-testid="market-map-canvas"
+          style={{ height: "100%", width: "100%" }}
+        />
+        <Show when={props.stocks.length === 0}>
+          <Box
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            data-testid="market-map-empty"
+          >
+            <Text span size="xs" c="dimmed">
+              No stocks to map
+            </Text>
+          </Box>
+        </Show>
       </Box>
       <Show when={props.stocks.length > 0}>
+        {/* Below sm the notes move into a compact two-line band inside the
+            legend; at sm and up they sit inline. The numeric range and the
+            scale semantics stay visible at both widths. */}
         <Box
-          className="flex items-center gap-2 px-2 h-8 flex-shrink-0 border-t border-fin-border"
+          className="flex flex-wrap items-center gap-2 px-2 py-1 h-auto min-h-8 flex-shrink-0 border-t border-fin-border"
+          title={`size: ${sizeConfig().label} · ${MARKET_COLOR_SCALE_NOTE}${
+            colorDomain().clampedLow || colorDomain().clampedHigh ? " · saturates past bounds" : ""
+          }`}
           data-testid="market-map-legend"
         >
           <Text size="xs" fw={600} data-testid="market-map-color-label">
             {colorConfig().label}
           </Text>
-          <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid="market-map-size-note">
+          <Text size="xs" c="dimmed" className="hidden sm:inline" data-testid="market-map-size-note">
             size: {sizeConfig().label}
           </Text>
-          <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid="market-map-color-direction">
+          <Text
+            size="xs"
+            c="dimmed"
+            className="hidden sm:inline"
+            title={MARKET_COLOR_SCALE_NOTE}
+            data-testid="market-map-color-direction"
+          >
             {MARKET_COLOR_SCALE_NOTE}
           </Text>
-          <Box className="flex items-center gap-2" data-testid="market-map-color-range">
+          <Box className="flex flex-wrap items-center gap-2" data-testid="market-map-color-range">
             <Box
               className="size-3 rounded"
               style={{
@@ -277,12 +339,36 @@ function MarketTreemapCanvas(props: {
             <Text
               size="xs"
               c="dimmed"
-              className="whitespace-nowrap"
+              className="hidden sm:inline"
+              title="saturates past bounds"
               data-testid="market-map-color-clamp-note"
             >
               saturates past bounds
             </Text>
           </Show>
+          <Box
+            className="sm:hidden flex flex-wrap w-full h-auto gap-1"
+            data-testid="market-map-narrow-notes"
+          >
+            <Text
+              size="xs"
+              c="dimmed"
+              className="w-full"
+              data-testid="market-map-color-direction-narrow"
+            >
+              {MARKET_COLOR_SCALE_NOTE}
+            </Text>
+            <Show when={colorDomain().clampedLow || colorDomain().clampedHigh}>
+              <Text
+                size="xs"
+                c="dimmed"
+                className="w-full"
+                data-testid="market-map-color-clamp-note-narrow"
+              >
+                saturates past bounds
+              </Text>
+            </Show>
+          </Box>
         </Box>
       </Show>
     </Box>

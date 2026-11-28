@@ -73,6 +73,7 @@ import {
   type VisMode,
 } from "./MarketMapView";
 import {
+  DEFAULT_HEATMAP_SIZE_METRIC,
   DEFAULT_MARKET_SIZE_METRIC,
   isMarketSizeMetric,
   marketMetricOptions,
@@ -87,7 +88,7 @@ import { ChartDockOutlet } from "../common/ChartDockOutlet";
 import { isLiveUniverse, useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { MarketBreadthStrip } from "./MarketBreadthStrip";
 import { useSymbolDock } from "../common/symbolDockContext";
-import { useMarketConfig, type MarketConfigValue } from "./useMarketConfig";
+import { defaultMarketConfig, useMarketConfig, type MarketConfigValue } from "./useMarketConfig";
 import { fetchSectionScan, type SectionScanResult } from "../../api/sections";
 import { useSectionsConfig } from "../../state/sections/config";
 
@@ -113,6 +114,20 @@ const SECTION_TABS: { value: string; label: string }[] = [
   { value: "sections", label: "Sections" },
 ];
 type ScreenerTab = MarketViewMode | "sections";
+
+// Only the two treemaps size their tiles. Every other Vis mode owns its own
+// scale (ranks, periods, coefficients), so a Size by control there is a lie.
+const SIZE_BY_VIS_MODES: ReadonlySet<VisMode> = new Set(["heatmap", "sector"]);
+
+// The config store hydrates its defaults even when no row is saved, so a bare
+// default payload carries the legacy `change_pct` size metric. Only a payload
+// that actually differs from the defaults is a persisted user choice.
+function hasPersistedMarketConfig(value: MarketConfigValue): boolean {
+  const key = (config: MarketConfigValue) =>
+    JSON.stringify(config.filters, (_k, v) => (v instanceof Set ? [...v] : v));
+  const baseline = defaultMarketConfig({ universe: value.universe, view: value.view });
+  return value.colorBy !== baseline.colorBy || key(value) !== key(baseline);
+}
 
 function MoversPanel(props: {
   universe: string;
@@ -616,7 +631,11 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   // it is intentionally local state — a viz choice is not a saved config, and
   // must never echo back through save()/scheduleSave().
   const [visMode, setVisMode] = createSignal<VisMode>(VIS_OPTIONS[0]!.value);
-  const [sizeBy, setSizeBy] = createSignal<MarketSizeMetric>(DEFAULT_MARKET_SIZE_METRIC);
+  // The full-snapshot heatmap needs tile areas that vary enough for the
+  // treemap's label policy to keep names visible; day change makes ~3600 tiles
+  // nearly equal and the map becomes an unlabelled colour field. Saved config
+  // still overrides this below.
+  const [sizeBy, setSizeBy] = createSignal<MarketSizeMetric>(DEFAULT_HEATMAP_SIZE_METRIC);
   // Value is a view, not a separate page: every Market filter lives in this
   // component's signals, so switching back restores the table as it was.
   const showMarketChrome = () =>
@@ -699,8 +718,12 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       setFilters(restoredFilters);
       setViewMode(value.view);
       // The saved field is still called `colorBy` on the wire; it now seeds the
-      // single sizing metric, not a colour choice.
-      setSizeBy(value.colorBy ?? DEFAULT_MARKET_SIZE_METRIC);
+      // single sizing metric, not a colour choice. A bare defaults payload is
+      // the store's no-saved-row fallback, not a user choice, so it must not
+      // undo the heatmap's market-cap default.
+      if (hasPersistedMarketConfig(value)) {
+        setSizeBy(value.colorBy ?? DEFAULT_MARKET_SIZE_METRIC);
+      }
     });
   };
   const savedConfig = useMarketConfig({
@@ -1545,11 +1568,10 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                     <ToolbarRow
                       gap={8}
                       wrap
-                      className={
-                        visToolbarCompact()
-                          ? "px-2 py-1 flex-shrink-0 border-b border-fin-border"
-                          : "px-2 h-9 flex-shrink-0 border-b border-fin-border"
-                      }
+                      // The band can wrap on narrow screens; h-auto/min-h-9 let
+                      // the row grow with its content instead of painting a
+                      // second line over the visualization below it.
+                      className="px-2 h-auto min-h-9 py-1 flex-shrink-0 border-b border-fin-border"
                       data-testid="market-vis-toolbar"
                     >
                       <Show when={!visToolbarCompact()}>
@@ -1557,28 +1579,59 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                           Visualization
                         </Text>
                       </Show>
-                      <SegmentedControl
-                        value={visMode()}
-                        onChange={(value) => setVisMode(value as VisMode)}
-                        data={VIS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-                        size="xs"
-                        data-testid="market-vis-selector"
-                      />
-                      <Text size="xs" c="dimmed" className="whitespace-nowrap">
-                        Size by
-                      </Text>
-                      <Select
-                        size="xs"
-                        w={128}
-                        className="min-w-[128px]"
-                        value={sizeBy()}
-                        onChange={(value: string | null) => {
-                          if (isMarketSizeMetric(value)) setSizeBy(value);
-                        }}
-                        data={marketMetricOptions(currency())}
-                        aria-label="Size the map by"
-                        data-testid="market-map-metric"
-                      />
+                      {/* Ten modes cannot fit at 390px. The primitive's track is
+                          w-full against an inline-flex parent, so without the
+                          cap here it resolves to the sum of its min-w-max items
+                          (~780px) and the select steals the pointer. The child
+                          rule pins that wrapper to this cell's width, making
+                          the track a real scrollport with its scroll cue.
+                          At sm the base must be 0: an auto base resolves to the
+                          inline width:100% and flex-wrap sends the Size by band
+                          to a second line even though flex-1 could shrink. */}
+                      <Box
+                        data-testid="market-vis-selector-cell"
+                        className="min-w-0 flex-1 basis-full sm:basis-0 [&>div]:w-full [&>div]:max-w-full"
+                        style={{ width: "100%", "max-width": "100%" }}
+                      >
+                        <SegmentedControl
+                          value={visMode()}
+                          onChange={(value) => setVisMode(value as VisMode)}
+                          data={VIS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                          size="xs"
+                          scrollable
+                          scrollLabel="Scroll visualizations"
+                          scrollTestId="market-vis-scroll"
+                          data-testid="market-vis-selector"
+                        />
+                      </Box>
+                      {/* Only the treemaps size tiles by a numeric metric. The
+                          selector stays mounted; this one control does not.
+                          `basis-full sm:basis-auto` moves the whole band to its
+                          own line below sm instead of letting the 128px select
+                          overlap a selector option. Above sm the band keeps its
+                          auto width so it shares the selector's row. */}
+                      <Show when={SIZE_BY_VIS_MODES.has(visMode())}>
+                        <Box
+                          data-testid="market-vis-size-band"
+                          className="flex flex-shrink-0 items-center gap-2 basis-full sm:basis-auto sm:w-auto"
+                        >
+                          <Text size="xs" c="dimmed" className="whitespace-nowrap">
+                            Size by
+                          </Text>
+                          <Select
+                            size="xs"
+                            w={128}
+                            className="min-w-[128px]"
+                            value={sizeBy()}
+                            onChange={(value: string | null) => {
+                              if (isMarketSizeMetric(value)) setSizeBy(value);
+                            }}
+                            data={marketMetricOptions(currency())}
+                            aria-label="Size the map by"
+                            data-testid="market-map-metric"
+                          />
+                        </Box>
+                      </Show>
                     </ToolbarRow>
                     {/* Render the registry entry as a real component, not an inline
                         function call. `filteredRows()` is a tracked dependency of
@@ -1589,6 +1642,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                     <Dynamic
                       component={VIS_RENDERERS[visMode()]}
                       rows={filteredRows()}
+                      allRows={rows()}
                       onSymbolClick={selectAndOpen}
                       currency={currency()}
                       sizeBy={sizeBy()}

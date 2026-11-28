@@ -181,6 +181,15 @@ Single source is `src/ui/palette.ts`; `src/tailwind.css` mirrors it (guarded by 
 - Screenshot the full/empty/loading states at **1600 and 390** before calling a
   colour change done.
 
+## Visualisation work
+
+- Before building any chart/visualisation, consult the [D3 gallery](https://observablehq.com/@d3/gallery) and the [ECharts examples](https://echarts.apache.org/examples/en/) for the chart form, scale type and interaction; state which reference was used in the PR/report.
+- Visualisations are **not** limited to the app's semantic theme colours: use the `VIZ_*` palette in `src/ui/palette.ts` — `VIZ_CATEGORICAL` (10 series), `VIZ_SCALE` (9-stop diverging), `VIZ_UP`/`VIZ_DOWN` and `VIZ_BG`/`VIZ_PANEL`/`VIZ_TEXT`/`VIZ_MUTED`/`VIZ_GRID` — so data colours are legible and distinct.
+- The single-source rule still applies: never inline a `#RRGGBB` in a component; add new data hues to `palette.ts` and import them (this is why the palette lives there).
+- Contrast rules still apply (text ≥4.5:1, meaningful graphics ≥3:1) — use `src/utils/contrast.ts` and never put text directly on a saturated fill.
+- The 1600/390 screenshot + read-back + A+ visual gate still applies to every visualisation state (default, each selector option, empty/loading/error).
+- Register Market-tab visualisations through `VIS_OPTIONS` + `VIS_RENDERERS` (`src/components/market/MarketMapView.tsx`); never add an ad-hoc tab or renderer branch.
+
 ## UI Revamp Rules (MANDATORY — read before touching any tab/page)
 Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [UI_CHECKLIST.md](./UI_CHECKLIST.md).
 Judgement rules for any screen: [docs/UX_PRINCIPLES.md](./docs/UX_PRINCIPLES.md) — in-flow over overlay, one surface per concept, no dead ends, keyboard parity, measure before claiming.

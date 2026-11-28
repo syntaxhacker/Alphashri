@@ -495,3 +495,45 @@ export const UNUSUAL_PILL_TEXT = "#8B949E";
 
 // ----- Patterns applied-filter chip ----------------------------------------
 export const PATTERN_CHIP_BG = "#484F58";
+
+// ----- Visualisation palette (charts / data inks) --------------------------
+// Visualisations may use this palette instead of the app's semantic theme
+// colours: data inks must stay legible and distinct across every chart form,
+// which the amber chrome and bull/bear pairs cannot guarantee. Scales follow
+// D3 (schemeRdBu / schemeTableau10) and ECharts example defaults. Never inline
+// a hex in a component — add it here so the single-source guards stay green.
+export const VIZ_BG = "#0B0E14";
+export const VIZ_PANEL = "#151A22";
+export const VIZ_TEXT = "#EAECEF";
+export const VIZ_MUTED = "#9AA4B2";
+export const VIZ_GRID = "#2A303B";
+export const VIZ_UP = "#26A269";
+export const VIZ_DOWN = "#D9485F";
+/** 9-stop diverging scale, negative (red) → positive (blue); D3 schemeRdBu[9]. */
+export const VIZ_SCALE = [
+  "#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7",
+  "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC",
+];
+/** 10 categorical series colours; D3 schemeTableau10. */
+export const VIZ_CATEGORICAL = [
+  "#4E79A7", "#F28E2C", "#E15759", "#76B7B2", "#59A14F",
+  "#EDC949", "#AF7AA1", "#FF9DA7", "#9C755F", "#BAB0AB",
+];
+
+// P&L visualisations use VIZ_SCALE_PNL; never invert gain/loss.
+// RdBu puts positive in blue, which contradicts the green P&L text everywhere
+// else in the app. This ramp keeps loss red → neutral → gain green, derived from
+// the VIZ_DOWN/VIZ_UP anchors over a dark neutral that still clears 3:1 on VIZ_BG.
+const VIZ_PNL_NEUTRAL = "#646C78";
+const vizPnlStop = (color: string, a: number) => compositeOver(color, VIZ_PNL_NEUTRAL, a);
+export const VIZ_SCALE_PNL = [
+  vizPnlStop(VIZ_DOWN, 1.0),
+  vizPnlStop(VIZ_DOWN, 0.75),
+  vizPnlStop(VIZ_DOWN, 0.5),
+  vizPnlStop(VIZ_DOWN, 0.25),
+  VIZ_PNL_NEUTRAL,
+  vizPnlStop(VIZ_UP, 0.25),
+  vizPnlStop(VIZ_UP, 0.5),
+  vizPnlStop(VIZ_UP, 0.75),
+  vizPnlStop(VIZ_UP, 1.0),
+];

@@ -1,0 +1,435 @@
+{
+  "feature": "market-vis",
+  "route": "/screener?view=vis",
+  "head": "c8678717bb4a13425e871b948e68a2574354155b",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "market-vis-corrmatrix-1600.png": "80bd8ea8508da13efd2c7b88f7e6f1aca72fa76c7774abe97619aab9d085fae1",
+    "market-vis-corrmatrix-390.png": "b97b7616e935c026d1c4b51ab7494e85e6f6f05f1203397d05db761499882591",
+    "market-vis-corrmatrix-empty-1600.png": "eef144d1dfe53a646d559a94410212ded3866ebb8919c78472818a40559e3451",
+    "market-vis-corrmatrix-empty-390.png": "d7d0f81612c7d5d3936fbd95af3ed75d5ba718d5ab43f2a37ce02527f9529689",
+    "market-vis-corrmatrix-error-1600.png": "93a7842cb5910f4d1082405df6847b8da9ee07cfb71ca29444f9cdd0dcac7464",
+    "market-vis-corrmatrix-error-390.png": "cd46af21b6bd8122a87bce0a332defb5f9abde83feb91be134e9f08690915bcc",
+    "market-vis-corrmatrix-loading-1600.png": "2b5fa67845b972bda7ac1391bd62f79a21d188860932f5fe8510ca0215a8db7f",
+    "market-vis-corrmatrix-loading-390.png": "02774c8d3e0cd33e3222c58a3d168729366ecea40a7a73ce6e67a4d57b748ff8",
+    "market-vis-heatmap-1600.png": "e5f54e3c750334a56d1e506fe63d731b6658f653ba1dbb7051abfd90275d9c96",
+    "market-vis-heatmap-390.png": "d32caed7f7d242b6c2f363d91ce64852a0c1266c8c771b62dd9c20c2a92093f9",
+    "market-vis-heatmap-empty-1600.png": "7d564422767f927f4d92ad4b51a3b56c60be97b18399020e6faef2dabbe12614",
+    "market-vis-heatmap-empty-390.png": "e2968322dc7b22d3e6a352b6c7142c6a77898fc53740038466db968c7f4ef9dd",
+    "market-vis-heatmap-size-relvol-1600.png": "0531ac6cf952ec5ca61d4e5cfaa4e2f4dc1bd37a4e9dd063e542725cf4ece87d",
+    "market-vis-heatmap-size-relvol-390.png": "898090a44ca13fcaaba5b98ae4e2d315295185ee4b2ce0bc7a1d3b6888979d7a",
+    "market-vis-money-flow-1600.png": "df49daaeb00098ad20179483b04e97cbd4dbb77a9f90d4a8b20993bdfc6bc559",
+    "market-vis-money-flow-390.png": "c877dc93293703b922f2f3a3116e85a842df8e33c0b0d134d74ffde33ccb56b1",
+    "market-vis-money-flow-empty-1600.png": "6f159f0844d9b534d87404dc5975d3ee096085fff0150bd4b30e1941dae71b5e",
+    "market-vis-money-flow-empty-390.png": "d1185c713f31e1f1a4f936756c7391d20ea6bc3d11e03802a6abd4ceafe13b7f",
+    "market-vis-panel-error-1600.png": "7078dfbb118ce04a5da0174c8d0279c710c739a86ace2eebe28c0b91bc244c33",
+    "market-vis-panel-error-390.png": "511ccffe1d8c91dc93ddd5f121b569516756b586b67f711d14b1a76decd70b12",
+    "market-vis-panel-loading-1600.png": "095fb566e6f9fe71c4e4e4ac91e219e0f1cbd93b59c541d0bf2b21a41ececfb6",
+    "market-vis-panel-loading-390.png": "b05df1d413356f0eb3a3555ea7c8c403aad068865b42d35c4483309e8c8f9b73",
+    "market-vis-range52-1600.png": "06d5abe59699764d27021c5b095622e24d52f0e3dd2112eed1aa6059f6e6b35b",
+    "market-vis-range52-390.png": "a949a4b0cf21aeb3115d239092ec25a359d1a57adffae48eadcca3a4a1d95aeb",
+    "market-vis-range52-empty-1600.png": "d37588774014ced03242837df2f8348c3a645cbfa5c66e65a4f97dfd037789e6",
+    "market-vis-range52-empty-390.png": "f3d90126f7549dffada94a7df8b247647355b837c959aefa79418447e004899f",
+    "market-vis-range52-within5-1600.png": "ff31118c83dad3b408cb0b15daf57593440d0ceca6fd4a385eaeeb5c492cb76b",
+    "market-vis-range52-within5-390.png": "8cc15723d7bc78bb6765b9138cbe70f78c1dec4128db29d5833750e405c82cd8",
+    "market-vis-relvol-1600.png": "bb0f0e47206fc9080d01bb520297b5315841168f7dd96c367463a53a791bdc0e",
+    "market-vis-relvol-390.png": "c2a2ea334a2458ebff28d86da8be68c4d89e6b6d0c8c41c3962991d9368644f0",
+    "market-vis-relvol-empty-1600.png": "5f636eca5b6ccc53c302cdeaebd80572348a6bc143727b3ca32cfb58050e865c",
+    "market-vis-relvol-empty-390.png": "ab479f42f20fa774d116001546d64c6ccd821d5e05e1af39bc9e64e505712fb9",
+    "market-vis-relvol-ge2-1600.png": "824886abea4582020fd9809063b777958dc9736e3a2684f139170e4030769983",
+    "market-vis-relvol-ge2-390.png": "2db0054ce18e4e18b6292a17f93fbe802e2211635258d6dc55d01b2b8027c3ad",
+    "market-vis-rsi-adx-1600.png": "84c21c14c923b5376ce4f94f7c20dc430ea3890255c1f3ecf733a2c3771f227e",
+    "market-vis-rsi-adx-390.png": "21b2c6d41cf069e5b9194dcc0e7179b9c1d0343c874198e3e53dfe80f7625602",
+    "market-vis-rsi-adx-empty-1600.png": "0d942c18f8744157e1b5b411e9713bba9bf711fee73b88058e0aa8a77791049d",
+    "market-vis-rsi-adx-empty-390.png": "43f8191053e4a95227be4e3e49c81dca6a3b4f7f14e9c1b7dc81a1f279e95f41",
+    "market-vis-sector-period-1600.png": "7561344673d84f7326e4044a613b6958aa71134ea9a512c3ab434f6c4e98245e",
+    "market-vis-sector-period-390.png": "6c22f52496563bffa8b2addc953f5918ce86fb18a7f788812b4b22c889bd7557",
+    "market-vis-sector-period-empty-1600.png": "392720bbd5779b782b60ec0eed5e758ca56eb729ee036c391670bbf1c57d3194",
+    "market-vis-sector-period-empty-390.png": "222c6cbc141267ad8ec000f98b6d2c135b6f12f0a46f8e13b1e5d27a48b9c1f9",
+    "market-vis-sector-treemap-1600.png": "f62abdc4f49f197215486af81a005194de752055d2cb9705a0114ed5ef12ac3d",
+    "market-vis-sector-treemap-390.png": "4ef1b11eae96c70ae56acc04e82f636c3fc25b4ec73f02d9635531acbcbb9adc",
+    "market-vis-sector-treemap-empty-1600.png": "e36dabcbdd444041125977e15a35657b55be241d224dd29755237b3f91841cd7",
+    "market-vis-sector-treemap-empty-390.png": "9fe7d70819b0cd0b2fc579601a34ec8c14ba3be746f5eca4c1846627813bc9b3",
+    "market-vis-sector52-1600.png": "d4e095d4adf11fcf4dd8646a9f42fc33593572c5ffe814658fac454f94c72582",
+    "market-vis-sector52-390.png": "76646e40c7f8fef1d9298ba81c2a0625bba0718935442acd22bff2d3d436c74d",
+    "market-vis-sector52-empty-1600.png": "0d7e14bdb9df6c21d0fdf9d0a03fed1520b20c78d0b72fe26b722b2aa03564a7",
+    "market-vis-sector52-empty-390.png": "457720e096df2a0f43695a91f833c413e011ed318ea75938c5636cfeaf3723bc",
+    "market-vis-sector52-near-low-1600.png": "711723408a10a5a843c37a55aa6605cb1c58f68af51781953c72205901b3b8ab",
+    "market-vis-sector52-near-low-390.png": "61b2339a4d53170ba345dc166f5020b43e5e62f18efb2dbd4ec285dbcdeb4586",
+    "market-vis-themes-1600.png": "676f4cf9971ec90daacf60c1eeb12a9fdfab7727853dc4b72420f4de01795795",
+    "market-vis-themes-390.png": "d8603ae328fe10f18e154a729a64da246d4c1bf0e5ed1a67ef3e853a9bda39b3",
+    "market-vis-themes-detail-1600.png": "e6e7f189fc36bdb0a959751e340de442d2a0746b47659d53f7e52f620ca734f1",
+    "market-vis-themes-detail-390.png": "f04b1c37ad48e8de487c23a8539f65b845faa1be8fba85356beb55126004bbaa",
+    "market-vis-themes-empty-1600.png": "4caa1e00807d663ee871fd8fd63ba9ab06ff70e0429dab46287a92009d426f8b",
+    "market-vis-themes-empty-390.png": "16812061b6af15a1319979b491d7b3cead056ad623c05515a298f01bd450cc94",
+    "market-vis-themes-error-1600.png": "b87baa86d13df0fa7f77c2aab95453ece4e257b41098601f8f0799cbe11c3965",
+    "market-vis-themes-error-390.png": "4fa9b5406a21cbdba6901fc3f3df5bbdbbe285d2ac3e5658811f7990a7cd89c0",
+    "market-vis-themes-loading-1600.png": "a2e977e9c7374da14abd73091461075299048205925ac449bd1e22fe23ce5e2e",
+    "market-vis-themes-loading-390.png": "43056944a6b0bcd209cc64dc2b6e1e38510e269dabe4cbbae3420962891b6640",
+    "market-vis-themes-period-1w-1600.png": "202371f512ff7ba90021577b39a4221177df6b30b893f63e8bdc8142efff96e8",
+    "market-vis-themes-period-1w-390.png": "6fbc1a33b59bcdc42b91ad2d4ca4f0e8975052f193774f1070287ff35fed05f3",
+    "market-vis-trend-1600.png": "89ac3b0febc850885bd64022a0af4e87ac574d607c4e9c5cf7983e9b9de82bcc",
+    "market-vis-trend-390.png": "586398f913940b273eadf1e747901b7e0d72075c092cf6ce45a8a952b2d06c33",
+    "market-vis-trend-3of3-1600.png": "80cf0819d2037abbafd5b1f7324b078ea4a5867415b1874180378b9c1dc7eeed",
+    "market-vis-trend-3of3-390.png": "80bcb4cddcc707e4916f679ef8cb37bb42e53c0b1a52d0743e8978547c11c53b",
+    "market-vis-trend-empty-1600.png": "555e67a7a9bb5ae7a80bedd0e48dd4546450198039b7c6a41e5cd678474f350b",
+    "market-vis-trend-empty-390.png": "89e18af97af242f944efa7a908e73e62f48c4a538782c250f14ba974f874be06"
+  },
+  "states": [
+    {
+      "id": "corrmatrix",
+      "files": {
+        "390": "market-vis-corrmatrix-390.png",
+        "1600": "market-vis-corrmatrix-1600.png"
+      },
+      "covers": "Correlation matrix in the Market Vis panel at the shipped default market-cap filter, with the scrollable matrix and its legend contained inside the panel.",
+      "mock": false,
+      "primary": "correlation-scroll"
+    },
+    {
+      "id": "corrmatrix-empty",
+      "files": {
+        "390": "market-vis-corrmatrix-empty-390.png",
+        "1600": "market-vis-corrmatrix-empty-1600.png"
+      },
+      "covers": "Correlation matrix in its mocked empty state, showing the panel's no-data treatment instead of a matrix.",
+      "mock": true,
+      "primary": "correlation-empty"
+    },
+    {
+      "id": "corrmatrix-error",
+      "files": {
+        "390": "market-vis-corrmatrix-error-390.png",
+        "1600": "market-vis-corrmatrix-error-1600.png"
+      },
+      "covers": "Correlation matrix in its mocked error state, showing the in-view correlation-error treatment with Retry while its sector-correlation request fails.",
+      "mock": true,
+      "primary": "correlation-error"
+    },
+    {
+      "id": "corrmatrix-loading",
+      "files": {
+        "390": "market-vis-corrmatrix-loading-390.png",
+        "1600": "market-vis-corrmatrix-loading-1600.png"
+      },
+      "covers": "Correlation matrix in its mocked loading state, showing the in-view correlation-loading placeholder while its sector-correlation request is stalled.",
+      "mock": true,
+      "primary": "correlation-loading"
+    },
+    {
+      "id": "heatmap",
+      "files": {
+        "390": "market-vis-heatmap-390.png",
+        "1600": "market-vis-heatmap-1600.png"
+      },
+      "covers": "Market heatmap canvas at the shipped default market-cap filter, showing the coloured tiles and their scale legend inside the panel.",
+      "mock": false,
+      "primary": "market-map-canvas"
+    },
+    {
+      "id": "heatmap-empty",
+      "files": {
+        "390": "market-vis-heatmap-empty-390.png",
+        "1600": "market-vis-heatmap-empty-1600.png"
+      },
+      "covers": "Market heatmap in its mocked empty state, showing the no-data treatment with no scale legend.",
+      "mock": true,
+      "primary": "market-map-empty"
+    },
+    {
+      "id": "heatmap-size-relvol",
+      "files": {
+        "390": "market-vis-heatmap-size-relvol-390.png",
+        "1600": "market-vis-heatmap-size-relvol-1600.png"
+      },
+      "covers": "Heatmap sized by relative volume instead of the shipped Day Change default.",
+      "mock": false,
+      "primary": "market-map-canvas"
+    },
+    {
+      "id": "money-flow",
+      "files": {
+        "390": "market-vis-money-flow-390.png",
+        "1600": "market-vis-money-flow-1600.png"
+      },
+      "covers": "Money-flow SVG view at the shipped default market-cap filter, showing the flow diagram with its legend below the chart.",
+      "mock": false,
+      "primary": "market-flow-svg"
+    },
+    {
+      "id": "money-flow-empty",
+      "files": {
+        "390": "market-vis-money-flow-empty-390.png",
+        "1600": "market-vis-money-flow-empty-1600.png"
+      },
+      "covers": "Money-flow view in its mocked empty state, showing the no-data treatment while the flow legend remains visible.",
+      "mock": true,
+      "primary": "market-flow-empty"
+    },
+    {
+      "id": "panel-error",
+      "files": {
+        "390": "market-vis-panel-error-390.png",
+        "1600": "market-vis-panel-error-1600.png"
+      },
+      "covers": "Panel-level skeleton/error while the snapshot request is stalled/failing — the Vis region is replaced entirely, so this one state covers all snapshot-driven modes (heatmap, sector treemap, Money flow, RSI × ADX, Sector 52W, Sector × period, 52W range, Trend, Relative volume).",
+      "mock": true,
+      "primary": "market-error"
+    },
+    {
+      "id": "panel-loading",
+      "files": {
+        "390": "market-vis-panel-loading-390.png",
+        "1600": "market-vis-panel-loading-1600.png"
+      },
+      "covers": "Panel-level skeleton/error while the snapshot request is stalled/failing — the Vis region is replaced entirely, so this one state covers all snapshot-driven modes (heatmap, sector treemap, Money flow, RSI × ADX, Sector 52W, Sector × period, 52W range, Trend, Relative volume).",
+      "mock": true,
+      "primary": "market-skeleton"
+    },
+    {
+      "id": "range52",
+      "files": {
+        "390": "market-vis-range52-390.png",
+        "1600": "market-vis-range52-1600.png"
+      },
+      "covers": "52-week range list at the shipped default market-cap filter, showing populated rows with a visible result count.",
+      "mock": false,
+      "primary": "range52-list"
+    },
+    {
+      "id": "range52-empty",
+      "files": {
+        "390": "market-vis-range52-empty-390.png",
+        "1600": "market-vis-range52-empty-1600.png"
+      },
+      "covers": "52-week range list in its mocked empty state, showing the no-rows treatment with the result count still visible.",
+      "mock": true,
+      "primary": "range52-empty"
+    },
+    {
+      "id": "range52-within5",
+      "files": {
+        "390": "market-vis-range52-within5-390.png",
+        "1600": "market-vis-range52-within5-1600.png"
+      },
+      "covers": "52-week range narrowed to names within 5% of their high.",
+      "mock": false,
+      "primary": "range52-list"
+    },
+    {
+      "id": "relvol",
+      "files": {
+        "390": "market-vis-relvol-390.png",
+        "1600": "market-vis-relvol-1600.png"
+      },
+      "covers": "Relative-volume list at the shipped default market-cap filter, showing populated rows with a visible result count and legend.",
+      "mock": false,
+      "primary": "relvol-list"
+    },
+    {
+      "id": "relvol-empty",
+      "files": {
+        "390": "market-vis-relvol-empty-390.png",
+        "1600": "market-vis-relvol-empty-1600.png"
+      },
+      "covers": "Relative-volume list in its mocked empty state, showing the no-rows treatment with the count and legend retained.",
+      "mock": true,
+      "primary": "relvol-empty"
+    },
+    {
+      "id": "relvol-ge2",
+      "files": {
+        "390": "market-vis-relvol-ge2-390.png",
+        "1600": "market-vis-relvol-ge2-1600.png"
+      },
+      "covers": "Relative volume restricted to the 2× threshold chip.",
+      "mock": false,
+      "primary": "relvol-list"
+    },
+    {
+      "id": "rsi-adx",
+      "files": {
+        "390": "market-vis-rsi-adx-390.png",
+        "1600": "market-vis-rsi-adx-1600.png"
+      },
+      "covers": "RSI/ADX canvas view at the shipped default market-cap filter, showing the indicator chart with its legend below.",
+      "mock": false,
+      "primary": "rsi-adx-canvas"
+    },
+    {
+      "id": "rsi-adx-empty",
+      "files": {
+        "390": "market-vis-rsi-adx-empty-390.png",
+        "1600": "market-vis-rsi-adx-empty-1600.png"
+      },
+      "covers": "RSI/ADX view in its mocked empty state, showing the no-data treatment with the legend retained.",
+      "mock": true,
+      "primary": "rsi-adx-empty"
+    },
+    {
+      "id": "sector-period",
+      "files": {
+        "390": "market-vis-sector-period-390.png",
+        "1600": "market-vis-sector-period-1600.png"
+      },
+      "covers": "Sector-period grid at the shipped default market-cap filter, showing the period cells with a legend below the grid.",
+      "mock": false,
+      "primary": "sector-period-grid"
+    },
+    {
+      "id": "sector-period-empty",
+      "files": {
+        "390": "market-vis-sector-period-empty-390.png",
+        "1600": "market-vis-sector-period-empty-1600.png"
+      },
+      "covers": "Sector-period grid in its mocked empty state, showing the no-data treatment with the legend retained.",
+      "mock": true,
+      "primary": "sector-period-empty"
+    },
+    {
+      "id": "sector-treemap",
+      "files": {
+        "390": "market-vis-sector-treemap-390.png",
+        "1600": "market-vis-sector-treemap-1600.png"
+      },
+      "covers": "Sector treemap canvas at the shipped default market-cap filter, showing the sized sector tiles with a scale legend.",
+      "mock": false,
+      "primary": "market-sector-map-canvas"
+    },
+    {
+      "id": "sector-treemap-empty",
+      "files": {
+        "390": "market-vis-sector-treemap-empty-390.png",
+        "1600": "market-vis-sector-treemap-empty-1600.png"
+      },
+      "covers": "Sector treemap in its mocked empty state, showing the no-data treatment with no scale legend.",
+      "mock": true,
+      "primary": "market-sector-map-empty"
+    },
+    {
+      "id": "sector52",
+      "files": {
+        "390": "market-vis-sector52-390.png",
+        "1600": "market-vis-sector52-1600.png"
+      },
+      "covers": "52-week sector breadth view at the shipped default market-cap filter, showing the breadth visual without a separate legend.",
+      "mock": false,
+      "primary": "sector-52w-breadth"
+    },
+    {
+      "id": "sector52-empty",
+      "files": {
+        "390": "market-vis-sector52-empty-390.png",
+        "1600": "market-vis-sector52-empty-1600.png"
+      },
+      "covers": "52-week sector breadth in its mocked empty state, showing the no-data treatment without a separate legend.",
+      "mock": true,
+      "primary": "sector-52w-breadth-empty"
+    },
+    {
+      "id": "sector52-near-low",
+      "files": {
+        "390": "market-vis-sector52-near-low-390.png",
+        "1600": "market-vis-sector52-near-low-1600.png"
+      },
+      "covers": "Sector 52-week breadth switched from Near high to the Near low measure.",
+      "mock": false,
+      "primary": "sector-52w-breadth"
+    },
+    {
+      "id": "themes",
+      "files": {
+        "390": "market-vis-themes-390.png",
+        "1600": "market-vis-themes-1600.png"
+      },
+      "covers": "Theme board at the shipped default market-cap filter, showing the theme grid with its legend below.",
+      "mock": false,
+      "primary": "theme-board"
+    },
+    {
+      "id": "themes-detail",
+      "files": {
+        "390": "market-vis-themes-detail-390.png",
+        "1600": "market-vis-themes-detail-1600.png"
+      },
+      "covers": "Theme board with a theme selected, showing the detail column alongside the board.",
+      "mock": false,
+      "primary": "theme-board-detail"
+    },
+    {
+      "id": "themes-empty",
+      "files": {
+        "390": "market-vis-themes-empty-390.png",
+        "1600": "market-vis-themes-empty-1600.png"
+      },
+      "covers": "Themes board with an empty groups payload: the no-themes-for-this-period fallback.",
+      "mock": true,
+      "primary": "theme-board-empty"
+    },
+    {
+      "id": "themes-error",
+      "files": {
+        "390": "market-vis-themes-error-390.png",
+        "1600": "market-vis-themes-error-1600.png"
+      },
+      "covers": "Theme board in its mocked error state, showing the in-view theme-board-error treatment with Retry while its groups request fails.",
+      "mock": true,
+      "primary": "theme-board-error"
+    },
+    {
+      "id": "themes-loading",
+      "files": {
+        "390": "market-vis-themes-loading-390.png",
+        "1600": "market-vis-themes-loading-1600.png"
+      },
+      "covers": "Theme board in its mocked loading state, showing the in-view theme-board-loading skeleton while its groups request is stalled.",
+      "mock": true,
+      "primary": "theme-board-loading"
+    },
+    {
+      "id": "themes-period-1w",
+      "files": {
+        "390": "market-vis-themes-period-1w-390.png",
+        "1600": "market-vis-themes-period-1w-1600.png"
+      },
+      "covers": "Themes period switched to 1W, re-fetched and redrawn as diverging bars.",
+      "mock": false,
+      "primary": "theme-board"
+    },
+    {
+      "id": "trend",
+      "files": {
+        "390": "market-vis-trend-390.png",
+        "1600": "market-vis-trend-1600.png"
+      },
+      "covers": "Trend list at the shipped default market-cap filter, showing populated rows with a visible result count and legend.",
+      "mock": false,
+      "primary": "trend-scroll"
+    },
+    {
+      "id": "trend-3of3",
+      "files": {
+        "390": "market-vis-trend-3of3-390.png",
+        "1600": "market-vis-trend-3of3-1600.png"
+      },
+      "covers": "Trend alignment narrowed to the 3/3 filter.",
+      "mock": false,
+      "primary": "trend-scroll"
+    },
+    {
+      "id": "trend-empty",
+      "files": {
+        "390": "market-vis-trend-empty-390.png",
+        "1600": "market-vis-trend-empty-1600.png"
+      },
+      "covers": "Trend list in its mocked empty state, showing the no-rows treatment with the count and legend retained.",
+      "mock": true,
+      "primary": "trend-empty"
+    }
+  ],
+  "source": "mixed-live-and-route-mocks",
+  "configIsolated": true
+}

@@ -1,7 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
   DEFAULT_MARKET_SIZE_METRIC,
+  FLAT_LABEL_ASPECT_SAFETY,
+  FLAT_LABEL_MIN_HEIGHT_PX,
+  FLAT_LABEL_MIN_WIDTH_PX,
   MARKET_METRICS,
+  MAX_FLAT_LABELS,
   MAX_STOCKS_PER_SECTOR,
   MAX_STOCKS_PER_SECTOR_NARROW,
   MIN_LABEL_HEIGHT_PX,
@@ -14,6 +18,7 @@ import {
   estimatedTileHeightPx,
   estimatedTileWidthPx,
   isNarrowTreemap,
+  labelPolicy,
   marketTileLabelText,
   maxStocksPerSector,
   otherLabel,
@@ -1191,6 +1196,161 @@ describe("flat heatmap uses the sector label gate", () => {
     expect(stockTileLabelVisible(1000, 1000.2, 740, 765)).toBe(true);
     expect((huge.label as Record<string, unknown>).show).toBe(true);
     expect((huge.label as Record<string, unknown>).formatter).toBeUndefined(); // inherited full-symbol formatter
+  });
+});
+
+/**
+ * The real 3,598-name snapshot at 1600×1000: ECharts squarifies the largest
+ * |change| tiles into wide-but-short strips (~60×34). The √(area) proxy called
+ * those 46px square, so the two-line label was painted and then pixel-clipped
+ * to `SO…` / `+20…`. A label must be all-or-nothing.
+ */
+describe("flat map labels are all-or-nothing", () => {
+  const FLAT_WIDTH = 1600;
+  const FLAT_HEIGHT = 1000;
+  const FLAT_MAX_LABELS = 24;
+
+  /** Rank-sized caps: a few ₹lakh-cr names and a long tail — the live shape. */
+  const largeUniverse = (): MarketRow[] =>
+    Array.from({ length: 3598 }, (_, i) => ({
+      ...base,
+      symbol: `SYN${String(i + 1).padStart(4, "0")}`,
+      name: `Synthetic ${i + 1}`,
+      change: i % 2 === 0 ? 2.4 : -1.8,
+      marketCapCr: Math.pow(10, 1 + 4.9 * Math.pow(1 - i / 3598, 1.4)),
+    }));
+
+  const flat = (rows: MarketRow[], metric: string) => {
+    const option = buildStockTreemapOption(
+      rows.map((r) => toTreemapRow(r)),
+      metric,
+      MARKET_SIZE_METRICS,
+      true,
+      { ...STYLE, sortTilesByValueDesc: true },
+      "metric",
+    );
+    const series = option.series[0] as any;
+    const tiles = suppressTinyFlatLabels(series.data, FLAT_WIDTH, FLAT_HEIGHT) as any[];
+    return { option, series, tiles };
+  };
+
+  /** What ECharts paints: the per-tile formatter, else the series formatter. */
+  const renderLabel = (tile: any, series: any) => {
+    const fmt =
+      typeof tile.label?.formatter === "function" ? tile.label.formatter : series.label.formatter;
+    const text = String(fmt({ name: tile.name, data: tile, value: tile.value }));
+    const [symbol = "", change = ""] = text.split("\n");
+    return { symbol, change, text };
+  };
+
+  test("3,598 tiles: only the largest few are labelled, and each one is complete", () => {
+    const { series, tiles } = flat(largeUniverse(), "market_cap");
+    const labelled = tiles.filter((tile) => tile.label.show !== false);
+    // The old 38px proxy lit ~361 of them; every one was a clipped stub.
+    expect(labelled.length, `${labelled.length} of ${tiles.length} tiles were labelled`).toBeLessThanOrEqual(
+      FLAT_MAX_LABELS,
+    );
+    expect(labelled.length).toBeLessThan(tiles.length / 20);
+    for (const tile of labelled) {
+      const { symbol, change, text } = renderLabel(tile, series);
+      expect(symbol, `truncated symbol on ${tile.name}`).toBe(tile.name);
+      expect(change, `truncated change on ${tile.name}`).toBe(tile.metricValue);
+      expect(text).not.toContain("…");
+      expect(text).not.toContain("...");
+    }
+  });
+
+  test("3,598 tiles: a label is only allowed on a tile with two full lines of room", () => {
+    const { tiles } = flat(largeUniverse(), "market_cap");
+    const total = tiles.reduce((sum, tile) => sum + tile.value, 0);
+    for (const tile of tiles.filter((t) => t.label.show !== false)) {
+      const side = estimatedTileHeightPx(tile.value, total, FLAT_WIDTH, FLAT_HEIGHT);
+      expect(side / 1.4, `${tile.name} is a squarified strip`).toBeGreaterThanOrEqual(44);
+      expect(tile.label.formatter).toBeUndefined();
+    }
+  });
+
+  test("9 rows at 1600: every symbol and change renders in full", () => {
+    const rows = Array.from({ length: 9 }, (_, i) => ({
+      ...base,
+      symbol: `NINE${i}`,
+      name: `Nine ${i}`,
+      change: 1 + i,
+      marketCapCr: 1000 + i * 100,
+    }));
+    const { series, tiles } = flat(rows, "market_cap");
+    expect(tiles).toHaveLength(9);
+    const labelled = tiles.filter((tile) => tile.label.show !== false);
+    expect(labelled).toHaveLength(9);
+    for (const tile of labelled) {
+      const { symbol, change, text } = renderLabel(tile, series);
+      expect(symbol).toBe(tile.name);
+      expect(change).toBe(tile.metricValue);
+      expect(text).not.toMatch(/…|\.\.\./);
+    }
+  });
+
+  test("labelPolicy is all-or-nothing at the clipped-strip geometry", () => {
+    const tile = {
+      symbol: "SOLARINDS",
+      name: "Solar Industries",
+      change: 20.04,
+      metricValue: "+20.0%",
+    };
+    // The 1600px snapshot's leftmost tiles were ~60×34: the series formatter
+    // painted two lines into them and ECharts clipped both to `SO…`/`+20…`.
+    expect(labelPolicy(tile, { width: 60, height: 34 })).toEqual({
+      show: false,
+      symbol: "SOLARINDS",
+      change: "+20.0%",
+    });
+    expect(labelPolicy(tile, { width: 120, height: 64 })).toEqual({
+      show: true,
+      symbol: "SOLARINDS",
+      change: "+20.0%",
+    });
+    // A symbol never becomes a stub, whatever the box: suppression is the
+    // only response to a tile that cannot hold the whole block.
+    for (const rect of [
+      { width: 0, height: 0 },
+      { width: FLAT_LABEL_MIN_WIDTH_PX - 1, height: 100 },
+      { width: 100, height: FLAT_LABEL_MIN_HEIGHT_PX - 1 },
+    ]) {
+      const policy = labelPolicy(tile, rect);
+      expect(policy.show).toBe(false);
+      expect(policy.symbol).toBe("SOLARINDS");
+      expect(policy.symbol).not.toMatch(/…|\.\.\./);
+    }
+    expect(FLAT_LABEL_ASPECT_SAFETY).toBeGreaterThan(1);
+    expect(MAX_FLAT_LABELS).toBe(24);
+  });
+
+  test("a legacy one-line formatter can never revive a 2-character stub", () => {
+    const legacy = [{
+      name: "MEGACAP",
+      value: 1000,
+      change: 9,
+      metricValue: "+9.0%",
+      label: { color: "#fff", formatter: (p: { name?: string }) => `{sym|${String(p.name).slice(0, 2)}}` },
+    }];
+    const out = suppressTinyFlatLabels(legacy as any, FLAT_WIDTH, FLAT_HEIGHT);
+    expect(out[0]!.label!.formatter).toBeUndefined();
+    const { series } = flat([{ ...base, symbol: "MEGACAP", change: 9 }], "market_cap");
+    expect(renderLabel(out[0], series).symbol).toBe("MEGACAP");
+  });
+
+  test("every tile keeps a tooltip with symbol, full change and the active metric", () => {
+    const rows = largeUniverse().slice(0, 150);
+    const { option, tiles } = flat(rows, "market_cap");
+    const tooltip = (option.tooltip as any).formatter as (p: { data: any }) => string;
+    expect(tiles.length).toBeGreaterThan(0);
+    for (const tile of tiles) {
+      const html = tooltip({ data: tile });
+      expect(html, `${tile.name} tooltip`).toContain(tile.name);
+      expect(html, `${tile.name} change`).toContain("Change:");
+      expect(html, `${tile.name} metric value`).toContain(tile.metricValue);
+      expect(html, `${tile.name} metric label`).toContain(tile.metricLabel);
+    }
   });
 });
 
