@@ -68,8 +68,6 @@ MAX_SYMBOLS = 20
 #: (see FETCH_LIMIT_LADDER) and US uses one full frame, so real usage is far
 #: below this cap; it stays as a hard safety bound on memory growth.
 MAX_CACHE_ENTRIES = 32
-#: Alias matching the repo's ``CACHE_MAX_*`` naming used by neighbouring modules.
-CACHE_MAX_ENTRIES = MAX_CACHE_ENTRIES
 
 #: India scan-window ladder. The shipped UI always requests the full frame
 #: (MARKET_ROW_CAP = 4000), but the API accepts any 1..4000 cap. Ceiling-mapping

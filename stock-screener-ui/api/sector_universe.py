@@ -80,16 +80,6 @@ YF_FALLBACK_BY_MARKET: Dict[str, Dict[str, str]] = {
     for market, descriptors in DESCRIPTORS_BY_MARKET.items()
 }
 
-#: display -> Upstox instrument key.
-UPSTOX_KEY_BY_MARKET: Dict[str, Dict[str, str]] = {
-    market: {
-        descriptor.display: descriptor.upstox_key
-        for descriptor in descriptors
-        if descriptor.upstox_key
-    }
-    for market, descriptors in DESCRIPTORS_BY_MARKET.items()
-}
-
 
 def _legacy_pairs(descriptors: Tuple[SectorDescriptor, ...], field: str):
     pairs = []

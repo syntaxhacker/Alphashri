@@ -4,7 +4,6 @@ Heatmap API — P/E Forward heatmap for Indian stocks (NSE/BSE).
 
 import logging
 from typing import List, Optional
-from functools import lru_cache
 from datetime import datetime
 
 import config
@@ -41,8 +40,6 @@ HEATMAP_FRAME = FrameDescriptor(
 
 from requests.exceptions import RequestException, HTTPError, ConnectionError as RequestsConnectionError, Timeout
 import time
-
-FALLBACK_DATA_KEY = "heatmap_fallback"
 
 
 def _get_cached_stocks(force: bool = False) -> List[dict]:

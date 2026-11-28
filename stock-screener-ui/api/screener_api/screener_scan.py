@@ -312,17 +312,6 @@ def _touch_stats_from_df(df, ref_high, today_high=None, eps_pct=None):
     return days_since_near, days_since_touch
 
 
-def _days_since_touch(api, symbol, ref_high, today_high=None, eps_pct=None):
-    """Days since price last traded within eps of ref_high. None if never/unknown."""
-    if not ref_high or ref_high <= 0:
-        return None
-    df = _fetch_90d_daily(api, symbol)
-    if df is None:
-        return None
-    _, days_since_touch = _touch_stats_from_df(df, ref_high, today_high, eps_pct)
-    return days_since_touch
-
-
 def _compute_days_ago(api, symbol, today_high=None):
     """Fetch 90 days of daily data, find the period high, and return days since it was last touched."""
     df = _fetch_90d_daily(api, symbol)

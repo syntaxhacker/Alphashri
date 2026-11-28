@@ -6,7 +6,6 @@ from ..base import BrokerAuth, BrokerOrders, BrokerSymbolMap
 
 ORDER_URL = "https://api-hft.upstox.com/v3/order/place"
 ORDER_BOOK_URL = "https://api.upstox.com/v2/order/retrieve-all"
-ORDER_DETAILS_URL = "https://api.upstox.com/v2/order/details"
 ORDER_CANCEL_URL = "https://api.upstox.com/v2/order/cancel"
 ORDER_MODIFY_URL = "https://api-hft.upstox.com/v3/order/modify"
 HOLDINGS_URL = "https://api.upstox.com/v3/user/holdings"
