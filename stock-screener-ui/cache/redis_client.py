@@ -35,6 +35,25 @@ _STATS_KEY = "cache:stats"
 _STATS_FLUSH_INTERVAL = 60
 _last_flush_time = 0
 
+_FIELD_GLOBAL_HITS = "global_hits"
+_FIELD_GLOBAL_MISSES = "global_misses"
+_DOMAIN_HIT_PREFIX = "domain_hits:"
+_DOMAIN_MISS_PREFIX = "domain_misses:"
+
+# The shared hash is an aggregate, not a snapshot: each worker tracks what it
+# has already contributed and flushes only the difference with HINCRBY, so
+# concurrent workers add to the same counters instead of overwriting them.
+_flushed_hits = 0
+_flushed_misses = 0
+_flushed_domain_hits: dict[str, int] = {}
+_flushed_domain_misses: dict[str, int] = {}
+
+# Nothing subtracts a worker's contribution when it exits, so the aggregate
+# also holds counters from workers that are no longer running. The admin
+# endpoint therefore reports the sum of every worker seen since the last
+# reset_stats(); restarting a worker starts it at zero rather than re-adding
+# the totals already in the hash.
+
 _CONSECUTIVE_FAILURES = 0
 _MAX_FAILURES_BEFORE_RESET = 5
 
@@ -297,63 +316,131 @@ def close_redis():
 
 
 def _flush_stats_to_redis():
-    global _last_flush_time
+    global _last_flush_time, _flushed_hits, _flushed_misses, \
+        _flushed_domain_hits, _flushed_domain_misses
     client = get_redis_client()
     if client is None:
         return
     now = time.time()
     if now - _last_flush_time < _STATS_FLUSH_INTERVAL:
         return
-    try:
-        with _stats_lock:
-            stats_payload = {
-                "global_hits": _global_hits,
-                "global_misses": _global_misses,
-                "domain_hits": dict(_domain_hits),
-                "domain_misses": dict(_domain_misses),
-                "updated_at": now,
-            }
-            client.hset(_STATS_KEY, mapping={k: json.dumps(v) for k, v in stats_payload.items()})
-            _last_flush_time = now
-    except Exception as e:
-        logger.warning("Failed to flush stats to Redis: %s", e)
+    # Keep the lock across the Redis round trip: two threads in this process
+    # must not compute and send the same delta, and the baseline must describe
+    # exactly the totals that were sent.
+    with _stats_lock:
+        deltas: dict[str, int] = {}
+        hits_delta = _global_hits - _flushed_hits
+        misses_delta = _global_misses - _flushed_misses
+        if hits_delta > 0:
+            deltas[_FIELD_GLOBAL_HITS] = hits_delta
+        if misses_delta > 0:
+            deltas[_FIELD_GLOBAL_MISSES] = misses_delta
+        for domain, value in _domain_hits.items():
+            delta = value - _flushed_domain_hits.get(domain, 0)
+            if delta > 0:
+                deltas[_DOMAIN_HIT_PREFIX + domain] = delta
+        for domain, value in _domain_misses.items():
+            delta = value - _flushed_domain_misses.get(domain, 0)
+            if delta > 0:
+                deltas[_DOMAIN_MISS_PREFIX + domain] = delta
+
+        try:
+            client.hset(_STATS_KEY, mapping={"updated_at": str(now)})
+            if deltas:
+                pipe = client.pipeline(transaction=True)
+                for field, delta in deltas.items():
+                    pipe.hincrby(_STATS_KEY, field, delta)
+                pipe.execute()
+        except Exception as e:
+            logger.warning("Failed to flush stats to Redis: %s", e)
+            return
+
+        if deltas:
+            _flushed_hits = _global_hits
+            _flushed_misses = _global_misses
+            _flushed_domain_hits = dict(_domain_hits)
+            _flushed_domain_misses = dict(_domain_misses)
+        _last_flush_time = now
 
 
 def _load_stats_from_redis():
-    global _global_hits, _global_misses, _domain_hits, _domain_misses
+    """Retained for the startup hook; the aggregate is read on demand instead.
+
+    Copying the shared totals into this process's counters would double-count
+    them on the next delta flush. get_cache_stats() combines the aggregate
+    with the unflushed local counters at read time.
+    """
+    return
+
+
+def _as_int(value: Any) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _read_shared_stats():
     client = get_redis_client()
     if client is None:
-        return
+        return 0, 0, {}, {}
     try:
         raw = client.hgetall(_STATS_KEY)
-        if not raw:
-            return
-        with _stats_lock:
-            for k, v in raw.items():
-                try:
-                    parsed = json.loads(v)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-                if k == "global_hits":
-                    _global_hits = parsed
-                elif k == "global_misses":
-                    _global_misses = parsed
-                elif k == "domain_hits":
-                    _domain_hits.update(parsed)
-                elif k == "domain_misses":
-                    _domain_misses.update(parsed)
     except Exception as e:
-        logger.warning("Failed to load stats from Redis: %s", e)
+        # A limited client (e.g. an INFO-recording test double) has no HGETALL;
+        # fall back to this process's own counters in that case.
+        logger.debug("Shared stats read unavailable: %s", e)
+        return 0, 0, {}, {}
+
+    hits = _as_int(raw.get(_FIELD_GLOBAL_HITS))
+    misses = _as_int(raw.get(_FIELD_GLOBAL_MISSES))
+    domain_hits: dict[str, int] = {}
+    domain_misses: dict[str, int] = {}
+    for field, value in raw.items():
+        if field.startswith(_DOMAIN_HIT_PREFIX):
+            domain_hits[field[len(_DOMAIN_HIT_PREFIX):]] = _as_int(value)
+        elif field.startswith(_DOMAIN_MISS_PREFIX):
+            domain_misses[field[len(_DOMAIN_MISS_PREFIX):]] = _as_int(value)
+
+    # Pre-delta hashes kept domains in one JSON blob; merge it so upgrading a
+    # live deployment does not drop the breakdown accumulated so far.
+    for field, target in (("domain_hits", domain_hits), ("domain_misses", domain_misses)):
+        legacy = raw.get(field)
+        if not legacy:
+            continue
+        try:
+            parsed = json.loads(legacy)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(parsed, dict):
+            for domain, value in parsed.items():
+                target[domain] = target.get(domain, 0) + _as_int(value)
+    return hits, misses, domain_hits, domain_misses
 
 
 def get_cache_stats() -> dict:
     _flush_stats_to_redis()
+    shared_hits, shared_misses, shared_d_hits, shared_d_misses = _read_shared_stats()
 
     with _stats_lock:
-        hits = _global_hits
-        misses = _global_misses
-        d_hits = dict(_domain_hits)
-        d_misses = dict(_domain_misses)
+        hits = shared_hits + max(_global_hits - _flushed_hits, 0)
+        misses = shared_misses + max(_global_misses - _flushed_misses, 0)
+        d_hits = dict(shared_d_hits)
+        d_misses = dict(shared_d_misses)
+        for domain, value in _domain_hits.items():
+            delta = value - _flushed_domain_hits.get(domain, 0)
+            if delta > 0:
+                d_hits[domain] = d_hits.get(domain, 0) + delta
+        for domain, value in _domain_misses.items():
+            delta = value - _flushed_domain_misses.get(domain, 0)
+            if delta > 0:
+                d_misses[domain] = d_misses.get(domain, 0) + delta
 
     client = get_redis_client()
     stats: dict[str, Any] = {
@@ -434,12 +521,19 @@ def get_cache_stats() -> dict:
 
 
 def reset_stats():
-    global _global_hits, _global_misses, _domain_hits, _domain_misses
+    global _global_hits, _global_misses, _domain_hits, _domain_misses, \
+        _flushed_hits, _flushed_misses, _flushed_domain_hits, \
+        _flushed_domain_misses, _last_flush_time
     with _stats_lock:
         _global_hits = 0
         _global_misses = 0
         _domain_hits = defaultdict(int)
         _domain_misses = defaultdict(int)
+        _flushed_hits = 0
+        _flushed_misses = 0
+        _flushed_domain_hits = {}
+        _flushed_domain_misses = {}
+        _last_flush_time = 0
     client = get_redis_client()
     if client is not None:
         try:
