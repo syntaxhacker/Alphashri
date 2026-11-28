@@ -4030,7 +4030,6 @@ async def get_symbol_chart(
         return _json_response(_with_chart_extras(payload, "india", timeframe))
 
     elapsed_ms = (_time.monotonic() - start) * 1000.0
-    rows = 0 if df is None or getattr(df, "empty", True) else int(len(df))
     if df is None or getattr(df, "empty", True):
         reason = "no_data"
         note = f"no candles for {symbol_u} {timeframe} in session {session}"

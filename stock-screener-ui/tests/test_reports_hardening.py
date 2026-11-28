@@ -71,26 +71,24 @@ def _series(n=140):
     opens = [c - 0.2 for c in closes]
     highs = [c + 0.4 for c in closes]
     lows = [c - 0.6 for c in closes]
-    vols = [1000.0] * n
-    return opens, highs, lows, closes, vols
+    return opens, highs, lows, closes
 
 
 def test_precomputed_ema_series_matches_the_per_bar_rebuild():
-    opens, highs, lows, closes, vols = _series()
+    opens, highs, lows, closes = _series()
     ema = pb._ema_cross_series(closes)
     for i in range(26, len(closes)):
-        per_bar = pb._signal_at("ema_cross", opens, highs, lows, closes, vols, i)
-        pre = pb._signal_at("ema_cross", opens, highs, lows, closes, vols, i,
-                            ema=ema)
+        per_bar = pb._signal_at("ema_cross", opens, highs, lows, closes, i)
+        pre = pb._signal_at("ema_cross", opens, highs, lows, closes, i, ema=ema)
         assert per_bar == pre, i
 
 
 def test_ema_cross_signals_are_actually_detected():
-    opens, highs, lows, closes, vols = _series()
+    opens, highs, lows, closes = _series()
     ema = pb._ema_cross_series(closes)
     hits = [
         i for i in range(26, len(closes))
-        if pb._signal_at("ema_cross", opens, highs, lows, closes, vols, i, ema=ema)
+        if pb._signal_at("ema_cross", opens, highs, lows, closes, i, ema=ema)
     ]
     # A steady uptrend has no down-cross, so there is no ema_cross entry.
     assert hits == []
