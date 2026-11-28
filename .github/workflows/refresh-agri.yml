@@ -74,7 +74,16 @@ jobs:
 
       - name: Install agri dependencies
         run: |
-          uv pip install --system --python 3.12 requests python-dotenv
+          # agri_collect imports `api.agri`, and importing the `api` package runs
+          # its `__init__`, which pulls in every router (FastAPI, pydantic, plus
+          # paper_trading -> trading.paper -> rich, and the DB models ->
+          # sqlalchemy/pandas). A hand-picked list cannot keep up with that, so
+          # install the API requirements exactly as the CI Python jobs do.
+          cd stock-screener-ui/api
+          grep -vE '^(tradingview-screener|preciz)' requirements.txt \
+            | uv pip install --system --python 3.12 -r /dev/stdin
+          uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
+          uv pip install --system --python 3.12 --no-deps tradingview-screener
 
       - name: Resolve dates (Asia/Kolkata)
         id: dates
