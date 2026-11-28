@@ -8,11 +8,10 @@ any response shape.
 from __future__ import annotations
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 import api.chart_patterns as cp_api
 from api.chart_patterns import router
+from tests.helpers.fastapi_client import client_for
 
 
 @pytest.fixture(autouse=True)
@@ -23,9 +22,7 @@ def _clean_caches():
 
 
 def _client():
-    app = FastAPI()
-    app.include_router(router)
-    return TestClient(app)
+    return client_for(router)
 
 
 def _counted(calls, value):

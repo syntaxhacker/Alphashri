@@ -1,6 +1,6 @@
 """Tests for stale position purge edge cases — multiple scenarios."""
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,11 +8,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from config import IST
 from db.database import Base
 from db.models import BotConfig, Position, StrategyConfig, User, bot_strategies
 from tests.helpers.db import import_all_models
-
-IST = timezone(timedelta(hours=5, minutes=30))
 
 
 @pytest.fixture(scope="function")

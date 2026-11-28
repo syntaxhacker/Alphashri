@@ -6,7 +6,7 @@ every leg and the replay engine receives the per-leg times. No network.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import pytest
 
@@ -28,7 +28,6 @@ DAY1 = "2026-11-17"
 DAY2 = "2026-11-18"
 ENTRY_TS = f"{DAY1}T09:47:00+05:30"
 ADDED_TS = f"{DAY2}T09:50:00+05:30"
-IST = timezone(timedelta(hours=5, minutes=30))
 
 # (strike, CE ltp, PE ltp) per minute. The 09:52 DAY2 minute deliberately drops
 # the 87.5 CE print to zero to exercise the unpriced-strike guard; 09:53 restores

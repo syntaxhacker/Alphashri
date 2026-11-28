@@ -17,12 +17,11 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from api.screener_api import screener_scan
 from api.levels_api.router import ROUTER_PREFIX, router
 from chart_patterns import levels as chart_levels
+from tests.helpers.fastapi_client import client_for
 
 SYMBOL = "RELIANCE"
 TIMEFRAME = "1D"
@@ -58,9 +57,7 @@ def _synthetic_frame(n: int = 120) -> pd.DataFrame:
 
 
 def _client():
-    app = FastAPI()
-    app.include_router(router)
-    return TestClient(app)
+    return client_for(router)
 
 
 @pytest.fixture(autouse=True)

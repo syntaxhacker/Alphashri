@@ -104,12 +104,12 @@ class TestBrokerageCalculation:
     """Tests for brokerage calculation with ₹20 cap."""
 
     def test_brokerage_percentage_applied_below_cap(self):
-        """Test: Brokerage uses 0.03% for trades below ₹20 cap (hardcoded rate)."""
+        """Test: Brokerage uses the canonical rate for trades below the cap."""
         entry_price = 100.0
         quantity = 50
         buy_value = entry_price * quantity
         result = costs.calculate_trading_costs(entry_price, 105.0, quantity)
-        expected = min(20, buy_value * 0.0003)
+        expected = min(costs.MIN_BROKERAGE, buy_value * costs.BROKERAGE_PCT)
         assert result['breakdown']['buy_brokerage'] == round(expected, 2)
 
     def test_brokerage_capped_at_20_small_trade(self):
@@ -121,7 +121,7 @@ class TestBrokerageCalculation:
         
         result = costs.calculate_trading_costs(entry_price, 105.0, quantity)
         
-        expected_brokerage = min(20, expected_pct_brokerage)
+        expected_brokerage = min(costs.MIN_BROKERAGE, expected_pct_brokerage)
         assert result['breakdown']['buy_brokerage'] == round(expected_brokerage, 2)
 
     def test_brokerage_uses_percentage_for_large_trade(self):
@@ -133,7 +133,7 @@ class TestBrokerageCalculation:
         
         result = costs.calculate_trading_costs(entry_price, 1050.0, quantity)
         
-        expected_brokerage = min(20, expected_pct_brokerage)
+        expected_brokerage = min(costs.MIN_BROKERAGE, expected_pct_brokerage)
         assert result['breakdown']['buy_brokerage'] == round(expected_brokerage, 2)
 
     def test_brokerage_exactly_at_cap_boundary(self):
@@ -145,7 +145,7 @@ class TestBrokerageCalculation:
         
         result = costs.calculate_trading_costs(entry_price, 105.0, quantity)
         
-        expected_brokerage = min(20, expected_pct_brokerage)
+        expected_brokerage = min(costs.MIN_BROKERAGE, expected_pct_brokerage)
         assert result['breakdown']['buy_brokerage'] == round(expected_brokerage, 2)
 
     def test_buy_and_sell_brokerage_calculated_separately(self):
@@ -158,8 +158,8 @@ class TestBrokerageCalculation:
         
         buy_value = entry_price * quantity
         sell_value = exit_price * quantity
-        expected_buy_brokerage = min(20, buy_value * costs.BROKERAGE_PCT)
-        expected_sell_brokerage = min(20, sell_value * costs.BROKERAGE_PCT)
+        expected_buy_brokerage = min(costs.MIN_BROKERAGE, buy_value * costs.BROKERAGE_PCT)
+        expected_sell_brokerage = min(costs.MIN_BROKERAGE, sell_value * costs.BROKERAGE_PCT)
         
         assert result['breakdown']['buy_brokerage'] == round(expected_buy_brokerage, 2)
         assert result['breakdown']['sell_brokerage'] == round(expected_sell_brokerage, 2)
@@ -221,7 +221,7 @@ class TestGSTCalculation:
         result = costs.calculate_trading_costs(entry_price, 105.0, quantity)
         
         buy_value = entry_price * quantity
-        buy_brokerage = min(20, buy_value * costs.BROKERAGE_PCT)
+        buy_brokerage = min(costs.MIN_BROKERAGE, buy_value * costs.BROKERAGE_PCT)
         buy_exchange = buy_value * costs.EXCHANGE_CHARGES_PCT
         buy_sebi = buy_value * costs.SEBI_FEE_PCT
         expected_gst = costs.GST_PCT * (buy_brokerage + buy_exchange + buy_sebi)
@@ -236,7 +236,7 @@ class TestGSTCalculation:
         result = costs.calculate_trading_costs(entry_price, exit_price, quantity)
         
         sell_value = exit_price * quantity
-        sell_brokerage = min(20, sell_value * costs.BROKERAGE_PCT)
+        sell_brokerage = min(costs.MIN_BROKERAGE, sell_value * costs.BROKERAGE_PCT)
         sell_exchange = sell_value * costs.EXCHANGE_CHARGES_PCT
         sell_sebi = sell_value * costs.SEBI_FEE_PCT
         expected_gst = costs.GST_PCT * (sell_brokerage + sell_exchange + sell_sebi)
@@ -255,8 +255,8 @@ class TestGSTCalculation:
         
         buy_value = entry_price * quantity
         sell_value = exit_price * quantity
-        buy_brokerage = min(20, buy_value * costs.BROKERAGE_PCT)
-        sell_brokerage = min(20, sell_value * costs.BROKERAGE_PCT)
+        buy_brokerage = min(costs.MIN_BROKERAGE, buy_value * costs.BROKERAGE_PCT)
+        sell_brokerage = min(costs.MIN_BROKERAGE, sell_value * costs.BROKERAGE_PCT)
         
         gst_base_buy = buy_brokerage + buy_value * costs.EXCHANGE_CHARGES_PCT + buy_value * costs.SEBI_FEE_PCT
         gst_base_sell = sell_brokerage + sell_value * costs.EXCHANGE_CHARGES_PCT + sell_value * costs.SEBI_FEE_PCT
@@ -427,8 +427,8 @@ class TestEdgeCases:
         
         result = costs.calculate_trading_costs(entry_price, entry_price * 1.05, quantity)
         
-        assert result['breakdown']['buy_brokerage'] <= 20
-        assert result['breakdown']['sell_brokerage'] <= 20
+        assert result['breakdown']['buy_brokerage'] <= costs.MIN_BROKERAGE
+        assert result['breakdown']['sell_brokerage'] <= costs.MIN_BROKERAGE
 
 
 class TestGetCostBreakdown:

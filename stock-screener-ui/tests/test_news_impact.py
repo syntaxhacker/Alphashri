@@ -232,6 +232,9 @@ class TestFreeTierThrottle:
         news_impact._last_call_ts = 0.0
         news_impact._calls_today = 0
         news_impact._calls_day = ""
+        # Seed the day through the production clock instead of restating its
+        # strftime format; the tests below only mutate the counters.
+        news_impact._throttled()
 
     def test_first_call_is_allowed_then_blocked_until_the_interval(self):
         assert news_impact._throttled() is False
@@ -241,9 +244,7 @@ class TestFreeTierThrottle:
         assert news_impact._throttled() is False
 
     def test_daily_cap_blocks_regardless_of_interval(self):
-        import time
-        news_impact._calls_day = time.strftime("%Y-%m-%d")  # same day, so no reset
-        news_impact._last_call_ts = time.time() - 100_000
+        news_impact._last_call_ts = 0.0  # far outside MIN_INTERVAL_SEC
         news_impact._calls_today = news_impact.MAX_CALLS_PER_DAY
         assert news_impact._throttled() is True
 
