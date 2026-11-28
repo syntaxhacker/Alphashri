@@ -39,6 +39,7 @@ messages.
 | ORB / config / DB stale expectations | **14 → 0 failures** (204 tests) | Updated ORB signal defaults, config-loader and DB-model expectations in the same commit (`9f355659`). |
 | Correlation cache isolation | fixed (count not itemised) | `tests/test_correlation.py` isolated to a tmp `CACHE_DIR` with patched time; no shared cache bleed between tests (commit `83db695f`, `test: isolate correlation cache tests to tmp`). |
 | Frontend changed-test zero selection | fixed (guard, not a count) | The changed-test runner now diffs against the PR base and **fails when zero tests are selected**; previously an empty selection passed silently (commit `23c65d47`, `ci: diff frontend changed tests against the pr base`). |
+| Broker / bot DB `SessionLocal` isolation | **~30 estimated debt; 45 tests fixed by the landed change** | Commit `f594583a` (2026-11-22, `test: isolate db-backed broker and bot tests`) routed helper-owned `SessionLocal` factories in `tests/api/test_brokers.py` and `tests/test_bot_db_state.py` to the schema-initialized in-memory test session via a non-closing proxy, refreshed stale scan-item timestamps and repaired serializable strategy mocks — no production code changed. Re-verified 2026-11-28: **203 passed** with the narrow broker/bot command and **336 passed** across all 11 non-integration broker/bot modules (also under `SKIP_ALEMBIC=1`); 0 failures. |
 
 ## Remaining clusters (rough counts — re-measure before quoting)
 
@@ -48,7 +49,6 @@ bugs.
 
 | Cluster | Owner / area | Rough count |
 | --- | --- | --- |
-| Broker / bot DB `SessionLocal` isolation | `tests/` broker + bot modules; shared in-memory SQLite / `SessionLocal` fixtures | **~30** (estimate) |
 | Symbol aliases missing gitignored data | tests relying on symbol-alias data under gitignored local paths | **~30** (estimate) |
 | Event-radar missing fixtures | `tests/api/test_event_radar/`; missing local fixtures/data | **~13** (estimate) |
 | Week52 cache property | `tests/` week52 cache property tests | **~11** (estimate) |
