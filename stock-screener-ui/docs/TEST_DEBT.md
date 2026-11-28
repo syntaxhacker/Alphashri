@@ -29,7 +29,8 @@ changed-test runner and timing pipeline.
 ## Fixed clusters
 
 These were burned down in the 2026-11-22 audit, with a 2026-11-28 follow-up
-that re-verified the event-radar cluster (**319 passed**). Counts are from
+that re-verified the event-radar cluster (**319 passed**) and fixed the
+chart-preview exception cluster (**15 passed**). Counts are from
 `changelog/` and `docs/PERFORMANCE_LOG_2026-11-22.md` where stated; otherwise
 from commit messages or a freshly measured local run (noted in the row).
 
@@ -43,6 +44,7 @@ from commit messages or a freshly measured local run (noted in the row).
 | Broker / bot DB `SessionLocal` isolation | **~30 estimated debt; 45 tests fixed by the landed change** | Commit `f594583a` (2026-11-22, `test: isolate db-backed broker and bot tests`) routed helper-owned `SessionLocal` factories in `tests/api/test_brokers.py` and `tests/test_bot_db_state.py` to the schema-initialized in-memory test session via a non-closing proxy, refreshed stale scan-item timestamps and repaired serializable strategy mocks — no production code changed. Re-verified 2026-11-28: **203 passed** with the narrow broker/bot command and **336 passed** across all 11 non-integration broker/bot modules (also under `SKIP_ALEMBIC=1`); 0 failures. |
 | Event-radar missing fixtures | **319 → 0 failures** (319 tests) | Restored tracked recorded-shape fixtures (EDGAR EFTS/ROIV 8-K, Yahoo RSS, TV scanner, ORCL 8-day 1-min tape) plus `.gitignore` negations in commit `14f2625a` (2026-11-23, "restore symbol aliases and event-radar fixtures"), which also pinned the New York offset instead of a hardcoded `-04:00`. Re-verified 2026-11-28: **319 passed** under the exact full-sweep marker expression. Fixture drift only — no assertion weakened, no production change. |
 | Week52 cache property | **3 → 0 failures (11 passed, freshly measured 2026-11-28)** | `tests/api/test_paper_52w_cache.py`: the endpoint imports `UpstoxAPI` from `upstox_trader.config_and_utils.upstox_api`, but the tests patched `free_indian_apis.UpstoxAPI`, so the mock never applied — the route hit the real API, returned empty frames (`high_52w == 0`) and wrote cache files into the repo's `experiments/data/52w_cache/`. Re-pointed the four patch targets to the module the route actually imports, made the `cache_dir` fixture autouse so every test (including the endpoint cases) writes to `tmp_path`, and made `test_write_and_read_past_date` exercise a real past session (stale `cached_at`) instead of today's date. No production code changed. `CI_MODE=1 <task-venv>/python -m pytest tests/api/test_paper_52w_cache.py -q -o addopts=""` → **11 passed** (was 3 failed / 8 passed); broader week52 sweep (`tests/test_week52_*.py tests/test_52w_*.py tests/api/test_paper_52w_cache.py`) → **414 passed**. |
+| Chart-preview exception | **2 → 0 failures (15 passed, freshly measured 2026-11-28)** | `tests/api/test_chart.py`: the preview route imports `UpstoxAPI` from `upstox_trader.config_and_utils.upstox_api`, but all three patch targets pointed at `free_indian_apis.UpstoxAPI`, so the mocks never applied — the route hit the real API (~3 s/request) and returned live candles instead of the mocked/exception payload. Re-pointed the three patch targets to the route's import, added an autouse per-test in-memory `cache_get`/`cache_set` fixture so the `(symbol, tf, days, or_minutes)` cache key cannot bleed between tests, and refreshed the stale comment that documented the wrong target. No production code changed. `CI_MODE=1 <task-venv>/python -m pytest tests/api/test_chart.py -q -o addopts=""` → **15 passed** (was 2 failed / 13 passed); reversed-order exception-then-success pair → **2 passed**. |
 | News cache TTL (sentiment) | **1 → 0 failures (15 passed, freshly measured 2026-11-28)** | `tests/api/test_news_integration.py::TestSentimentCache::test_caches_sentiment_result_with_smart_ttl`: `GET /api/news/sentiment/{symbol}` sources its feed from `news_api._aggregator.fetch_all`, but the test only patched `fetch_article_content`; the empty feed hit the `NO_RECENT_NEWS` early return before `cache_set_smart`, so the TTL assertion never ran. Mocked the aggregator seam so one feed item reaches the analyzer and caching path, asserted the aggregator call, and kept the `full_ttl=300` / `skim_ttl=60` assertions. Fixture drift only — no production code changed. `CI_MODE=1 <task-venv>/python -m pytest tests/api/test_news_integration.py -q -o addopts=""` → **15 passed** (was 1 failed / 14 passed); same **15 passed** under the exact full-sweep marker expression. |
 
 ### Burn-down 2026-11-28 (CI-debt lane 1)
@@ -64,6 +66,10 @@ bugs.
 | Cluster | Owner / area | Rough count |
 | --- | --- | --- |
 | Misc API / date / source drift | assorted API tests, date/session assumptions, source-name drift | **remaining** (unquantified) |
+
+The chart-preview exception cluster (previously unquantified under "Misc API /
+date / source drift") was resolved on **2026-11-28** and moved to
+[Fixed clusters](#fixed-clusters) with **15 passed**; it is no longer remaining.
 
 These are the *named* clusters; the sum is deliberately not asserted as the
 full-sweep failure total. The news cache-TTL case formerly folded into the
