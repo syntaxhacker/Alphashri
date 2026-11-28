@@ -11,6 +11,7 @@ Realistic costs for intraday equity trading based on:
 # Indian Trading Costs (Intraday Equity)
 # Based on Zerodha/Upstox discount broker rates
 BROKERAGE_PCT = 0.0003        # 0.03% (lower of ₹20 or 0.03% - using % for large trades)
+MIN_BROKERAGE = 20            # ₹20 cap per order, shared with the strategy config defaults
 STT_PCT = 0.00025             # 0.025% (sell side only)
 EXCHANGE_CHARGES_PCT = 0.0000297  # 0.00297%
 SEBI_FEE_PCT = 0.000001       # 0.0001%
@@ -40,7 +41,7 @@ def calculate_trading_costs(entry_price: float, exit_price: float, quantity: int
         sell_value = exit_price * quantity
 
     # Buy side costs
-    buy_brokerage = min(20, buy_value * BROKERAGE_PCT)  # Lower of ₹20 or 0.03%
+    buy_brokerage = min(MIN_BROKERAGE, buy_value * BROKERAGE_PCT)  # Lower of ₹20 or 0.03%
     buy_stamp_duty = buy_value * STAMP_DUTY_PCT
     buy_exchange = buy_value * EXCHANGE_CHARGES_PCT
     buy_sebi = buy_value * SEBI_FEE_PCT
@@ -48,7 +49,7 @@ def calculate_trading_costs(entry_price: float, exit_price: float, quantity: int
     buy_total = buy_brokerage + buy_stamp_duty + buy_exchange + buy_sebi + buy_gst
 
     # Sell side costs
-    sell_brokerage = min(20, sell_value * BROKERAGE_PCT)  # Lower of ₹20 or 0.03%
+    sell_brokerage = min(MIN_BROKERAGE, sell_value * BROKERAGE_PCT)  # Lower of ₹20 or 0.03%
     sell_stt = sell_value * STT_PCT  # STT only on sell side for intraday
     sell_exchange = sell_value * EXCHANGE_CHARGES_PCT
     sell_sebi = sell_value * SEBI_FEE_PCT

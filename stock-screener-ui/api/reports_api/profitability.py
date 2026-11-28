@@ -12,8 +12,7 @@ completed weeks (``weeks`` clamped to 1..12) of daily bars are taken from
 threads only, universe capped at ``MAX_SYMBOLS``). Every signal is traded
 long-only at the signal-bar close and exited ``hold_days`` sessions later
 with a fixed Rs.1L notional; round-trip costs come from
-``backtest/costs.py:calculate_trading_costs`` (flat-percentage fallback
-when that module cannot be imported).
+``backtest/costs.py:calculate_trading_costs`` — the single source of truth.
 
 Experiment files (``experiments/pattern_profit_week42.json``,
 ``experiments/new_patterns_week42.json``) are read best-effort when present
@@ -149,18 +148,10 @@ def compute_metrics(nets: list[float]) -> dict:
 
 
 def _trade_cost(entry: float, exit_: float, qty: int) -> float:
-    """Round-trip cost via ``backtest/costs.py`` (flat fallback)."""
-    try:
-        from backtest.costs import calculate_trading_costs
+    """Round-trip cost from the canonical ``backtest/costs.py`` calculator."""
+    from backtest.costs import calculate_trading_costs
 
-        out = calculate_trading_costs(entry, exit_, qty)
-        return float(out.get("total_costs", 0.0) or 0.0)
-    except Exception:
-        try:
-            notional = (float(entry) + float(exit_)) * int(qty)
-            return round(notional * 0.0006, 2)
-        except Exception:
-            return 0.0
+    return float(calculate_trading_costs(entry, exit_, qty)["total_costs"])
 
 
 def _ema_cross_series(closes: list[float]) -> tuple[list[float], list[float]]:

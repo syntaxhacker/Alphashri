@@ -8,6 +8,18 @@ from sqlalchemy.sql import func
 from .base import Base
 
 
+def _canonical_cost_default(name):
+    """Resolve a cost default from backtest/costs at insert time.
+
+    A module-level import would cycle: backtest.__init__ imports api, whose
+    paper endpoints import db.models while this module is still initializing.
+    """
+    def resolve(ctx=None):
+        from backtest import costs
+        return getattr(costs, name)
+    return resolve
+
+
 bot_strategies = Table(
     'bot_strategies',
     Base.metadata,
@@ -87,13 +99,13 @@ class StrategyConfig(Base):
     custom_watchlist = Column(String(2000), nullable=True)  # JSON array: '["RELIANCE", "HDFCBANK"]'
     scan_interval_secs = Column(Integer, default=5)
 
-    brokerage_pct = Column(Float, default=0.0003)
-    min_brokerage = Column(Float, default=20)
-    stt_pct = Column(Float, default=0.00025)
-    exchange_pct = Column(Float, default=0.0000297)
-    sebi_pct = Column(Float, default=0.000001)
-    stamp_pct = Column(Float, default=0.00003)
-    gst_pct = Column(Float, default=0.18)
+    brokerage_pct = Column(Float, default=_canonical_cost_default("BROKERAGE_PCT"))
+    min_brokerage = Column(Float, default=_canonical_cost_default("MIN_BROKERAGE"))
+    stt_pct = Column(Float, default=_canonical_cost_default("STT_PCT"))
+    exchange_pct = Column(Float, default=_canonical_cost_default("EXCHANGE_CHARGES_PCT"))
+    sebi_pct = Column(Float, default=_canonical_cost_default("SEBI_FEE_PCT"))
+    stamp_pct = Column(Float, default=_canonical_cost_default("STAMP_DUTY_PCT"))
+    gst_pct = Column(Float, default=_canonical_cost_default("GST_PCT"))
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
