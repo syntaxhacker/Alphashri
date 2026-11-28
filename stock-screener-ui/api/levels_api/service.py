@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from chart_patterns._ist_date import ist_calendar_date
 from market_levels import Level, LevelBook, build_level_book
 
 OHLC_COLUMNS = ("open", "high", "low", "close")
@@ -21,16 +22,7 @@ OHLC_COLUMNS = ("open", "high", "low", "close")
 
 def _ist_date(value: Any) -> Optional[str]:
     """Format a timestamp's IST calendar date (the URL never leaks UTC dates)."""
-    import config
-
-    ts = value
-    if hasattr(ts, "to_pydatetime"):
-        ts = ts.to_pydatetime()
-    if getattr(ts, "tzinfo", None) is not None:
-        ts = ts.astimezone(config.IST)
-    if hasattr(ts, "strftime"):
-        return ts.strftime("%Y-%m-%d")
-    return str(ts)[:10] if ts is not None else None
+    return ist_calendar_date(value)
 
 
 def serialize_level(level: Level) -> dict[str, Any]:

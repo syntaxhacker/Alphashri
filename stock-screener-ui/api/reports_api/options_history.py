@@ -43,8 +43,8 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-import config
 from api.reports_api._dates import validate_date
+from api.reports_api._time import today_str as _today
 from api.reports_api._numeric import safe_float as _safe_float
 from api.reports_api.nifty_bursts import (
     NIFTY_LOT_SIZE,
@@ -97,11 +97,6 @@ from api.reports_api._blasts import chain_blasts as _shared_chain_blasts
 #: Parsed+projected replay days, keyed by (symbol, date, path, mtime, size) so
 #: scrubbing one frame per move does not re-parse the whole day log.
 _SLIM_CACHE: dict[tuple, list[dict]] = {}
-
-
-def _today() -> str:
-    """Today's session date in IST (never the host's local date)."""
-    return datetime.now(config.IST).strftime("%Y-%m-%d")
 
 
 #: Re-exported under the private name: ``options_walls`` imports it from here.

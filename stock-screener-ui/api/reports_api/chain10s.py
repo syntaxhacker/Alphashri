@@ -28,12 +28,12 @@ import json
 import os
 import time
 from collections import deque
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
+from api.reports_api._time import now_ist as _now_ist, today_str as _today_ist
 from api.reports_api.report_io import read_jsonl
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -94,23 +94,6 @@ def _greeks_dir() -> Path:
     path = _data_root() / "nifty_chain10s_greeks"
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def _now_ist() -> datetime:
-    """Aware IST wall clock.
-
-    The snapshot stamp used to be ``datetime.now().astimezone()`` — on a
-    non-IST host (CI, a container with UTC) the ISO string carried a different
-    offset and ``_today_ist()`` could disagree with it across midnight, so the
-    day file and the stamps inside it split.
-    """
-    import config
-
-    return datetime.now(config.IST)
-
-
-def _today_ist() -> str:
-    return _now_ist().strftime("%Y-%m-%d")
 
 
 def _gap_path(date_str: str) -> Path:
