@@ -18,7 +18,6 @@ from api.utils import (
     _compute_pearson_correlation_matrix,
 )
 
-import time  # kept for test patching (TTL expiry tests patch api.correlation.time); actual use is in api.utils
 
 router = APIRouter(prefix="/api/correlation", tags=["correlation"])
 

@@ -2,8 +2,6 @@ import json
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy.orm import Session
-
 from db.models import Position, BotRuntimeState, StrategyRuntimeState, BotConfig, StrategyConfig, bot_strategies
 from cache.redis_client import get_redis_client
 from config import IST

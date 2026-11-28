@@ -36,8 +36,6 @@ WALL_PROX_PTS = 15.0
 TEST_MIN_FRAMES = 10
 REJECT_MIN_PTS = 25.0
 REJECT_WINDOW = 30
-BREAK_BUFFER_PTS = 5.0
-BREAK_MIN_FRAMES = 5
 CONT_PTS = 50.0
 
 # stock-screener-ui/api/reports_api/nifty_wall_events.py -> parents[2] == root

@@ -106,7 +106,6 @@ def _phrases_by_type() -> dict[str, str]:
 
 
 _PHRASE_TO_TYPE: dict[str, str] = _phrases_by_type()
-_ALL_PHRASES: tuple[str, ...] = tuple(dict.fromkeys(PHRASE_PRIORITY + EXCLUDES))
 
 
 def _tokens(text: str) -> list[str]:
