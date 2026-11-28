@@ -17,7 +17,11 @@ from typing import Optional
 import config
 
 def now_ist() -> datetime:
-    """Current time in IST, falling back to a tz-aware local datetime."""
+    """Current time in IST, falling back to a tz-aware local datetime.
+
+    Pinned to IST rather than ``datetime.now().astimezone()`` so a non-IST
+    host (CI, UTC containers) cannot split a day file from its stamps.
+    """
     try:
         return datetime.now(config.IST)
     except Exception:

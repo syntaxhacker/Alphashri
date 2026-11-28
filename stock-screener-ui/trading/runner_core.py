@@ -526,7 +526,9 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
     def _ist_now(self) -> datetime:
         if self._replay_time is not None:
             return self._replay_time
-        return datetime.now(IST)
+        from api.reports_api._time import now_ist
+
+        return now_ist()
 
     def _get_to_date(self) -> datetime:
         return self._ist_now()

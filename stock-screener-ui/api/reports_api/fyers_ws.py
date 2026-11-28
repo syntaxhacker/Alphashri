@@ -32,7 +32,6 @@ import logging
 import queue as thr_queue
 import threading
 import time
-from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -40,6 +39,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import config
 from api.broker_hub import get_hub
 from api.broker_hub import from_broker_symbol
+from api.reports_api._time import now_iso as _now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +70,6 @@ _MARKET_CHECK_SEC = 60.0
 
 _sessions_lock = threading.Lock()
 _sessions: set["_ClientSession"] = set()
-
-
-def _now_iso() -> str:
-    return datetime.now(config.IST).isoformat()
 
 
 def _market_open() -> bool:

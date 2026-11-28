@@ -38,6 +38,7 @@ from chart_patterns import scan as scan_mod
 from chart_patterns import watch as watch_mod
 from chart_patterns.tags import tags_for
 from chart_patterns.parallel import max_workers as _parallel_max_workers
+from chart_patterns._ist_date import ist_session_dates as _ist_session_dates_from_index
 
 import config as root_config
 
@@ -1164,15 +1165,7 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
 
 def _ist_session_dates(index) -> list[str]:
     """IST calendar date (``YYYY-MM-DD``) for each index entry; never raises."""
-    try:
-        idx = index
-        if idx.tz is None:
-            idx = idx.tz_localize("UTC").tz_convert("Asia/Kolkata")
-        else:
-            idx = idx.tz_convert("Asia/Kolkata")
-        return [ts.date().isoformat() for ts in idx]
-    except Exception:
-        return [str(ts)[:10] for ts in index]
+    return _ist_session_dates_from_index(index)
 
 
 def _drop_resampled_after(df: pd.DataFrame, as_of: str) -> pd.DataFrame:

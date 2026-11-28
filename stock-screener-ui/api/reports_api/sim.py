@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 import config
 from api.reports_api._dates import validate_date
+from api.reports_api._time import today_str as _today
 from api.reports_api.report_io import read_jsonl, symbol_or_400
 from options_paper import structures, tape
 from options_paper.spec import get_lot
@@ -179,11 +180,6 @@ class RunIn(BaseModel):
     strategies: list[StrategyIn] = Field(min_length=1, max_length=8)
     costs: bool = True
     slippage_ticks: int = Field(default=0, ge=0, le=5, alias="slippageTicks")
-
-
-def _today() -> str:
-    """Today's session date in IST (never the host's local date)."""
-    return datetime.now(config.IST).strftime("%Y-%m-%d")
 
 
 def _symbol(underlying: str) -> str:

@@ -33,6 +33,7 @@ from typing import Any, Optional
 from fastapi import APIRouter
 
 import config
+from api.reports_api._time import now_ist as _now_ist
 from api.reports_api.report_io import read_jsonl
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -59,10 +60,6 @@ HISTORY_DIR = BREADTH_DIR / "history"
 #: process. Two refreshes inside one minute are the same observation; padding
 #: the file with duplicates buys nothing and hides real gaps.
 _last_history_minute: Optional[str] = None
-
-
-def _now_ist() -> datetime:
-    return datetime.now(config.IST)
 
 
 def _fetch() -> dict[str, Any]:

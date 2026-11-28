@@ -99,6 +99,7 @@ import pandas as pd
 
 import market_data.market_data as md
 from chart_patterns import candles
+from chart_patterns._ist_date import ist_date, ist_datetime, ist_session_date
 
 logger = logging.getLogger(__name__)
 
@@ -341,14 +342,7 @@ def merge_candle_tail(
 def _now_ist(now: Optional[datetime] = None) -> datetime:
     if now is None:
         now = candles._now_ist()
-    stamp = pd.Timestamp(now)
-    if pd.isna(stamp):
-        raise ValueError("now is NaT")
-    if stamp.tzinfo is None:
-        stamp = stamp.tz_localize("Asia/Kolkata")
-    else:
-        stamp = stamp.tz_convert("Asia/Kolkata")
-    return stamp.to_pydatetime()
+    return ist_datetime(now)
 
 
 def _refresh_window_open(now_ist: datetime) -> bool:
@@ -398,14 +392,8 @@ def _completed_daily_only(
 
     keep: list[bool] = []
     for value in frame.index:
-        try:
-            stamp = pd.Timestamp(value)
-            if stamp.tzinfo is None:
-                stamp = stamp.tz_localize("UTC")
-            session_date = stamp.tz_convert("Asia/Kolkata").date()
-            keep.append(session_date <= last_done)
-        except Exception:
-            keep.append(True)
+        session_date = ist_date(value)
+        keep.append(session_date is None or session_date <= last_done)
     if all(keep):
         return frame
     return frame.loc[keep]
@@ -413,7 +401,7 @@ def _completed_daily_only(
 
 def _provider_start_date(last_cached: pd.Timestamp, minutes: int) -> str:
     start = last_cached - pd.Timedelta(minutes=int(minutes))
-    return start.tz_convert("Asia/Kolkata").strftime("%Y-%m-%d")
+    return ist_session_date(start)
 
 
 def _fetch_provider_tail(

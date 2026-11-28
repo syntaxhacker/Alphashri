@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
-from api.reports_api._time import now_iso as _now_iso
+from api.reports_api._time import now_iso as _now_iso, today_str as _today_ist
 from api.reports_api.report_io import read_jsonl
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -37,12 +37,6 @@ def _dir() -> Path:
     path = Path(getattr(config, "BASE_DIR", Path(__file__).resolve().parents[2])) / "experiments" / "data" / "nifty_ticks"
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def _today_ist() -> str:
-    import config
-
-    return datetime.now(config.IST).strftime("%Y-%m-%d")
 
 
 async def tick_tape_task() -> None:
