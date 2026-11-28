@@ -5,7 +5,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.auth import get_current_user
-from trading.week52.math import gap_pct_from_price_to_52w_high
+from trading.week52.config import LEGACY_RECENT_TOUCH_BAND_MULTIPLIER
+from trading.week52.math import gap_pct_from_price_to_52w_high, signed_gap_pct_to_52w_high
 from trading.week52_utils import calculate_52w_high
 
 router = APIRouter(tags=["debug"])
@@ -109,14 +110,14 @@ async def debug_52w(
     pct_from_52w_high = gap_pct_from_price_to_52w_high(high_52w, current_price) if current_price > 0 else 0.0
 
     recent_touches = []
-    threshold_52w = 0.99 * high_52w
+    threshold_52w = LEGACY_RECENT_TOUCH_BAND_MULTIPLIER * high_52w
     if high_52w > 0:
         for i in range(len(daily_highs) - 1, -1, -1):
             if len(recent_touches) >= 10:
                 break
             h = daily_highs[i]
             if h >= threshold_52w:
-                dist_pct = ((h - high_52w) / high_52w) * 100
+                dist_pct = signed_gap_pct_to_52w_high(high_52w, h)
                 recent_touches.append({
                     "date": None,
                     "price": round(h, 2),
