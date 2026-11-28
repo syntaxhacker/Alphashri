@@ -9,6 +9,7 @@ OI levels, so walls survive a chain without greeks.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any, Optional
 
 from market_levels import (
@@ -39,7 +40,7 @@ _WALL_FIELDS = (
 
 
 def _price(block: Any) -> Optional[float]:
-    value = block.get("strike") if isinstance(block, dict) else block
+    value = block.get("strike") if isinstance(block, Mapping) else block
     try:
         price = float(value)
     except (TypeError, ValueError):
@@ -100,7 +101,7 @@ def detect(ctx: dict[str, Any]) -> tuple[Level, ...]:
                     "wall": wall,
                     "rank": index + 1,
                     "index": index,
-                    "raw": dict(entry) if isinstance(entry, dict) else entry,
+                    "raw": dict(entry) if isinstance(entry, Mapping) else entry,
                 },
                 detector_version=SPEC.version,
             ))
@@ -121,7 +122,7 @@ def detect(ctx: dict[str, Any]) -> tuple[Level, ...]:
             strength=None,
             evidence={
                 "field": "max_pain",
-                "raw": dict(pain) if isinstance(pain, dict) else pain,
+                "raw": dict(pain) if isinstance(pain, Mapping) else pain,
             },
             detector_version=SPEC.version,
         ))
