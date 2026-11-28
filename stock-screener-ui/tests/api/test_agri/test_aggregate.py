@@ -29,6 +29,15 @@ def _row(
     }
 
 
+@pytest.mark.parametrize("value,expected", [
+    (None, None), ("", None), ("n/a", None),
+    (float("nan"), None), (float("inf"), None), (float("-inf"), None),
+    (0, 0.0), ("123.5", 123.5), (True, 1.0),
+])
+def test_to_float_preserves_missing_vs_zero(value, expected):
+    assert aggregate.to_float(value) == expected
+
+
 def test_metric_tonnes_are_multiplied_by_ten_and_raw_unit_kept():
     assert aggregate.normalise_arrivals(12.5, "Metric Tonnes") == (125.0, "Metric Tonnes")
     assert aggregate.normalise_arrivals(3, "Quintal") == (3.0, "Quintal")

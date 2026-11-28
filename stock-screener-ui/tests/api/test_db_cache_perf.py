@@ -50,30 +50,30 @@ class TestTradesHistoryIndex:
 
 class TestSingleSymbolLookupFromBulk:
     def test_reads_bulk_key_not_per_symbol_key(self):
-        from trading.week52_range_lookup import get_52w_range
+        from trading.week52.ranges import get_52w_range
 
         bulk = {
             "RELIANCE": {"high": 100.0, "low": 90.0, "close": 95.0},
             "TCS": {"high": 200.0, "low": 190.0, "close": 195.0},
         }
         with patch("cache.redis_client.cache_get", return_value=bulk) as cache_get, patch(
-            "trading.week52_range_lookup.SessionLocal"
+            "trading.week52.ranges.SessionLocal"
         ) as session:
             assert get_52w_range("TCS") == {"high": 200.0, "low": 190.0, "close": 195.0}
         cache_get.assert_called_once_with("52w_range:all")
         session.assert_not_called()
 
     def test_carries_updated_at_from_bulk(self):
-        from trading.week52_range_lookup import get_52w_range
+        from trading.week52.ranges import get_52w_range
 
         bulk = {"AAA": {"high": 1, "low": 1, "close": 1, "updated_at": "2026-11-01T09:00:00"}}
         with patch("cache.redis_client.cache_get", return_value=bulk), patch(
-            "trading.week52_range_lookup.SessionLocal"
+            "trading.week52.ranges.SessionLocal"
         ):
             assert get_52w_range("AAA")["updated_at"] == "2026-11-01T09:00:00"
 
     def test_bulk_miss_falls_back_to_db_row(self):
-        from trading.week52_range_lookup import get_52w_range
+        from trading.week52.ranges import get_52w_range
 
         class _Row:
             high_52w, low_52w, close = 10.0, 4.0, 7.0
@@ -93,14 +93,19 @@ class TestSingleSymbolLookupFromBulk:
                 pass
 
         with patch("cache.redis_client.cache_get", return_value=None), patch(
-            "trading.week52_range_lookup.SessionLocal", return_value=_DB()
+            "trading.week52.ranges.SessionLocal", return_value=_DB()
         ):
             assert get_52w_range("AAA") == {"high": 10.0, "low": 4.0, "close": 7.0}
 
 
 class TestBulkWriteAndInvalidation:
-    def test_store_writes_only_bulk_key_with_ttl_and_stamps_updated_at(self):
-        from api_server_fastapi import _52W_RANGE_CACHE_TTL, _store_52w_ranges_in_redis
+    def test_store_writes_only_bulk_key_with_ttl_and_stamps_updated_at(self, monkeypatch):
+        from cache.week52 import store_52w_ranges
+        from trading.week52.config import cache_ttl_sec
+        from trading.week52.keys import BULK, RANGE_TTL
+
+        monkeypatch.delenv("SCREENER_52W_CACHE_TTL", raising=False)
+        assert cache_ttl_sec() == RANGE_TTL
 
         class _Stamp:
             def __init__(self, symbol, updated_at):
@@ -124,14 +129,13 @@ class TestBulkWriteAndInvalidation:
         }
         with patch("cache.redis_client.cache_set") as cache_set, patch(
             "db.database.SessionLocal", return_value=_DB()
-        ), patch("shutil.rmtree"):
-            _store_52w_ranges_in_redis(data)
+        ), patch("cache.week52.shutil.rmtree"):
+            payload = store_52w_ranges(data)
 
         assert cache_set.call_count == 1
-        key = cache_set.call_args[0][0]
-        payload = cache_set.call_args[0][1]
-        assert key == "52w_range:all"
-        assert cache_set.call_args[1]["ttl"] == _52W_RANGE_CACHE_TTL
+        assert cache_set.call_args[0][0] == BULK
+        assert cache_set.call_args[0][1] == payload
+        assert cache_set.call_args[1]["ttl"] == RANGE_TTL
         assert set(payload) == {"AAA", "BBB"}
         assert payload["AAA"]["updated_at"] == "2026-11-01T00:00:00"
         assert "updated_at" not in payload["BBB"]

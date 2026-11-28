@@ -35,6 +35,25 @@ _STATS_KEY = "cache:stats"
 _STATS_FLUSH_INTERVAL = 60
 _last_flush_time = 0
 
+_FIELD_GLOBAL_HITS = "global_hits"
+_FIELD_GLOBAL_MISSES = "global_misses"
+_DOMAIN_HIT_PREFIX = "domain_hits:"
+_DOMAIN_MISS_PREFIX = "domain_misses:"
+
+# The shared hash is an aggregate, not a snapshot: each worker tracks what it
+# has already contributed and flushes only the difference with HINCRBY, so
+# concurrent workers add to the same counters instead of overwriting them.
+_flushed_hits = 0
+_flushed_misses = 0
+_flushed_domain_hits: dict[str, int] = {}
+_flushed_domain_misses: dict[str, int] = {}
+
+# Nothing subtracts a worker's contribution when it exits, so the aggregate
+# also holds counters from workers that are no longer running. The admin
+# endpoint therefore reports the sum of every worker seen since the last
+# reset_stats(); restarting a worker starts it at zero rather than re-adding
+# the totals already in the hash.
+
 _CONSECUTIVE_FAILURES = 0
 _MAX_FAILURES_BEFORE_RESET = 5
 
@@ -50,9 +69,36 @@ def _extract_domain(key: str) -> str:
 _REDIS_HEALTH_CHECK_INTERVAL = 30  # seconds between explicit ping health checks
 _last_health_check_time = 0.0
 
+# Compute-only runs set REDIS_DISABLED before their worker pool starts. Read on
+# every call so a late `os.environ` change takes effect without a module reload.
+_REDIS_DISABLED_VALUES = frozenset({"1", "true", "yes"})
+_redis_unavailable_until = 0.0
+_REDIS_RECONNECT_COOLDOWN = 30.0
+_unavailable_warned = False
+
+
+def _redis_disabled() -> bool:
+    return os.getenv("REDIS_DISABLED", "").strip().lower() in _REDIS_DISABLED_VALUES
+
+
+def _warn_redis_unavailable(message: str, error: Exception) -> None:
+    global _unavailable_warned
+    if not _unavailable_warned:
+        _unavailable_warned = True
+        logger.warning("%s: %s", message, error)
+
 
 def get_redis_client():
-    global _redis_client, _redis_available, _CONSECUTIVE_FAILURES, _last_health_check_time
+    global _redis_client, _redis_available, _CONSECUTIVE_FAILURES, \
+        _last_health_check_time, _redis_unavailable_until
+
+    if _redis_disabled():
+        return None
+
+    # A dead Redis used to cost a 5-second connect timeout on every cache call.
+    # Back off after the first failure instead of retrying per call.
+    if _redis_unavailable_until > time.monotonic():
+        return None
 
     if _redis_client is not None:
         now = time.time()
@@ -62,11 +108,12 @@ def get_redis_client():
             _redis_client.ping()
             _last_health_check_time = now
             return _redis_client
-        except Exception:
+        except Exception as e:
             _redis_client = None
             _redis_available = False
             _CONSECUTIVE_FAILURES += 1
-            logger.warning("Redis connection lost, will attempt reconnect")
+            _redis_unavailable_until = time.monotonic() + _REDIS_RECONNECT_COOLDOWN
+            _warn_redis_unavailable("Redis connection lost, caching disabled", e)
 
     try:
         import redis
@@ -87,10 +134,10 @@ def get_redis_client():
         logger.info("Redis connected: %s", url)
     except Exception as e:
         _redis_client = None
+        _redis_available = False
         _CONSECUTIVE_FAILURES += 1
-        if _CONSECUTIVE_FAILURES >= _MAX_FAILURES_BEFORE_RESET:
-            _redis_available = False
-        logger.warning("Redis unavailable, caching disabled: %s", e)
+        _redis_unavailable_until = time.monotonic() + _REDIS_RECONNECT_COOLDOWN
+        _warn_redis_unavailable("Redis unavailable, caching disabled", e)
 
     return _redis_client
 
@@ -255,7 +302,7 @@ def cached(prefix: str, ttl: Optional[int] = None, key_builder: Optional[Callabl
 
 
 def close_redis():
-    global _redis_client, _redis_available
+    global _redis_client, _redis_available, _redis_unavailable_until, _unavailable_warned
     _flush_stats_to_redis()
     if _redis_client is not None:
         try:
@@ -264,66 +311,136 @@ def close_redis():
             pass
         _redis_client = None
         _redis_available = False
+    _redis_unavailable_until = 0.0
+    _unavailable_warned = False
 
 
 def _flush_stats_to_redis():
-    global _last_flush_time
+    global _last_flush_time, _flushed_hits, _flushed_misses, \
+        _flushed_domain_hits, _flushed_domain_misses
     client = get_redis_client()
     if client is None:
         return
     now = time.time()
     if now - _last_flush_time < _STATS_FLUSH_INTERVAL:
         return
-    try:
-        with _stats_lock:
-            stats_payload = {
-                "global_hits": _global_hits,
-                "global_misses": _global_misses,
-                "domain_hits": dict(_domain_hits),
-                "domain_misses": dict(_domain_misses),
-                "updated_at": now,
-            }
-            client.hset(_STATS_KEY, mapping={k: json.dumps(v) for k, v in stats_payload.items()})
-            _last_flush_time = now
-    except Exception as e:
-        logger.warning("Failed to flush stats to Redis: %s", e)
+    # Keep the lock across the Redis round trip: two threads in this process
+    # must not compute and send the same delta, and the baseline must describe
+    # exactly the totals that were sent.
+    with _stats_lock:
+        deltas: dict[str, int] = {}
+        hits_delta = _global_hits - _flushed_hits
+        misses_delta = _global_misses - _flushed_misses
+        if hits_delta > 0:
+            deltas[_FIELD_GLOBAL_HITS] = hits_delta
+        if misses_delta > 0:
+            deltas[_FIELD_GLOBAL_MISSES] = misses_delta
+        for domain, value in _domain_hits.items():
+            delta = value - _flushed_domain_hits.get(domain, 0)
+            if delta > 0:
+                deltas[_DOMAIN_HIT_PREFIX + domain] = delta
+        for domain, value in _domain_misses.items():
+            delta = value - _flushed_domain_misses.get(domain, 0)
+            if delta > 0:
+                deltas[_DOMAIN_MISS_PREFIX + domain] = delta
+
+        try:
+            client.hset(_STATS_KEY, mapping={"updated_at": str(now)})
+            if deltas:
+                pipe = client.pipeline(transaction=True)
+                for field, delta in deltas.items():
+                    pipe.hincrby(_STATS_KEY, field, delta)
+                pipe.execute()
+        except Exception as e:
+            logger.warning("Failed to flush stats to Redis: %s", e)
+            return
+
+        if deltas:
+            _flushed_hits = _global_hits
+            _flushed_misses = _global_misses
+            _flushed_domain_hits = dict(_domain_hits)
+            _flushed_domain_misses = dict(_domain_misses)
+        _last_flush_time = now
 
 
 def _load_stats_from_redis():
-    global _global_hits, _global_misses, _domain_hits, _domain_misses
+    """Retained for the startup hook; the aggregate is read on demand instead.
+
+    Copying the shared totals into this process's counters would double-count
+    them on the next delta flush. get_cache_stats() combines the aggregate
+    with the unflushed local counters at read time.
+    """
+    return
+
+
+def _as_int(value: Any) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _read_shared_stats():
     client = get_redis_client()
     if client is None:
-        return
+        return 0, 0, {}, {}
     try:
         raw = client.hgetall(_STATS_KEY)
-        if not raw:
-            return
-        with _stats_lock:
-            for k, v in raw.items():
-                try:
-                    parsed = json.loads(v)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-                if k == "global_hits":
-                    _global_hits = parsed
-                elif k == "global_misses":
-                    _global_misses = parsed
-                elif k == "domain_hits":
-                    _domain_hits.update(parsed)
-                elif k == "domain_misses":
-                    _domain_misses.update(parsed)
     except Exception as e:
-        logger.warning("Failed to load stats from Redis: %s", e)
+        # A limited client (e.g. an INFO-recording test double) has no HGETALL;
+        # fall back to this process's own counters in that case.
+        logger.debug("Shared stats read unavailable: %s", e)
+        return 0, 0, {}, {}
+
+    hits = _as_int(raw.get(_FIELD_GLOBAL_HITS))
+    misses = _as_int(raw.get(_FIELD_GLOBAL_MISSES))
+    domain_hits: dict[str, int] = {}
+    domain_misses: dict[str, int] = {}
+    for field, value in raw.items():
+        if field.startswith(_DOMAIN_HIT_PREFIX):
+            domain_hits[field[len(_DOMAIN_HIT_PREFIX):]] = _as_int(value)
+        elif field.startswith(_DOMAIN_MISS_PREFIX):
+            domain_misses[field[len(_DOMAIN_MISS_PREFIX):]] = _as_int(value)
+
+    # Pre-delta hashes kept domains in one JSON blob; merge it so upgrading a
+    # live deployment does not drop the breakdown accumulated so far.
+    for field, target in (("domain_hits", domain_hits), ("domain_misses", domain_misses)):
+        legacy = raw.get(field)
+        if not legacy:
+            continue
+        try:
+            parsed = json.loads(legacy)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(parsed, dict):
+            for domain, value in parsed.items():
+                target[domain] = target.get(domain, 0) + _as_int(value)
+    return hits, misses, domain_hits, domain_misses
 
 
 def get_cache_stats() -> dict:
     _flush_stats_to_redis()
+    shared_hits, shared_misses, shared_d_hits, shared_d_misses = _read_shared_stats()
 
     with _stats_lock:
-        hits = _global_hits
-        misses = _global_misses
-        d_hits = dict(_domain_hits)
-        d_misses = dict(_domain_misses)
+        hits = shared_hits + max(_global_hits - _flushed_hits, 0)
+        misses = shared_misses + max(_global_misses - _flushed_misses, 0)
+        d_hits = dict(shared_d_hits)
+        d_misses = dict(shared_d_misses)
+        for domain, value in _domain_hits.items():
+            delta = value - _flushed_domain_hits.get(domain, 0)
+            if delta > 0:
+                d_hits[domain] = d_hits.get(domain, 0) + delta
+        for domain, value in _domain_misses.items():
+            delta = value - _flushed_domain_misses.get(domain, 0)
+            if delta > 0:
+                d_misses[domain] = d_misses.get(domain, 0) + delta
 
     client = get_redis_client()
     stats: dict[str, Any] = {
@@ -367,7 +484,8 @@ def get_cache_stats() -> dict:
         stats["keyspace_hits"] = stats_info.get("keyspace_hits", 0)
         stats["keyspace_misses"] = stats_info.get("keyspace_misses", 0)
 
-        for domain in set(list(d_hits.keys()) + list(d_misses.keys())):
+        domains = set(list(d_hits.keys()) + list(d_misses.keys()))
+        for domain in domains:
             dh = d_hits.get(domain, 0)
             dm = d_misses.get(domain, 0)
             if dh + dm > 0:
@@ -378,12 +496,23 @@ def get_cache_stats() -> dict:
                     "hit_rate": round(dh / (dh + dm) * 100, 1),
                 }
 
-        for prefix in set(list(d_hits.keys()) + list(d_misses.keys())):
+        if domains:
+            prefix_counts: dict[str, int] = defaultdict(int)
             try:
-                count = sum(1 for _ in client.scan_iter(match=f"{prefix}:*", count=500))
-                stats["by_prefix_keys"][prefix] = count
+                for key in client.scan_iter(match="*", count=500):
+                    # A key without a colon matches no "prefix:*" pattern,
+                    # including the synthetic "other" domain from _extract_domain.
+                    if ":" not in key:
+                        continue
+                    prefix = key.split(":", 1)[0]
+                    if prefix in domains:
+                        prefix_counts[prefix] += 1
             except Exception:
-                stats["by_prefix_keys"][prefix] = -1
+                stats["by_prefix_keys"] = {prefix: -1 for prefix in domains}
+            else:
+                stats["by_prefix_keys"] = {
+                    prefix: prefix_counts.get(prefix, 0) for prefix in domains
+                }
 
     except Exception as e:
         logger.warning("get_cache_stats error: %s", e)
@@ -392,12 +521,19 @@ def get_cache_stats() -> dict:
 
 
 def reset_stats():
-    global _global_hits, _global_misses, _domain_hits, _domain_misses
+    global _global_hits, _global_misses, _domain_hits, _domain_misses, \
+        _flushed_hits, _flushed_misses, _flushed_domain_hits, \
+        _flushed_domain_misses, _last_flush_time
     with _stats_lock:
         _global_hits = 0
         _global_misses = 0
         _domain_hits = defaultdict(int)
         _domain_misses = defaultdict(int)
+        _flushed_hits = 0
+        _flushed_misses = 0
+        _flushed_domain_hits = {}
+        _flushed_domain_misses = {}
+        _last_flush_time = 0
     client = get_redis_client()
     if client is not None:
         try:

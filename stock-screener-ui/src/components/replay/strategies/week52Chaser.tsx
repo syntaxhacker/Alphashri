@@ -29,6 +29,9 @@ const week52Chaser: ReplayStrategyPlugin = {
   runMode: "manual",
   endpoint: "/api/poc/replay/week52-chaser",
   dates: DATES,
+  // The replay endpoint's ParamSpec (trading/replay/engines/week52.py) has no
+  // trailing_activation_pct or cooldown_days field, so canonical defaults that
+  // have no param to carry them are intentionally absent here.
   params: [
     { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
     { name: "lookback_days", label: "Lookback days", type: "int", default: 400, min: 60, max: 1000, step: 10 },

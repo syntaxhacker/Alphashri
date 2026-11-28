@@ -14,6 +14,15 @@ on:
       - 'stock-screener-ui/tests/**'
       - 'stock-screener-ui/api/**'
       - 'stock-screener-ui/options_paper/**'
+      # Tested core Python packages that previously bypassed this gate: a PR
+      # touching only these ran no Python tests (just the screenshot gate).
+      - 'stock-screener-ui/chart_patterns/**'
+      - 'stock-screener-ui/backtest/**'
+      - 'stock-screener-ui/trading/**'
+      - 'stock-screener-ui/cache/**'
+      # Root broker-client package (instrument mapping, API client, strategies)
+      # is tested too; a PR touching only it also ran no Python tests.
+      - 'upstox_trader/**'
       - 'stock-screener-ui/.storybook/**'
       # A knip.json edit changes what the unused-code gate considers acceptable,
       # and a test_cases/ edit is a test artefact. Neither triggered CI before,

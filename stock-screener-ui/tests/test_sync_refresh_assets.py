@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import fcntl
 import gzip
 import hashlib
 import json
+import os
 import sqlite3
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -20,7 +23,9 @@ if str(ROOT) not in sys.path:
 
 from api.agri import store
 from db.models.stock_52w_touch import Stock52WeekRange
+from scripts import compute_52w_ranges_upstox as batch
 from scripts import sync_refresh_assets as sync
+from trading.week52.upsert import upsert_52w_ranges
 
 pytestmark = pytest.mark.unit
 
@@ -352,6 +357,93 @@ class TestApplyIsIdempotent:
             engine.dispose()
 
 
+class TestShared52wUpsert:
+    def test_both_entry_points_share_one_helper(self):
+        assert batch.upsert_52w_ranges is sync.upsert_52w_ranges is upsert_52w_ranges
+
+    def test_apply_delegates_symbol_map_to_shared_helper(self, monkeypatch):
+        data = {"symbols": {"AAA": {"high": 110.0, "low": 80.0, "close": 100.0}}}
+        calls = []
+
+        def spy(factory, symbols, **kwargs):
+            calls.append((factory, symbols, kwargs))
+            return 1, 0
+
+        monkeypatch.setattr(sync, "upsert_52w_ranges", spy)
+        assert sync.apply_52w_data("factory", data) == (1, 0)
+        assert calls == [("factory", data["symbols"], {})]
+
+    @staticmethod
+    def _make_session_factory():
+        engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Stock52WeekRange.__table__.create(bind=engine)
+        Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        seeded = Session()
+        try:
+            seeded.add_all(
+                [
+                    Stock52WeekRange(
+                        symbol="AAA",
+                        high_52w=110.0,
+                        low_52w=80.0,
+                        close=100.0,
+                        days_ago=3,
+                        updated_at=datetime(2026, 1, 2, 9, 15),
+                    ),
+                    Stock52WeekRange(
+                        symbol="BBB",
+                        high_52w=210.0,
+                        low_52w=180.0,
+                        close=199.0,
+                        days_ago=None,
+                        updated_at=datetime(2026, 1, 2, 9, 15),
+                    ),
+                ]
+            )
+            seeded.commit()
+        finally:
+            seeded.close()
+        return Session, engine
+
+    @staticmethod
+    def _snapshot(Session):
+        session = Session()
+        try:
+            return {
+                row.symbol: (row.high_52w, row.low_52w, row.close, row.days_ago)
+                for row in session.query(Stock52WeekRange).all()
+            }
+        finally:
+            session.close()
+
+    def test_batch_and_sync_produce_the_same_change_only_result(self, monkeypatch):
+        payload = {
+            "AAA": {"high": 110.0, "low": 80.0, "close": 100.0, "days_ago": 3},
+            "BBB": {"high": 210.0, "low": 180.0, "close": 200.0, "days_ago": None},
+            "CCC": {"high": 10.0, "low": 5.0, "close": 7.0, "days_ago": 1},
+        }
+        batch_session, batch_engine = self._make_session_factory()
+        sync_session, sync_engine = self._make_session_factory()
+        monkeypatch.setattr(batch, "SessionLocal", batch_session)
+        try:
+            first_batch = batch.persist_ranges(payload, redis=False)
+            first_sync = sync.apply_52w_data(sync_session, {"symbols": payload})
+            assert first_batch == first_sync == (1, 1)
+            assert self._snapshot(batch_session) == self._snapshot(sync_session)
+
+            second_batch = batch.persist_ranges(payload, redis=False)
+            second_sync = sync.apply_52w_data(sync_session, {"symbols": payload})
+            assert second_batch == second_sync == (0, 0)
+            assert self._snapshot(batch_session) == self._snapshot(sync_session)
+        finally:
+            batch_engine.dispose()
+            sync_engine.dispose()
+
+
 class TestFlatReleaseNames:
     """Release assets are flat; packaged trees use directory prefixes."""
 
@@ -497,3 +589,216 @@ class TestFlatReleaseNames:
         assets = sync.list_local_assets(tmp_path)
         pairs = sync.build_pairs(list(assets) + list(assets))
         assert [(pair.kind, pair.as_of) for pair in pairs] == [("agri", AS_OF)]
+
+
+class TestRefreshFingerprints:
+    def test_github_listing_captures_updated_at(self, monkeypatch):
+        payload = [
+            {
+                "tag_name": "data-2026-11",
+                "draft": False,
+                "assets": [
+                    {
+                        "name": f"{AS_OF}.json.gz",
+                        "browser_download_url": "u1",
+                        "size": 111,
+                        "updated_at": "2026-11-21T19:00:00Z",
+                    },
+                    {
+                        "name": f"52w-{AS_OF}.json",
+                        "browser_download_url": "u2",
+                        "size": 10,
+                    },
+                ],
+            }
+        ]
+        monkeypatch.setattr(sync, "_github_request", lambda url, token: payload)
+
+        assets = sync.list_github_assets()
+        assert assets[0].updated_at == "2026-11-21T19:00:00Z"
+        assert sync.refresh_fingerprint(assets[0]) != sync.refresh_fingerprint(
+            sync.ReleaseAsset(
+                release=assets[0].release,
+                name=assets[0].name,
+                url=assets[0].url,
+                size=assets[0].size,
+                updated_at="2026-11-21T21:00:00Z",
+            )
+        )
+
+    def test_local_fingerprint_tracks_size_and_mtime(self, tmp_path):
+        write_52w_fixture(tmp_path)
+        asset = next(a for a in sync.list_local_assets(tmp_path) if a.name.endswith(".json.gz"))
+        first = sync.refresh_fingerprint(asset)
+
+        stat = asset.local_path.stat()
+        os.utime(asset.local_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+        assert sync.refresh_fingerprint(asset) != first
+        resized = sync.ReleaseAsset(
+            release=asset.release,
+            name=asset.name,
+            local_path=asset.local_path,
+            size=(asset.size or 0) + 1,
+        )
+        assert sync.refresh_fingerprint(resized) != sync.refresh_fingerprint(asset)
+
+    def test_run_sync_records_selected_fingerprints(self, tmp_path):
+        assets = tmp_path / "assets"
+        write_agri_fixture(assets)
+        write_52w_fixture(assets)
+        state = tmp_path / "state.json"
+
+        summary = sync.run_sync(
+            mode="latest",
+            assets_dir=assets,
+            cache_dir=tmp_path / "cache",
+            agri_db_path=tmp_path / "agri.db",
+            state_file=state,
+            dry_run=True,
+            use_redis=False,
+        )
+        pairs = sync.build_pairs(sync.list_local_assets(assets))
+        expected = {
+            pair.kind: sync.refresh_fingerprint(pair.asset) for pair in pairs
+        }
+        assert summary.week52_fingerprint == expected["52w"]
+        assert summary.agri_fingerprint == expected["agri"]
+        assert "week52_fingerprint" in summary.as_dict()
+        assert "agri_fingerprint" in summary.as_dict()
+
+
+class TestAgriFailureIsolation:
+    def test_partial_record_keeps_52w_and_retries_agri(self, tmp_path, monkeypatch):
+        assets = tmp_path / "assets"
+        write_agri_fixture(assets)
+        write_52w_fixture(assets)
+        engine = create_engine(
+            f"sqlite:///{tmp_path / 'app.db'}",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Stock52WeekRange.__table__.create(bind=engine)
+        Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        state = tmp_path / "state.json"
+        kwargs = dict(
+            mode="latest",
+            assets_dir=assets,
+            cache_dir=tmp_path / "cache",
+            agri_db_path=tmp_path / "agri.db",
+            session_factory=Session,
+            state_file=state,
+            use_redis=False,
+        )
+        pairs = sync.build_pairs(sync.list_local_assets(assets))
+        agri_fingerprint = sync.refresh_fingerprint(
+            next(pair.asset for pair in pairs if pair.kind == "agri")
+        )
+        original = sync.prepare_agri_rows
+
+        def boom(_rows):
+            raise RuntimeError("agri exploded")
+
+        try:
+            monkeypatch.setattr(sync, "prepare_agri_rows", boom)
+            summary = sync.run_sync(**kwargs)
+
+            assert summary.week52_added == 2
+            assert summary.agri_rows_applied == 0
+            assert summary.agri_error == "agri exploded"
+            assert summary.week52_fingerprint is not None
+            assert summary.agri_fingerprint is None
+
+            record = json.loads(state.read_text(encoding="utf-8"))[-1]
+            assert record["status"] == "partial"
+            assert record["week52_fingerprint"] == summary.week52_fingerprint
+            assert record["agri_fingerprint"] is None
+            assert record["agri_error"] == "agri exploded"
+
+            applied = sync.last_applied_pointers(state)
+            assert applied.week52_fingerprint == summary.week52_fingerprint
+            assert applied.agri_fingerprint is None
+            assert applied.agri_fingerprint != agri_fingerprint
+
+            monkeypatch.setattr(sync, "prepare_agri_rows", original)
+            retry = sync.run_sync(**kwargs)
+            assert retry.agri_error is None
+            assert retry.agri_rows_applied == 2
+            assert retry.agri_fingerprint == agri_fingerprint
+            assert json.loads(state.read_text(encoding="utf-8"))[-1]["status"] == "ok"
+        finally:
+            engine.dispose()
+
+
+class TestSyncLock:
+    def test_held_lock_raises_sync_busy(self, tmp_path):
+        state = tmp_path / "state.json"
+        lock = Path(f"{state}.lock")
+        handle = lock.open("a+")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with pytest.raises(sync.SyncBusy):
+                sync.run_sync(
+                    mode="latest",
+                    assets_dir=tmp_path / "missing",
+                    state_file=state,
+                    dry_run=True,
+                )
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            handle.close()
+
+    def test_lock_false_bypasses_held_lock(self, tmp_path):
+        assets = tmp_path / "assets"
+        write_agri_fixture(assets)
+        write_52w_fixture(assets)
+        state = tmp_path / "state.json"
+        lock = Path(f"{state}.lock")
+        handle = lock.open("a+")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            summary = sync.run_sync(
+                mode="latest",
+                assets_dir=assets,
+                cache_dir=tmp_path / "cache",
+                state_file=state,
+                dry_run=True,
+                use_redis=False,
+                lock=False,
+            )
+            assert summary.week52_dates == [AS_OF]
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            handle.close()
+
+    def test_none_state_file_does_not_create_a_lock(self, tmp_path):
+        assets = tmp_path / "assets"
+        write_52w_fixture(assets)
+        sync.run_sync(
+            mode="latest",
+            assets_dir=assets,
+            cache_dir=tmp_path / "cache",
+            state_file=None,
+            dry_run=True,
+            use_redis=False,
+        )
+        assert not list(tmp_path.glob("*.lock"))
+
+
+class TestMainAgriError:
+    def test_agri_error_exits_nonzero(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            sync,
+            "run_sync",
+            lambda **_: sync.SyncSummary(mode="latest", agri_error="agri exploded"),
+        )
+        code = sync.main(
+            ["--latest", "--assets-dir", str(tmp_path), "--state-file", str(tmp_path / "s.json")]
+        )
+        assert code == 1
+
+    def test_clean_summary_exits_zero(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(sync, "run_sync", lambda **_: sync.SyncSummary(mode="latest"))
+        code = sync.main(
+            ["--latest", "--assets-dir", str(tmp_path), "--state-file", str(tmp_path / "s.json")]
+        )
+        assert code == 0

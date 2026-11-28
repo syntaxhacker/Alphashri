@@ -1,13 +1,15 @@
-"""Pure 52-week math helpers (moved verbatim from api/screener_api/screener_models.py).
+"""Pure 52-week math helpers (extracted from api/screener_api/screener_models.py).
 
-Threshold readers and STALE_52W_BREAKOUT_PCT live in .config; bodies below
-are byte-identical copies of the originals.
+Threshold readers and STALE_52W_BREAKOUT_PCT live in .config. Numeric coercion
+comes from the stdlib-only ``common.numbers``; this module has no api/db imports
+so it stays cheap for every screener caller.
 """
 
+import math
 import re
 from typing import Optional
 
-from api.utils import _to_float
+from common.numbers import to_float as _to_float
 
 from .config import (
     STALE_52W_BREAKOUT_PCT,
@@ -100,7 +102,6 @@ def is_plausible_52w_gap(gap_pct: Optional[float]) -> bool:
         gap = float(gap_pct)
     except (TypeError, ValueError):
         return False
-    import math
     if not math.isfinite(gap):
         return False
     return gap >= -STALE_52W_BREAKOUT_PCT

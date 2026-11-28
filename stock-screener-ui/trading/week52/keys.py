@@ -11,8 +11,10 @@ BULK = "52w_range:all"
 #: Redis key holding the batch job status dict.
 JOB_STATUS = "52w_range:job_status"
 
-#: TTL for cached 52W range data (seconds).
-RANGE_TTL = 600
+#: TTL for cached 52W range data (seconds). Ranges arrive from the release-sync
+#: watcher or an admin-triggered refresh, not an in-process scheduler. Env
+#: override: config.cache_ttl_sec() (SCREENER_52W_CACHE_TTL).
+RANGE_TTL = 24 * 60 * 60
 
 #: TTL for the batch job status (seconds, 7 days).
 JOB_TTL = 86400 * 7

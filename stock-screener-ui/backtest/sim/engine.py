@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import operator
 from typing import Any, Iterable, List, Optional
 
 from .model import BarType, OrderSide, Price, Quantity
@@ -71,19 +72,61 @@ class BarDataWrangler:
     def process(self, df: Any) -> List[Bar]:
         bars: List[Bar] = []
         columns = ["open", "high", "low", "close", "volume"]
-        for i in range(len(df)):
-            index_value = df.index[i]
-            ts_event = int(index_value.value) if hasattr(index_value, "value") else int(index_value)
-            row = df.iloc[i]
+        try:
+            positions = [operator.index(df.columns.get_loc(name)) for name in columns]
+            # to_numpy() applies the same frame-wide dtype promotion as df.iloc[i],
+            # so values (including the int64-volume -> float64 upcast) stay identical.
+            values = df.to_numpy()
+            index = df.index
+            # asi8 is in the index's own unit: ms/us/s indexes would emit non-ns
+            # ts_event. as_unit("ns") keeps the tz and matches Timestamp.value.
+            as_unit = getattr(index, "as_unit", None)
+            if as_unit is not None:
+                timestamps: Any = as_unit("ns").asi8
+            else:
+                timestamps = [
+                    value.value if hasattr(value, "value") else value for value in index
+                ]
+            if (
+                getattr(values, "ndim", None) != 2
+                or values.shape[1] <= max(positions)
+                or len(timestamps) != len(values)
+            ):
+                raise ValueError("index/frame shape mismatch")
+        except (AttributeError, KeyError, TypeError, ValueError):
+            # Duplicate/MultiIndex labels or duck frames keep row-wise behaviour,
+            # including the exact exception raised by row[column].
+            for i in range(len(df)):
+                index_value = df.index[i]
+                ts_event = int(index_value.value) if hasattr(index_value, "value") else int(index_value)
+                row = df.iloc[i]
+                bars.append(
+                    Bar(
+                        bar_type=self.bar_type,
+                        instrument_id=getattr(self.instrument, "instrument_id", None),
+                        open=Price(float(row[columns[0]])),
+                        high=Price(float(row[columns[1]])),
+                        low=Price(float(row[columns[2]])),
+                        close=Price(float(row[columns[3]])),
+                        volume=Quantity.from_str(str(int(row[columns[4]]))),
+                        ts_event=ts_event,
+                        ts_init=ts_event,
+                    )
+                )
+            return bars
+
+        i_open, i_high, i_low, i_close, i_volume = positions
+        for ts_value, row in zip(timestamps, values):
+            ts_event = int(ts_value)
             bars.append(
                 Bar(
                     bar_type=self.bar_type,
                     instrument_id=getattr(self.instrument, "instrument_id", None),
-                    open=Price(float(row[columns[0]])),
-                    high=Price(float(row[columns[1]])),
-                    low=Price(float(row[columns[2]])),
-                    close=Price(float(row[columns[3]])),
-                    volume=Quantity.from_str(str(int(row[columns[4]]))),
+                    open=Price(float(row[i_open])),
+                    high=Price(float(row[i_high])),
+                    low=Price(float(row[i_low])),
+                    close=Price(float(row[i_close])),
+                    volume=Quantity.from_str(str(int(row[i_volume]))),
                     ts_event=ts_event,
                     ts_init=ts_event,
                 )

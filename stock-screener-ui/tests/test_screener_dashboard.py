@@ -395,6 +395,18 @@ def test_spark_normalization_and_fail_soft():
     assert surge["CCC"]["spark"] == []  # candle fetch raised
 
 
+def test_spark_fanout_output_independent_of_pool_size(monkeypatch):
+    """Resizing the spark pool must not reorder sparks or break fail-soft."""
+    results = []
+    for workers in (2, 6, 16):
+        monkeypatch.setattr(dashboard, "SPARK_WORKERS", workers)
+        results.append(dashboard._fetch_sparks(list(UNIVERSE)))
+
+    assert results[0] == results[1] == results[2]
+    assert list(results[0]) == UNIVERSE
+    assert results[0]["CCC"] == []
+
+
 def test_normalize_spark_flat_and_empty():
     assert normalize_spark([5.0, 5.0, 5.0]) == [0.5, 0.5, 0.5]
     assert normalize_spark([]) == []

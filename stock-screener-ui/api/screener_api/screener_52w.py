@@ -5,14 +5,14 @@ Volume, change, sector, market_cap, RSI and other live params are enriched via t
 TradingView scanner query (set_tickers on the exact candidate symbols) so the screener output
 has rich columns like the other TV-based screeners.
 """
-import os
 from datetime import datetime
 
 import config
 from api.tv import get_scanner_data
 from db.database import SessionLocal
 
-from trading.week52_range_lookup import load_all_52w_ranges
+from trading.week52.config import enrich_top_n, touch_band_gap_pct, touch_lookback_top
+from trading.week52.ranges import load_all_52w_ranges
 
 from .screener_models import (
     _to_float,
@@ -375,7 +375,12 @@ def _build_52w_candidates(ranges: dict, touched_gap_pct: float, max_gap: float, 
                 stock_data[key] = None
         stock_data['low_52w'] = round(low, 2)
         stock_data['source'] = 'upstox'
-        stock_data['rationale'] = _build_rationale(screener, stock_data)
+        # Rationale is attached only to rows that survive the profile gate.
+        # Keep the candidate-stage gap so the string matches the original
+        # computation even after a live LTP refresh rewrites to_52w_high; the
+        # placeholder holds the field's position in the payload.
+        stock_data['rationale'] = None
+        stock_data['_rationale_gap52'] = stock_data['to_52w_high']
         # The displayed price is a stored close, never a live tick: say so, and
         # say when it was captured, so the UI can label it instead of implying LTP.
         stock_data['ltp_fresh'] = False
@@ -384,6 +389,17 @@ def _build_52w_candidates(ranges: dict, touched_gap_pct: float, max_gap: float, 
 
         candidates.append(stock_data)
     return candidates
+
+
+def _attach_rationales(screener: str, rows: list[dict]) -> None:
+    """Build rationale only for rows actually returned, with their original gap."""
+    for stock in rows:
+        gap52 = stock.pop('_rationale_gap52', None)
+        if gap52 is None:
+            continue
+        seed = dict(stock)
+        seed['to_52w_high'] = gap52
+        stock['rationale'] = _build_rationale(screener, seed)
 
 
 def build_52w_skeleton_data(profile_filters=None, provider='upstox', mode='historical'):
@@ -424,6 +440,7 @@ def build_52w_skeleton_data(profile_filters=None, provider='upstox', mode='histo
     touched = data['touched']
     approaching.sort(key=lambda s: _to_float(s.get('to_52w_high'), 999))
     _sort_touched(touched)
+    _attach_rationales(screener, approaching + touched)
 
     return {
         'approaching': approaching,
@@ -444,6 +461,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
     screener = '52w_high'
     warning = None
     touched_gap_pct = touched_52w_gap_threshold_pct()
+    profile_meta = _profile_meta(screener)
 
     ranges = load_all_52w_ranges()
     if not ranges:
@@ -454,7 +472,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
             'provider': provider,
             'mode': mode,
             'screener': screener,
-            'profile_meta': _profile_meta(screener),
+            'profile_meta': profile_meta,
             'summary': [],
             'warning': 'No 52-week range data. Run scripts/compute_52w_ranges_upstox.py --redis.',
         }
@@ -503,7 +521,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         except ImportError:
             has_upstox = False
         if has_upstox:
-            top_n = int(os.environ.get('SCREENER_52W_ENRICH_TOP', '80'))
+            top_n = enrich_top_n()
             all_rows = approaching + touched
             _enrich_top_with_ltp(all_rows, api, top_n, touched_gap_pct)
 
@@ -514,8 +532,8 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         'provider': provider,
         'mode': mode,
         'screener': screener,
-        'profile_meta': _profile_meta(screener),
-        'summary': _summary_items_for(screener, approaching, touched),
+        'profile_meta': profile_meta,
+        'summary': [],
         'warning': warning,
         'touched_gap_pct': touched_gap_pct,
     }
@@ -534,8 +552,8 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
 
     _fill_days_ago_from_upstox(data['touched'], api, use_api, touched_gap_pct)
     if use_api:
-        band = float(os.environ.get('SCREENER_TOUCH_BAND_GAP_PCT', '5.0'))
-        top_n = int(os.environ.get('SCREENER_TOUCH_LOOKBACK_TOP', '120'))
+        band = touch_band_gap_pct()
+        top_n = touch_lookback_top()
         near = sorted(
             (s for s in data['approaching'] if _to_float(s.get('to_52w_high'), 100) <= band),
             key=lambda s: _to_float(s.get('to_52w_high'), 100),
@@ -554,6 +572,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
     )
     _sort_touched(data['touched'])
 
+    _attach_rationales(screener, data['approaching'] + data['touched'])
     data['summary'] = _summary_items_for(screener, data['approaching'], data['touched'])
     return data
 def _enrich_with_tv_scanner_data(stocks: list[dict]) -> None:

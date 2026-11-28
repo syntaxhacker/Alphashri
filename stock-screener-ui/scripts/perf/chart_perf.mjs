@@ -24,7 +24,7 @@ const BUDGETS_PATH = join(UI_ROOT, "perf", "chart_ui_budgets.json");
 const BASE_URL = arg("base-url", process.env.CHART_PERF_BASE_URL ?? "http://127.0.0.1:4174").replace(/\/$/, "");
 const ARTIFACT_ROOT =
   process.env.CHART_PERF_ARTIFACT_DIR ||
-  (process.env.CODESPACES ? "/workspaces/react/.agent-artifacts/chart-perf" : "/tmp/opencode/chart-perf");
+  (process.env.CODESPACES ? "/workspaces/test-rag/.agent-artifacts/chart-perf" : "/tmp/opencode/chart-perf");
 const FIXTURES_DIR = arg("fixtures", join(ARTIFACT_ROOT, "fixtures"));
 const RESULTS_PATH = arg("results", join(UI_ROOT, "perf", "chart-perf-results.json"));
 const RUNS = Math.max(3, Number(arg("runs", 3)) || 3);

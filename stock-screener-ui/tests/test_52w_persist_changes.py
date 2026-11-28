@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from db.models.stock_52w_touch import Stock52WeekRange
 from scripts import compute_52w_ranges_upstox as batch
+from trading.week52 import upsert as week52_upsert
 
 
 @pytest.fixture
@@ -137,6 +138,75 @@ class TestChangeOnlyWrites:
     def test_empty_payload_does_not_open_a_session(self, monkeypatch):
         monkeypatch.setattr(batch, "SessionLocal", MagicMock(side_effect=AssertionError))
         assert batch.persist_ranges({}, redis=False) == (0, 0)
+
+    def test_persist_ranges_delegates_to_shared_helper(self, batch_session, monkeypatch):
+        data = {"AAA": {"high": 10.0, "low": 5.0, "close": 7.0}}
+        calls = []
+
+        def fake_upsert(factory, symbols, **kwargs):
+            calls.append((factory, symbols, kwargs))
+            return 2, 3
+
+        monkeypatch.setattr(batch, "upsert_52w_ranges", fake_upsert)
+        assert batch.persist_ranges(data, redis=True) == (2, 3)
+        assert calls == [(batch_session, data, {})]
+
+
+class TestSharedUpsertHelper:
+    def test_empty_symbols_do_not_open_a_session(self):
+        factory = MagicMock(side_effect=AssertionError)
+        assert week52_upsert.upsert_52w_ranges(factory, {}) == (0, 0)
+        factory.assert_not_called()
+
+    def test_rollback_and_close_on_query_failure(self):
+        session = MagicMock()
+        session.query.side_effect = RuntimeError("boom")
+        factory = MagicMock(return_value=session)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            week52_upsert.upsert_52w_ranges(
+                factory, {"AAA": {"high": 10.0, "low": 5.0, "close": 7.0}}
+            )
+
+        session.rollback.assert_called_once_with()
+        session.close.assert_called_once_with()
+
+    def test_change_only_write_and_chunked_commits(self, batch_session):
+        old = datetime(2026, 1, 2, 9, 15)
+        _seed(
+            batch_session,
+            [
+                {
+                    "symbol": "AAA",
+                    "high_52w": 100.0,
+                    "low_52w": 50.0,
+                    "close": 75.0,
+                    "days_ago": 3,
+                    "updated_at": old,
+                },
+                {
+                    "symbol": "BBB",
+                    "high_52w": 20.0,
+                    "low_52w": 10.0,
+                    "close": 15.0,
+                    "days_ago": 2,
+                    "updated_at": old,
+                },
+            ],
+        )
+        data = {
+            "AAA": {"high": 100.0, "low": 50.0, "close": 75.0, "days_ago": 3},
+            "BBB": {"high": 20.0, "low": 10.0, "close": 16.0, "days_ago": 2},
+            "CCC": {"high": 30.0, "low": 15.0, "close": 22.0, "days_ago": 1},
+            "DDD": {"high": 40.0, "low": 20.0, "close": 30.0, "days_ago": None},
+        }
+
+        assert week52_upsert.upsert_52w_ranges(batch_session, data, chunk_size=2) == (2, 1)
+        assert _load(batch_session, "AAA").updated_at == old
+        assert _load(batch_session, "BBB").close == 16.0
+        assert _load(batch_session, "CCC") is not None
+        assert _load(batch_session, "DDD") is not None
+        assert week52_upsert.upsert_52w_ranges(batch_session, data, chunk_size=2) == (0, 0)
 
 
 class TestChunkedFlush:

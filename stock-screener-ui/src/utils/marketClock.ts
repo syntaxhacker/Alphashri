@@ -41,7 +41,12 @@ export function istClock(now: Date = new Date()): { weekday: string; minutes: nu
   };
 }
 
-/** True on Mon–Fri between 09:15 and 15:30 IST (holidays excluded). */
+/**
+ * Session-clock primitive: Mon–Fri 09:15–15:30 IST, weekends excluded but the
+ * exchange holiday calendar *not* modelled. Not a trading gate — user-facing
+ * gates use `isMarketOpenNow()` from `state/holidays.ts`; keep this for pure
+ * session/derivatives window maths only.
+ */
 export function isMarketOpenIst(now: Date = new Date()): boolean {
   const { weekday, minutes } = istClock(now);
   if (weekday === "Sat" || weekday === "Sun") return false;

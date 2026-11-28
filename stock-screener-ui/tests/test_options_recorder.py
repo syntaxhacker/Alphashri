@@ -7,6 +7,9 @@ so nothing here touches Upstox, Redis or ``experiments/data``.
 from __future__ import annotations
 
 import json
+import multiprocessing
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -44,6 +47,12 @@ LEG_FIELDS = {
 
 def _ts(hour: int = 10, minute: int = 0, second: int = 5) -> datetime:
     return datetime(2026, 10, 29, hour, minute, second, tzinfo=config.IST)
+
+
+def _append_in_child(path: str, row: dict, minute: str, barrier) -> None:
+    """One cross-process racer (forked, so it starts with a cold minute cache)."""
+    barrier.wait()
+    rec._append_tape_row_if_new(Path(path), row, minute)
 
 
 def _leg(ltp: float, oi: int, volume: int, gamma: float,
@@ -536,6 +545,92 @@ class TestTapeDedupe:
         await rec.record_tick(now=_ts())
         assert state["calls"] == 1
         assert len(_lines(rec.tape_path("SENSEX", "2026-10-29"))) == 1
+
+    async def test_external_append_invalidates_the_minute_cache(self, recorder):
+        path = rec.tape_path("SENSEX", "2026-10-29")
+        await rec.record_tick(now=_ts(minute=0, second=5))
+        cached = rec._tape_minutes_for(path)
+        assert "2026-10-29T10:00" in cached
+
+        # A second writer appends a later minute outside our lock. The changed
+        # (mtime_ns, size) must invalidate the cached index.
+        external = {"t": "2026-10-29T10:01:00+05:30", "spot": 84000.0,
+                    "underlying": "SENSEX"}
+        rec._append_jsonl(path, external)
+        assert rec._tape_minutes_for(path) == cached | {"2026-10-29T10:01"}
+
+        rec._LAST_MINUTE.clear()  # a fresh process has no in-minute gate
+        await rec.record_tick(now=_ts(minute=1, second=5))
+        rows = _lines(path)
+        assert len(rows) == 2
+        assert rows[1] == external
+
+
+class TestTapeCrossProcessRace:
+    """The check-and-append window is locked, not just cached in-process."""
+
+    @staticmethod
+    def _row(minute: str) -> dict:
+        return {"t": f"2026-10-29T{minute}:05+05:30", "spot": 84000.0,
+                "underlying": "SENSEX"}
+
+    def _race(self, path: Path, racers: list[tuple[str, dict]]) -> None:
+        ctx = multiprocessing.get_context("fork")
+        barrier = ctx.Barrier(len(racers))
+        procs = [
+            ctx.Process(target=_append_in_child,
+                        args=(str(path), row, minute, barrier))
+            for minute, row in racers
+        ]
+        for proc in procs:
+            proc.start()
+        for proc in procs:
+            proc.join(timeout=30)
+        assert [proc.exitcode for proc in procs] == [0] * len(procs)
+
+    def test_two_processes_same_minute_write_exactly_one_row(self, tmp_path):
+        path = tmp_path / "shared.jsonl"
+        row = self._row("10:00")
+        self._race(path, [("2026-10-29T10:00", row),
+                          ("2026-10-29T10:00", dict(row))])
+
+        rows = _lines(path)
+        assert len(rows) == 1
+        assert rows[0] == row
+
+    def test_two_processes_different_minutes_write_both_rows(self, tmp_path):
+        path = tmp_path / "shared.jsonl"
+        first, second = self._row("10:00"), self._row("10:01")
+        self._race(path, [("2026-10-29T10:00", first),
+                          ("2026-10-29T10:01", second)])
+
+        rows = _lines(path)
+        assert len(rows) == 2
+        assert {row["t"][:16] for row in rows} == {
+            "2026-10-29T10:00", "2026-10-29T10:01"}
+
+    def test_two_threads_same_minute_write_exactly_one_row(self, tmp_path):
+        path = tmp_path / "threads.jsonl"
+        row = self._row("10:00")
+        barrier = threading.Barrier(2)
+
+        def racer() -> None:
+            barrier.wait()
+            rec._append_tape_row_if_new(path, row, "2026-10-29T10:00")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(lambda _: racer(), range(2)))
+        assert _lines(path) == [row]
+
+    def test_locked_check_reads_whole_minute_index_not_just_tail(self, tmp_path):
+        path = tmp_path / "out-of-order.jsonl"
+        minute_row = self._row("10:00")
+        rec._append_jsonl(path, minute_row)
+        rec._append_jsonl(path, self._row("10:01"))  # later minute follows it
+
+        assert rec._append_tape_row_if_new(
+            path, dict(minute_row), "2026-10-29T10:00") is False
+        assert _lines(path) == [minute_row, self._row("10:01")]
 
 
 class TestFailures:

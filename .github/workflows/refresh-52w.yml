@@ -2,7 +2,8 @@ name: Refresh 52W ranges
 
 # Daily EOD 52W high/low refresh. Compute runs on a GitHub-hosted runner and
 # publishes a compact gzipped JSON asset to a monthly data-YYYY-MM release.
-# Local application is manual: scripts/sync_refresh_assets.py.
+# Local application is automatic via the release-sync watcher, or manual via
+# the scripts/sync_refresh_assets.py CLI.
 
 on:
   schedule:
@@ -40,6 +41,10 @@ jobs:
     env:
       PYTHONUNBUFFERED: '1'
       PYTHONPATH: ${{ github.workspace }}/stock-screener-ui:${{ github.workspace }}
+      # CI uses the 1-year, read-only Analytics Token: Upstox OAuth access tokens
+      # expire daily (03:30 IST) and Upstox issues no refresh token.
+      UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ANALYTICS_TOKEN }}
+      # Optional fallback only — the job works with the analytics token alone.
       UPSTOX_API_KEY: ${{ secrets.UPSTOX_API_KEY }}
       UPSTOX_API_SECRET: ${{ secrets.UPSTOX_API_SECRET }}
       GH_TOKEN: ${{ github.token }}
@@ -57,6 +62,7 @@ jobs:
         uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          cache-dependency-glob: "**/requirements.txt"
 
       - name: Install 52W dependencies
         run: |
@@ -208,6 +214,41 @@ jobs:
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
           echo "manifest=$MANIFEST" >> "$GITHUB_OUTPUT"
           echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          echo "tag=data-${DATE:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Guard against rolling back newer 52W data
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && steps.compute.outputs.skip != 'true' && steps.validate.outputs.count != '0' }}
+        env:
+          DATE: ${{ steps.package.outputs.date }}
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+            && [ -n "${REQUESTED_LIMIT:-}" ] && [ "$REQUESTED_LIMIT" != "0" ]; then
+            echo "Smoke-test run (limit=$REQUESTED_LIMIT); skipping 52W rollback guard."
+            exit 0
+          fi
+
+          TAG="data-${DATE:0:7}"
+          # A missing tag/release means there is no published data to roll back over.
+          EXISTING=$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || true)
+          MAX_DATE=""
+          while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            if printf '%s' "$name" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.json\.gz$'; then
+              candidate="${name%.json.gz}"
+              if [[ "$candidate" > "$MAX_DATE" ]]; then
+                MAX_DATE="$candidate"
+              fi
+            fi
+          done <<< "$EXISTING"
+
+          if [ -n "$MAX_DATE" ] && [[ "$DATE" < "$MAX_DATE" ]]; then
+            echo "::error::$TAG already has 52W payload $MAX_DATE.json.gz; refusing to upload older $DATE data."
+            exit 1
+          fi
+          echo "Rollback guard passed for $TAG (newest existing 52W date: ${MAX_DATE:-none})."
 
       - name: Upload to monthly data release
         if: ${{ (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && steps.compute.outputs.skip != 'true' && steps.validate.outputs.count != '0' }}
@@ -244,3 +285,91 @@ jobs:
             fi
           done
           echo "Uploaded $ASSET and $MANIFEST to $TAG (verified)"
+
+      - name: Prune earlier 52W assets
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && steps.compute.outputs.skip != 'true' && steps.validate.outputs.count != '0' && (github.event_name != 'workflow_dispatch' || inputs.limit == '0' || inputs.limit == '') }}
+        env:
+          TAG: ${{ steps.package.outputs.tag }}
+          ASSET: ${{ steps.package.outputs.asset }}
+          MANIFEST: ${{ steps.package.outputs.manifest }}
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          # A smoke run publishes nothing, so pruning would remove the live pair.
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+            && [ -n "${REQUESTED_LIMIT:-}" ] && [ "$REQUESTED_LIMIT" != "0" ]; then
+            echo "Smoke-test run (limit=$REQUESTED_LIMIT); skipping 52W asset prune."
+            exit 0
+          fi
+
+          KEEP_PAYLOAD=$(basename "$ASSET")
+          KEEP_MANIFEST=$(basename "$MANIFEST")
+          KEEP_DATE="${KEEP_PAYLOAD%.json.gz}"
+
+          PUBLISHED=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+
+          STALE=()
+          NEWER=()
+          while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            case "$name" in
+              "$KEEP_PAYLOAD"|"$KEEP_MANIFEST") continue ;;
+            esac
+            # Anchored date patterns keep AGRI payloads (*.jsonl.gz) and
+            # manifests (agri-*.json) out of the deletion set.
+            candidate_date=""
+            if printf '%s' "$name" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.json\.gz$'; then
+              candidate_date="${name%.json.gz}"
+            elif printf '%s' "$name" | grep -Eq '^52w-[0-9]{4}-[0-9]{2}-[0-9]{2}\.json$'; then
+              candidate_date="${name#52w-}"
+              candidate_date="${candidate_date%.json}"
+            else
+              continue
+            fi
+            # A concurrent run may have published a newer pair between the
+            # rollback guard and this prune. Never delete such a pair.
+            if [[ "$candidate_date" > "$KEEP_DATE" ]]; then
+              NEWER+=("$name")
+            else
+              STALE+=("$name")
+            fi
+          done <<< "$PUBLISHED"
+
+          if [ "${#NEWER[@]}" -gt 0 ]; then
+            echo "::error::$TAG holds 52W assets newer than $KEEP_DATE (${NEWER[*]}); refusing to prune to avoid deleting concurrent data."
+            exit 1
+          fi
+
+          if [ "${#STALE[@]}" -gt 0 ]; then
+            for name in "${STALE[@]}"; do
+              gh release delete-asset "$TAG" "$name" -y
+            done
+          fi
+
+          REMAINING=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for name in "$KEEP_PAYLOAD" "$KEEP_MANIFEST"; do
+            if ! printf '%s\n' "$REMAINING" | grep -Fqx -- "$name"; then
+              echo "::error::$TAG is missing $name after prune"
+              exit 1
+            fi
+          done
+
+          LEFTOVER=()
+          while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            case "$name" in
+              "$KEEP_PAYLOAD"|"$KEEP_MANIFEST") continue ;;
+            esac
+            if printf '%s' "$name" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.json\.gz$' \
+              || printf '%s' "$name" | grep -Eq '^52w-[0-9]{4}-[0-9]{2}-[0-9]{2}\.json$'; then
+              LEFTOVER+=("$name")
+            fi
+          done <<< "$REMAINING"
+          if [ "${#LEFTOVER[@]}" -gt 0 ]; then
+            echo "::error::$TAG still has stale 52W assets: ${LEFTOVER[*]}"
+            exit 1
+          fi
+
+          # The date-stamped pair is the sync script's pairing key, so log exactly what survived.
+          echo "Pruned ${#STALE[@]} earlier 52W asset(s) from $TAG; kept $KEEP_PAYLOAD and $KEEP_MANIFEST."

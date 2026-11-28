@@ -35,6 +35,7 @@ from backtest.strategies.week52_chaser import (
     get_date_from_ns,
 )
 from backtest.strategies.base import StrategyParam
+from trading.week52.defaults import ChaserDefaults
 
 
 def create_mock_candle_data(
@@ -343,7 +344,7 @@ class TestWeek52ChaserStrategyMetadata:
             (p for p in params if p.key == "entry_threshold_pct"), None
         )
         assert entry_threshold is not None
-        assert entry_threshold.default == 3.0
+        assert entry_threshold.default == ChaserDefaults.entry_threshold_pct
         assert entry_threshold.type == "number"
 
     def test_stop_loss_param_defaults(self):
@@ -351,7 +352,7 @@ class TestWeek52ChaserStrategyMetadata:
         params = Week52ChaserStrategy.get_params()
         sl = next((p for p in params if p.key == "stop_loss_pct"), None)
         assert sl is not None
-        assert sl.default == 3.0
+        assert sl.default == ChaserDefaults.sl_pct
         assert sl.min == 1.0
         assert sl.max == 8.0
 
@@ -360,7 +361,7 @@ class TestWeek52ChaserStrategyMetadata:
         params = Week52ChaserStrategy.get_params()
         tp = next((p for p in params if p.key == "take_profit_pct"), None)
         assert tp is not None
-        assert tp.default == 5.0
+        assert tp.default == ChaserDefaults.tp_pct
 
     def test_trailing_stop_is_boolean(self):
         """Test: Enable trailing stop is boolean type."""
@@ -376,9 +377,9 @@ class TestWeek52ChaserStrategyMetadata:
         defaults = strategy.get_default_params()
 
         assert isinstance(defaults, dict)
-        assert defaults["entry_threshold_pct"] == 3.0
-        assert defaults["stop_loss_pct"] == 3.0
-        assert defaults["take_profit_pct"] == 5.0
+        assert defaults["entry_threshold_pct"] == ChaserDefaults.entry_threshold_pct
+        assert defaults["stop_loss_pct"] == ChaserDefaults.sl_pct
+        assert defaults["take_profit_pct"] == ChaserDefaults.tp_pct
 
 
 class TestWeek52ChaserStrategyValidation:
@@ -388,9 +389,9 @@ class TestWeek52ChaserStrategyValidation:
         """Test: Valid params return no errors."""
         strategy = Week52ChaserStrategy()
         errors = strategy.validate_params({
-            "entry_threshold_pct": 3.0,
-            "stop_loss_pct": 3.0,
-            "take_profit_pct": 5.0,
+            "entry_threshold_pct": ChaserDefaults.entry_threshold_pct,
+            "stop_loss_pct": ChaserDefaults.sl_pct,
+            "take_profit_pct": ChaserDefaults.tp_pct,
         })
         assert errors == []
 
@@ -486,16 +487,16 @@ class TestWeek52ChaserConfig:
             bar_type=bar_type,
         )
 
-        assert config.entry_threshold_pct == 2.0
-        assert config.stop_loss_pct == 2.0
-        assert config.take_profit_pct == 3.0
-        assert config.enable_trailing_stop is False
-        assert config.trailing_stop_pct == 2.0
-        assert config.trailing_activation_pct == 3.0
-        assert config.max_holding_days == 30
-        assert config.cooldown_days == 30
+        assert config.entry_threshold_pct == ChaserDefaults.entry_threshold_pct
+        assert config.stop_loss_pct == ChaserDefaults.sl_pct
+        assert config.take_profit_pct == ChaserDefaults.tp_pct
+        assert config.enable_trailing_stop is ChaserDefaults.enable_trailing_stop
+        assert config.trailing_stop_pct == ChaserDefaults.trailing_stop_pct
+        assert config.trailing_activation_pct == ChaserDefaults.trailing_activation_pct
+        assert config.max_holding_days == ChaserDefaults.max_holding_days
+        assert config.cooldown_days == ChaserDefaults.cooldown_days
         assert config.trade_size == 100
-        assert config.enable_filters is False
+        assert config.enable_filters is ChaserDefaults.enable_filters
 
     def test_config_custom_values(self):
         """Test: Config accepts custom values."""
@@ -1087,6 +1088,120 @@ class TestFilterLogic:
         enable_filters = next((p for p in params if p.key == "enable_filters"), None)
         assert enable_filters is not None
         assert enable_filters.default is False
+
+
+class TestShared52WBoilerplate:
+    """Parity guards for the helpers extracted into backtest/strategies/base_52w.py."""
+
+    def test_summarize_trades_matches_prior_inline_math(self):
+        from backtest.strategies.base_52w import summarize_trades
+
+        trades = [
+            {'gross_pnl': 12.5, 'trading_costs': 1.5, 'net_pnl': 11.0},
+            {'gross_pnl': -4.0, 'trading_costs': 0.5, 'net_pnl': -4.5},
+            {'gross_pnl': 0.0, 'trading_costs': 0.0, 'net_pnl': 0.0},
+        ]
+        for include_costs in (True, False):
+            gross = sum(t['gross_pnl'] for t in trades)
+            costs = sum(t['trading_costs'] for t in trades) if include_costs else 0
+            wins = sum(1 for t in trades if t['net_pnl'] > 0)
+            losses = sum(1 for t in trades if t['net_pnl'] < 0)
+            total = wins + losses
+            profits = sum(t['net_pnl'] for t in trades if t['net_pnl'] > 0)
+            losses_total = abs(sum(t['net_pnl'] for t in trades if t['net_pnl'] < 0))
+
+            assert summarize_trades(trades, include_costs) == {
+                'gross_pnl': gross,
+                'total_costs': costs,
+                'net_pnl': gross - costs,
+                'wins': wins,
+                'losses': losses,
+                'total_trades': total,
+                'win_rate': (wins / total * 100) if total > 0 else 0,
+                'profit_factor': profits / losses_total if losses_total > 0 else float('inf') if profits > 0 else 0,
+            }
+
+    def test_summarize_trades_empty_and_all_wins(self):
+        from backtest.strategies.base_52w import summarize_trades
+
+        assert summarize_trades([], True) == {
+            'gross_pnl': 0,
+            'total_costs': 0,
+            'net_pnl': 0,
+            'wins': 0,
+            'losses': 0,
+            'total_trades': 0,
+            'win_rate': 0,
+            'profit_factor': 0,
+        }
+        assert summarize_trades([{'gross_pnl': 1.0, 'trading_costs': 0.0, 'net_pnl': 1.0}], False)['profit_factor'] == float('inf')
+
+    def test_empty_backtest_result_shape(self, monkeypatch):
+        from backtest.strategies import base_52w
+        from backtest import utils
+
+        candles = [{'close': 100.0}]
+        monkeypatch.setattr(utils, 'build_candle_data', lambda df: candles)
+        frame = pd.DataFrame({'close': [100.0]})
+
+        assert base_52w.empty_backtest_result('TEST', frame) == {
+            'symbol': 'TEST',
+            'success': True,
+            'trades': 0,
+            'result': None,
+            'candles': candles,
+        }
+
+    def test_both_strategies_share_the_extracted_helpers(self):
+        from backtest.strategies import base_52w
+        from backtest.strategies import week52_chaser as chaser
+        from backtest.strategies import week52_target as target
+
+        for name in (
+            'add_project_root_to_path',
+            'get_broker_access_token',
+            'summarize_trades',
+            'empty_backtest_result',
+        ):
+            shared = getattr(base_52w, name)
+            assert getattr(chaser, name) is shared
+            assert getattr(target, name) is shared
+        assert chaser._NAUTILUS_AVAILABLE is base_52w._NAUTILUS_AVAILABLE
+        assert target._NAUTILUS_AVAILABLE is base_52w._NAUTILUS_AVAILABLE
+
+    def test_run_single_functions_use_shared_stats_only(self):
+        import ast
+        import inspect
+        import textwrap
+        from backtest.strategies import week52_chaser as chaser
+        from backtest.strategies import week52_target as target
+
+        stale_locals = {
+            'gross_pnl', 'total_costs', 'net_pnl', 'wins', 'losses',
+            'total_trades', 'win_rate', 'profit_factor',
+            'gross_profits', 'gross_losses',
+        }
+        for func in (chaser.run_single_stock_backtest, target.run_single_stock_week52_target):
+            tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
+            loaded = {
+                node.id for node in ast.walk(tree)
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+            }
+            assert not loaded & stale_locals, f"{func.__name__} still reads removed stats locals"
+
+    def test_get_broker_access_token_uses_shared_broker_token(self, monkeypatch):
+        from backtest.strategies import base_52w
+        from db import models
+
+        seen = []
+
+        def fake_token(broker):
+            seen.append(broker)
+            return {'access_token': 'token-from-db'}
+
+        monkeypatch.setattr(models, 'get_shared_broker_token', fake_token)
+        assert base_52w.get_broker_access_token() == 'token-from-db'
+        assert seen == ['upstox']
 
 
 if __name__ == "__main__":

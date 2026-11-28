@@ -1,7 +1,7 @@
 # Performance — index
 
-- **Last checked: 2026-11-26**
-- **Next check: 2026-12-03**
+- **Last checked: 2026-11-28**
+- **Next check: 2026-12-05**
 
 Short index only. The budgets and the enforcement rules live in
 [`AGENTS.md` → *Performance budgets and checks*](../AGENTS.md#performance-budgets-and-checks).
@@ -12,9 +12,9 @@ Keep this page a pointer; do not duplicate numbers here.
 | Topic | Source |
 |---|---|
 | Wall/test budgets (backend + frontend) | [`perf/budgets.json`](../perf/budgets.json) |
-| API latency budgets (per-route warm p95, including the seeded-cache chart route; `API_COLD` = `agri_filters` cold budget 10,000 ms) | [`perf/api_budgets.json`](../perf/api_budgets.json) |
+| API latency budgets (per-route warm p95, including the seeded-cache chart route; `API_COLD` = `agri_filters` cold budget 10,000 ms — re-measured **PASS** 2026-11-28, see [docs/API_LATENCY.md](./API_LATENCY.md)) | [`perf/api_budgets.json`](../perf/api_budgets.json) |
 | Interactive chart/UI protocol, budgets and scripts (initial targets pending baseline) | [docs/CHART_PERFORMANCE.md](./CHART_PERFORMANCE.md) · [`perf/chart_ui_budgets.json`](../perf/chart_ui_budgets.json) · [`scripts/perf/`](../scripts/perf/) |
-| API benchmark, warm/cold semantics, verdicts, known breach | [docs/API_LATENCY.md](./API_LATENCY.md) · [`scripts/bench_api.py`](../scripts/bench_api.py) |
+| API benchmark, warm/cold semantics, verdicts, agri cold path re-measured/resolved 2026-11-28 | [docs/API_LATENCY.md](./API_LATENCY.md) · [`scripts/bench_api.py`](../scripts/bench_api.py) · [`scripts/perf/bench_agri.py`](../scripts/perf/bench_agri.py) |
 | Backend fast changed-test runner (selection rules, markers, flags) | [docs/TESTING_SPEED.md](./TESTING_SPEED.md) · [`scripts/test/run_changed.py`](../scripts/test/run_changed.py) |
 | CI shard/tier facts (12 python shards; E2E 20 shards) | [`.github/workflows/test.yml`](../../.github/workflows/test.yml) · `AGENTS.md` |
 
@@ -38,7 +38,10 @@ last-checked / next-check on every review.
   (from `perf/api_budgets.json`); p50/p95/p99 come from the measured samples
   only. Warm and cold are separate tables, never averaged together. Cold paths
   must be tagged `API_COLD` — only `/api/agri/filters` has an agreed cold budget
-  (10,000 ms); other routes report `cold: null` as INFO.
+  (10,000 ms); other routes report `cold: null` as INFO. That agri cold budget
+  was re-measured as **PASS** on 2026-11-28 (only the agri cold path was
+  re-measured in that pass); see [docs/API_LATENCY.md](./API_LATENCY.md) and
+  [`scripts/perf/bench_agri.py`](../scripts/perf/bench_agri.py).
 - **Chart route warm read.** The in-process chart benchmark pre-seeds a
   session-current `1D` candle file under its own temp workdir and disables only
   the stale-first *background* refresh, so the measured p95 is candle-cache
@@ -66,6 +69,32 @@ last-checked / next-check on every review.
   [`perf/chart_ui_budgets.json`](../perf/chart_ui_budgets.json) and are gated by
   `bun run perf:chart`; they are not averaged with the API or test-budget tables
   here.
+
+## Benchmark harnesses
+
+Deterministic, network-free harnesses in [`scripts/perf/`](../scripts/perf/).
+Paths are repo-relative; commands run from `stock-screener-ui`. Use the project
+venv interpreter. The harnesses also offer golden/parity modes — see each
+script's docstring. Report medians, never a single run.
+
+| Script | Measures | One-line command |
+|---|---|---|
+| [`stock-screener-ui/scripts/perf/bench_levels.py`](../scripts/perf/bench_levels.py) | LevelBook build/fusion vs the raw `compute_sr_zones` detector | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_levels.py` |
+| [`stock-screener-ui/scripts/perf/bench_agri.py`](../scripts/perf/bench_agri.py) | Agri `/api/agri/filters` cold/warm/profile/parity against a synthetic cache (never the real DB) | `python scripts/perf/bench_agri.py warm` (run `build` once first) |
+| [`stock-screener-ui/scripts/perf/bench_indicators.py`](../scripts/perf/bench_indicators.py) | Indicator computation across timeframes, with optional golden parity check | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_indicators.py` |
+| [`stock-screener-ui/scripts/perf/bench_sr.py`](../scripts/perf/bench_sr.py) | Support/resistance zone computation on seeded candles, with golden dump/compare | `PYTHONPATH=. python scripts/perf/bench_sr.py --mode bench` |
+| [`stock-screener-ui/scripts/perf/bench_api_reads.py`](../scripts/perf/bench_api_reads.py) | 52W touch-history enrichment read path on in-memory SQLite with a frozen clock | `python scripts/perf/bench_api_reads.py` |
+| [`stock-screener-ui/scripts/perf/bench_backtest_chart.py`](../scripts/perf/bench_backtest_chart.py) | Backtest chart-data payload build, with frozen-fixture parity capture/compare | `python scripts/perf/bench_backtest_chart.py bench` |
+| [`stock-screener-ui/scripts/perf/bench_backtest_sim.py`](../scripts/perf/bench_backtest_sim.py) | Sim `BarDataWrangler` bar conversion, with bit-exact capture/compare and A/B | `PYTHONPATH=. python scripts/perf/bench_backtest_sim.py bench <baseline.json>` |
+| [`stock-screener-ui/scripts/perf/bench_instrument_index.py`](../scripts/perf/bench_instrument_index.py) | Instrument-key resolution: linear scan vs indexed map (counted + wall passes) | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_instrument_index.py` |
+| [`stock-screener-ui/scripts/perf/bench_screener_52w.py`](../scripts/perf/bench_screener_52w.py) | 52W screener read path with counted upstream reads; capture/verify/bench modes | `python scripts/perf/bench_screener_52w.py --mode bench3` |
+| [`stock-screener-ui/scripts/perf/bench_screener_52w_meta.py`](../scripts/perf/bench_screener_52w_meta.py) | 52W rationale/summary call counts + response parity over mixed/empty/skeleton fixtures | `python scripts/perf/bench_screener_52w_meta.py --compare <baseline.json>` (run `--capture <baseline.json>` first) |
+| [`stock-screener-ui/scripts/perf/bench_dashboard_sparks.py`](../scripts/perf/bench_dashboard_sparks.py) | Dashboard spark fan-out with a fixed-latency fetch stub | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_dashboard_sparks.py` |
+| [`stock-screener-ui/scripts/perf/bench_value_scan.py`](../scripts/perf/bench_value_scan.py) | Value-scan scoring parity/counts/wall on a 2,000-row fixture | `python scripts/perf/bench_value_scan.py wall --out wall.json` |
+| [`stock-screener-ui/scripts/perf/bench_options_walls.py`](../scripts/perf/bench_options_walls.py) | Options-wall payload/counts/time on a deterministic tape | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_options_walls.py time` |
+| [`stock-screener-ui/scripts/perf/bench_sector_themes.py`](../scripts/perf/bench_sector_themes.py) | Theme aggregation parity/counts/time | `python scripts/perf/bench_sector_themes.py time` |
+| [`stock-screener-ui/scripts/perf/bench_cache_stats.py`](../scripts/perf/bench_cache_stats.py) | Cache-stats command-count/parity probe | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_cache_stats.py` |
+| [`stock-screener-ui/scripts/perf/bench_tape_reads.py`](../scripts/perf/bench_tape_reads.py) | tape/bursts JSONL parse-cache parity, parse counts and wall clock | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_tape_reads.py --label before` (run again with `--label after` to compare) |
 
 ## 2026-11-26 backend/DB performance loop
 
@@ -97,7 +126,10 @@ trade projections (`api/strategy_performance.py`,
 two paper test files); benchmark/test harness (`scripts/perf/db_query_bench.py`,
 `tests/perf/test_db_query_bench.py`, new tests).
 
-**Caveats:** agri backend/caches/tests excluded throughout. Live
+**Caveats:** agri backend/caches/tests excluded throughout this loop; the agri
+cold path was re-measured separately on 2026-11-28 (PASS; only agri cold was
+re-measured in that pass) — see [docs/API_LATENCY.md](./API_LATENCY.md) and
+[`scripts/perf/bench_agri.py`](../scripts/perf/bench_agri.py). Live
 `db/alphashri.db` hash drifted from the externally running uvicorn/WAL
 checkpoints — never opened, migrated, restored or written by this work; all
 verification was in-memory SQLite or read-only. A mixed-directory explicit-file

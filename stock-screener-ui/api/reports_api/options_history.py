@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 import os
 import statistics
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -120,9 +121,59 @@ def _path(kind: str, symbol: str, date_str: str, suffix: str = ".jsonl") -> Path
     return DATA_ROOT / kind / symbol / f"{date_str}{suffix}"
 
 
+#: Parsed-JSONL rows for the polled read paths. The effective key is
+#: ``(resolved path, st_mtime_ns, st_size, tail-window)``: an append moves size,
+#: an atomic replace moves mtime/inode, and both therefore invalidate. Stored
+#: rows are held in a tuple of dicts that is never handed out directly — each
+#: read returns a fresh list of fresh shallow dict copies, so a caller that
+#: reorders the list or overwrites a row key cannot poison the cache. (Nested
+#: values such as ``chain`` are shared read-only: every consumer here —
+#: ``derive_tape_rows``, ``_trim_tape_chains``, ``minute_frames``,
+#: ``summarise_snapshots`` and the burst detectors — builds new dicts instead of
+#: mutating its input, and a deep copy of a 50k-row tape would cost as much as
+#: the parse this cache removes.) A 4-entry LRU bounds memory across symbols;
+#: missing/unstatable files are never cached and still return ``[]``.
+_JSONL_CACHE_MAX = 4
+_JSONL_CACHE: dict[tuple[str, Optional[int]], tuple[tuple[int, int], tuple[dict, ...]]] = {}
+_JSONL_LOCK = threading.Lock()
+
+
+def _cached_jsonl(path: Path, max_bytes: Optional[int]) -> list[dict]:
+    """Parse-through cache shared by the full-file, tail and newest-N readers."""
+    try:
+        resolved = str(path.resolve())
+        st = Path(resolved).stat()
+    except OSError:
+        return []
+    key = (resolved, max_bytes)
+    stamp = (st.st_mtime_ns, st.st_size)
+    with _JSONL_LOCK:
+        entry = _JSONL_CACHE.get(key)
+        hit = entry is not None and entry[0] == stamp
+    if not hit:
+        # Parsing outside the lock keeps a cold read on one symbol from blocking
+        # another; a concurrent cold read of the same path may parse twice, but
+        # both parses see the same file and the last write wins harmlessly.
+        if max_bytes is None:
+            parsed = read_jsonl(path)
+        elif max_bytes == _NEWEST_SNAPS_WINDOW:
+            # A negative window selects the backwards line reader; its magnitude
+            # is the effective window, so it shares the cache but never shares a
+            # key with a byte-window read of the same file.
+            parsed = _read_jsonl_newest(path, -max_bytes)
+        else:
+            parsed = read_jsonl_tail(path, max_bytes=max_bytes)
+        entry = (stamp, tuple(parsed))
+        with _JSONL_LOCK:
+            _JSONL_CACHE[key] = entry
+            while len(_JSONL_CACHE) > _JSONL_CACHE_MAX:
+                _JSONL_CACHE.pop(next(iter(_JSONL_CACHE)))
+    return [dict(row) for row in entry[1]]
+
+
 def _read_jsonl(path: Path) -> list[dict]:
     """Parsed JSON-object lines; ``[]`` when missing, blank lines skipped."""
-    return read_jsonl(path)
+    return _cached_jsonl(path, None)
 
 
 #: The bursts feed is polled; a symbol's chain10s day file is several MB.
@@ -162,8 +213,95 @@ def _read_jsonl_tail(path: Path, max_bytes: int = 1_500_000) -> list[dict]:
     polls every few seconds; re-reading the whole day for the newest 240
     snapshots was pure waste. The first line of a tail read is almost always
     partial, so it is dropped unless the read started at 0. Never raises.
+    The parse is cached on ``(resolved path, mtime_ns, size, max_bytes)``; the
+    tail-window semantics themselves are unchanged.
     """
-    return read_jsonl_tail(path, max_bytes=max_bytes)
+    return _cached_jsonl(path, max_bytes)
+
+
+#: The blast strip scans the newest 240 chain snapshots. A byte window cannot
+#: express that on a dense day (1.5 MB may hold fewer than 240 large rows), so
+#: the blast path counts complete lines backwards from EOF instead.
+_SNAPS_WINDOW = 240
+_SNAPS_CHUNK_BYTES = 1_500_000
+_SNAPS_MAX_BYTES = 16_000_000
+#: Negative ``max_bytes`` is the cache-key marker for the newest-N-lines reader.
+_NEWEST_SNAPS_WINDOW = -_SNAPS_WINDOW
+
+
+def _read_jsonl_newest(
+    path: Path,
+    count: int = _SNAPS_WINDOW,
+    *,
+    chunk_bytes: int = _SNAPS_CHUNK_BYTES,
+    max_bytes: int = _SNAPS_MAX_BYTES,
+) -> list[dict]:
+    """Newest ``count`` complete JSON-object lines of ``path``, oldest first.
+
+    Reads backwards in ``chunk_bytes`` blocks until ``count`` newline-terminated
+    lines are in hand, the start of file is reached, or ``max_bytes`` has been
+    read — whichever comes first. The cap keeps a corrupt file with no newlines
+    from turning a poll into a whole-file scan. Blank lines, malformed JSON and
+    non-dict rows are skipped exactly as in :func:`read_jsonl`; a partial line
+    at the window's left edge is dropped unless the read reached byte 0 (a final
+    unterminated line at EOF is a real line). Never raises.
+    """
+    parsed: list[dict] = []
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            pos = fh.tell()
+            buf = b""
+            newlines = 0
+            read_bytes = 0
+            # EOF is a line boundary: a final unterminated line is a real line.
+            boundary = True
+            while pos > 0 and read_bytes < max_bytes:
+                step = min(chunk_bytes, pos, max_bytes - read_bytes)
+                start = pos - step
+                fh.seek(start)
+                chunk = fh.read(step)
+                if not chunk:
+                    break
+                buf = chunk + buf
+                read_bytes += len(chunk)
+                newlines += chunk.count(b"\n")
+                pos = start
+                # Whether ``buf`` now starts on a line boundary decides whether
+                # its first segment is a whole line or a partial left fragment.
+                if start > 0:
+                    fh.seek(start - 1)
+                    boundary = fh.read(1) == b"\n"
+                else:
+                    boundary = True
+                if newlines < count and pos > 0 and read_bytes < max_bytes:
+                    continue
+                parts = buf.split(b"\n")
+                if not boundary:
+                    parts = parts[1:]
+                parsed = []
+                for raw in parts:
+                    raw = raw.strip()
+                    if not raw:
+                        continue
+                    try:
+                        row = json.loads(raw)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                    if isinstance(row, dict):
+                        parsed.append(row)
+                # Keep reading when malformed lines left us short of ``count``;
+                # the left fragment stays in ``buf`` until it is completed.
+                if len(parsed) >= count or pos == 0 or read_bytes >= max_bytes:
+                    break
+    except OSError:
+        return []
+    return parsed[-count:]
+
+
+def _read_jsonl_newest_cached(path: Path) -> list[dict]:
+    """Cached newest-240 read: one parse per path while mtime/size is unchanged."""
+    return _cached_jsonl(path, _NEWEST_SNAPS_WINDOW)
 
 
 def _read_json(path: Path) -> Optional[dict]:
@@ -483,7 +621,7 @@ def _chain_blasts(symbol: str, date_str: str, lookback_min: int) -> list[dict]:
     Delegates to the shared implementation in :mod:`api.reports_api._blasts`.
     """
     def _get_snaps(d: str) -> list[dict]:
-        return _read_jsonl_tail(_path(CHAIN10S_DIR, symbol, d))[-240:]
+        return _read_jsonl_newest_cached(_path(CHAIN10S_DIR, symbol, d))
 
     return _shared_chain_blasts(
         date_str=date_str,

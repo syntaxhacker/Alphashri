@@ -15,13 +15,16 @@ from pathlib import Path
 import pytest
 import pandas as pd
 from unittest.mock import patch
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+import config
+
+import api.sector as sector_module
 from api.sector import (
     router,
     _to_float,
@@ -68,6 +71,16 @@ def _setup_scan(mock_scan, data=None):
     mock_scan.side_effect = None
     mock_scan.return_value = data.copy() if hasattr(data, "copy") else data
     return mock_scan
+
+
+def _assert_ist_last_updated(raw):
+    # The dashboard renders this as a clock time, so a naive host-clock value
+    # silently shows the wrong time; the offset is part of the contract.
+    parsed = datetime.fromisoformat(raw)
+    assert isinstance(parsed, datetime)
+    assert parsed.tzinfo is not None
+    assert parsed.utcoffset() == timedelta(hours=5, minutes=30)
+    assert parsed.tzinfo == config.IST
 
 
 class TestSectorModels:
@@ -190,6 +203,7 @@ class TestSectorEndpoints:
         assert data["sectors"] == []
         assert data["top_stock_movers"] == []
         assert data["market"] == "america"
+        _assert_ist_last_updated(data["last_updated"])
 
     @patch('api.tv.cache.scan_frame')
     def test_get_sector_performance_sectors_sorted_by_performance(self, mock_scan, sector_client):
@@ -250,8 +264,25 @@ class TestSectorEndpoints:
     @patch('api.tv.cache.scan_frame')
     def test_get_sector_performance_last_updated_is_iso(self, mock_scan, sector_client):
         data = _fetch_sector_data(mock_scan, sector_client, params={"market": "india"})
-        parsed = datetime.fromisoformat(data["last_updated"])
-        assert isinstance(parsed, datetime)
+        _assert_ist_last_updated(data["last_updated"])
+
+    @pytest.mark.parametrize("frame,side_effect", [
+        (SAMPLE_SECTOR_DATA, None),
+        (pd.DataFrame(), None),
+        (None, RuntimeError("tv down")),
+    ])
+    def test_group_performance_last_updated_has_ist_offset(self, frame, side_effect, sector_client):
+        sector_module._group_cache.clear()
+        try:
+            with patch.object(sector_module, "_fetch_group_data",
+                              return_value=frame, side_effect=side_effect):
+                response = sector_client.get(
+                    "/api/sector/groups", params={"classify": "sector", "period": "1D"}
+                )
+            assert response.status_code == 200
+            _assert_ist_last_updated(response.json()["last_updated"])
+        finally:
+            sector_module._group_cache.clear()
 
 
 class TestSectorResponseCache:

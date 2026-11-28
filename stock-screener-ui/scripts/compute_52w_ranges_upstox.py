@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import math
 import os
 import sys
 import time
@@ -27,14 +28,15 @@ import config
 from db.database import SessionLocal, init_db
 from db.models import Instrument
 from db.models.stock_52w_touch import Stock52WeekRange
-from trading.week52_utils import build_52w_range_from_ohlc, days_since_52w_high_touch_from_df
-from trading.week52_job_status import (
+from trading.week52.job import (
     finish_job,
     fail_job,
     get_job_status,
     start_job,
     update_job_progress,
 )
+from trading.week52.upsert import upsert_52w_ranges
+from trading.week52_utils import build_52w_range_from_ohlc, days_since_52w_high_touch_from_df
 
 NSE_INSTRUMENTS_JSON = (
     _project_root.parent / "upstox_trader" / "config_and_utils" / "nse_instruments.json"
@@ -48,6 +50,173 @@ DB_FLUSH_EVERY = 500
 # Cleared when a run is compute-only or Redis-free so the top-level exception
 # handler never reaches for the Redis-backed job status.
 JOB_STATUS_ENABLED = True
+
+
+def format_count(value: int) -> str:
+    return f"{int(value):,}"
+
+
+def format_eta(seconds: float | None) -> str:
+    if seconds is None or not math.isfinite(seconds) or seconds < 0:
+        return "?"
+    hours, rem = divmod(int(seconds), 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m{secs:02d}s"
+    return f"{minutes}m{secs:02d}s"
+
+
+def progress_bar(done: int, total: int, width: int = 20) -> str:
+    if width <= 0:
+        return "[]"
+    filled = min(width, max(0, int(done / total * width))) if total > 0 else 0
+    return "[" + "#" * filled + "-" * (width - filled) + "]"
+
+
+def progress_line(
+    done: int,
+    total: int,
+    ok: int,
+    skipped: int,
+    failed: int,
+    rate: float | None,
+    width: int = 20,
+) -> str:
+    if total > 0:
+        pct = min(100.0, max(0.0, done / total * 100.0))
+        remaining = max(0, total - done)
+    else:
+        pct = 0.0
+        remaining = 0
+    safe_rate = rate if (rate is not None and math.isfinite(rate) and rate > 0) else 0.0
+    if safe_rate:
+        eta = format_eta(remaining / safe_rate)
+    elif total > 0 and done >= total:
+        eta = format_eta(0.0)
+    else:
+        eta = "?"
+    return (
+        f"{progress_bar(done, total, width)} "
+        f"{format_count(done)}/{format_count(total)} {pct:.1f}%"
+        f" · ok {format_count(ok)} · skip {format_count(skipped)} · fail {format_count(failed)}"
+        f" · {safe_rate:.1f}/s · ETA {eta}"
+    )
+
+
+def should_emit_milestone(
+    done: int, total: int, last_step: int, first_n: int = 3, step_pct: int = 5
+) -> tuple[bool, int]:
+    if total <= 0 or step_pct <= 0 or done <= 0:
+        return False, last_step
+    step = min(100 // step_pct, int(done * 100 / (total * step_pct)))
+    if done <= first_n or done >= total:
+        return True, max(last_step, step)
+    return step > last_step, step
+
+
+def append_github_summary(
+    done: int,
+    total: int,
+    ok: int,
+    skipped: int,
+    failed: int,
+    elapsed: float,
+    path: str | Path | None = None,
+) -> Path | None:
+    path = path or os.environ.get("GITHUB_STEP_SUMMARY")
+    if not path:
+        return None
+    rate = done / elapsed if elapsed and math.isfinite(elapsed) and elapsed > 0 else 0.0
+    with open(path, "a", encoding="utf-8") as f:
+        f.write("### 52W range batch\n\n```text\n")
+        f.write(progress_line(done, total, ok, skipped, failed, rate))
+        f.write("\n```\n\n")
+        f.write(
+            f"- counts: ok {format_count(ok)} · skip {format_count(skipped)}"
+            f" · fail {format_count(failed)} · total {format_count(total)}\n"
+            f"- elapsed: {format_eta(elapsed)} · throughput: {rate:.1f}/s\n"
+        )
+    return Path(path)
+
+
+class ProgressReporter:
+    """Milestone-only batch progress: a bar in CI, a throttled `\\r` line in a TTY."""
+
+    def __init__(
+        self,
+        total: int,
+        stream=None,
+        *,
+        first_n: int = 3,
+        step_pct: int = 5,
+        throttle_sec: float = 1.0,
+        width: int = 20,
+    ):
+        self.total = total
+        self.stream = stream if stream is not None else sys.stdout
+        self.tty = bool(getattr(self.stream, "isatty", lambda: False)())
+        self.first_n = first_n
+        self.step_pct = step_pct
+        self.throttle_sec = throttle_sec
+        self.width = width
+        self.t0 = time.monotonic()
+        self._last_step = -1
+        self._last_emit = None
+        self._tty_line = False
+        self._finished = False
+        self.failures_shown = 0
+
+    def _write(self, line: str, final: bool = False) -> None:
+        if self.tty:
+            self.stream.write("\r" + line + ("\n" if final else ""))
+            self._tty_line = not final
+        else:
+            self.stream.write(line + "\n")
+        self.stream.flush()
+
+    def update(self, done: int, ok: int, skipped: int, failed: int, *, force: bool = False) -> None:
+        if self._finished:
+            return
+        emit, step = should_emit_milestone(
+            done, self.total, self._last_step, self.first_n, self.step_pct
+        )
+        if not emit and not force:
+            return
+        now = time.monotonic()
+        if (
+            self.tty
+            and not force
+            and self._last_emit is not None
+            and now - self._last_emit < self.throttle_sec
+        ):
+            return
+        if self.total > 0 and done >= self.total:
+            self._finished = True
+        self._last_step = step
+        elapsed = now - self.t0
+        rate = done / elapsed if elapsed > 0 else 0.0
+        self._write(
+            progress_line(done, self.total, ok, skipped, failed, rate, self.width),
+            final=self._finished,
+        )
+        self._last_emit = now
+
+    def note_failure(self, done: int, symbol: str, error: str) -> None:
+        if self.failures_shown >= 10:
+            return
+        self.failures_shown += 1
+        if self._tty_line:
+            self.stream.write("\n")
+            self._tty_line = False
+            self.stream.flush()
+        print(
+            f"  [{done}/{self.total}] {symbol}: ERROR {error}",
+            file=self.stream,
+            flush=True,
+        )
+
+    def finish(self, ok: int, skipped: int, failed: int) -> None:
+        self.update(self.total, ok, skipped, failed, force=True)
 
 
 def load_symbols(
@@ -182,66 +351,12 @@ def fetch_range_for_symbol(api, symbol: str, to_date: str | None) -> dict | None
     return entry
 
 
-def _range_changed(row: Stock52WeekRange, info: dict) -> bool:
-    return (
-        row.high_52w != info["high"]
-        or row.low_52w != info["low"]
-        or row.close != info["close"]
-        or row.days_ago != info.get("days_ago")
-    )
-
-
 def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
-    """Upsert into stock_52w_range; optionally refresh Redis cache.
-
-    Only rows whose values actually changed are written. Running a batch that
-    recomputes identical ranges used to dirty all ~3k rows and hold the SQLite
-    writer for seconds, which is what stalled the auth/config reads.
-    """
+    """Persist one change-only batch; Redis is refreshed once by main()."""
     if not data:
         return 0, 0
 
-    db = SessionLocal()
-    added = 0
-    updated = 0
-    try:
-        # Scope the read to this chunk: the caller batches at DB_FLUSH_EVERY, so
-        # this stays well under SQLite's bound-parameter limit and avoids
-        # reloading the whole table for every flush.
-        existing = {
-            r.symbol: r
-            for r in db.query(Stock52WeekRange)
-            .filter(Stock52WeekRange.symbol.in_(list(data)))
-            .all()
-        }
-        now = datetime.now(config.IST).replace(tzinfo=None)
-        for symbol, info in data.items():
-            cur = existing.get(symbol)
-            if cur is None:
-                db.add(
-                    Stock52WeekRange(
-                        symbol=symbol,
-                        high_52w=info["high"],
-                        low_52w=info["low"],
-                        close=info["close"],
-                        days_ago=info.get("days_ago"),
-                        updated_at=now,
-                    )
-                )
-                added += 1
-            elif _range_changed(cur, info):
-                cur.high_52w = info["high"]
-                cur.low_52w = info["low"]
-                cur.close = info["close"]
-                cur.days_ago = info.get("days_ago")
-                cur.updated_at = now
-                updated += 1
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+    added, updated = upsert_52w_ranges(SessionLocal, data)
 
     # Redis write is deferred to the merge step in main() so the bulk key is
     # written ONCE with the complete merged data, not once per chunk.
@@ -346,6 +461,9 @@ def main() -> None:
     db_reads = not (args.dry_run or args.no_db)
     redis_enabled = not (args.dry_run or args.no_redis or compute_only) and args.redis
     JOB_STATUS_ENABLED = not (args.dry_run or args.no_redis or compute_only)
+    # Set before any worker starts: cache helpers must not dial an absent Redis.
+    if args.dry_run or args.no_redis or compute_only:
+        os.environ["REDIS_DISABLED"] = "1"
 
     source = args.source
     if source == "auto" and not args.symbol:
@@ -411,13 +529,24 @@ def main() -> None:
 
     api_key = config.UPSTOX_API_KEY
     api_secret = config.UPSTOX_API_SECRET
-    if not api_key or not api_secret:
-        print("UPSTOX_API_KEY and UPSTOX_API_SECRET must be set (config / .env)")
+    # An existing token is sufficient on its own (e.g. the read-only Analytics
+    # Token used by EOD Actions, where OAuth tokens expire daily with no refresh).
+    access_token = os.environ.get("UPSTOX_ACCESS_TOKEN") or getattr(
+        config, "UPSTOX_ACCESS_TOKEN", None
+    )
+    has_key_pair = bool(api_key and api_secret)
+    if not has_key_pair and not access_token:
+        print(
+            "Either UPSTOX_API_KEY and UPSTOX_API_SECRET (config / .env) or "
+            "UPSTOX_ACCESS_TOKEN (env / config) must be set"
+        )
         sys.exit(1)
 
     from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
 
-    api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
+    # With a token-only run the auth handler loads UPSTOX_ACCESS_TOKEN from the
+    # env, so empty key/secret strings are fine — they are never used for requests.
+    api = UpstoxAPI(api_key=api_key or "", api_secret=api_secret or "", quiet=True)
 
     if db_writes and args.migrate:
         init_db()
@@ -459,6 +588,7 @@ def main() -> None:
     total_added = 0
     total_updated = 0
     t0 = time.monotonic()
+    reporter = ProgressReporter(len(symbols))
 
     with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
         futures = {pool.submit(_work, sym): sym for sym in symbols}
@@ -474,27 +604,15 @@ def main() -> None:
                     total_added += a
                     total_updated += u
                 if JOB_STATUS_ENABLED and (done <= 5 or done % 25 == 0 or done == len(symbols)):
-                    elapsed = time.monotonic() - t0
-                    rate = done / elapsed if elapsed > 0 else 0
-                    eta_sec = (len(symbols) - done) / rate if rate > 0 else 0
                     update_job_progress(
                         done, len(symbols), ok=ok, failed=failed, skipped=skipped, last_symbol=symbol
-                    )
-                if done <= 5 or done % 50 == 0 or done == len(symbols):
-                    elapsed = time.monotonic() - t0
-                    rate = done / elapsed if elapsed > 0 else 0
-                    eta_sec = (len(symbols) - done) / rate if rate > 0 else 0
-                    print(
-                        f"  [{done}/{len(symbols)}] {symbol}: "
-                        f"H={entry['high']:.2f} L={entry['low']:.2f} C={entry['close']:.2f}"
-                        + (f" | {int(eta_sec // 60)}m{int(eta_sec % 60)}s remaining" if eta_sec > 60 else "")
                     )
             elif err == "no_data":
                 skipped += 1
             else:
                 failed += 1
-                if failed <= 10:
-                    print(f"  [{done}/{len(symbols)}] {symbol}: ERROR {err}")
+                reporter.note_failure(done, symbol, err)
+            reporter.update(done, ok, skipped, failed)
 
     if db_writes and pending:
         a, u = flush_pending(pending)
@@ -539,6 +657,8 @@ def main() -> None:
         )
 
     elapsed = time.monotonic() - t0
+    reporter.finish(ok, skipped, failed)
+    append_github_summary(len(symbols), len(symbols), ok, skipped, failed, elapsed)
     if JOB_STATUS_ENABLED:
         finish_job(
             ok=ok,

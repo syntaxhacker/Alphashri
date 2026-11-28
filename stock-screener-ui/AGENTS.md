@@ -106,7 +106,7 @@ Everything below in this file describes the work; it does not grant the main age
 SolidJS 1.9 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
-- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
+- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. The scheduled 52W range batch is no longer started; data arrives via the release-sync watcher or an admin-triggered hard refresh (see the 52W section). Logs to `logs/alphashri.log`.
 - `bun run dev` — dev server only (proxy /api → localhost:8765)
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
@@ -133,6 +133,11 @@ Storybook is live and checked in via its config (`.storybook/main.ts`, `.storybo
 ## Python Environment
 - **Version**: pinned via `.python-version` (3.12.13) — pyenv reads this automatically
 - **Virtual env**: `.venv/` (created with `uv venv --python 3.12.13`)
+- **Codespaces venv check order** (the repo-local venv is often absent in a fresh Codespace):
+  1. `stock-screener-ui/.venv/bin/python` — repo-local, gitignored, created by `uv venv --python 3.12.13`.
+  2. If absent: the task-scoped venv `/workspaces/test-rag/.agent-artifacts/<task>/venv/bin/python` (current task: `/workspaces/test-rag/.agent-artifacts/pr319/venv/bin/python`, Python 3.12.13).
+  3. If neither exists: create the task venv under `/workspaces/test-rag/.agent-artifacts/<task>/` with `uv venv --python 3.12.13`, then install `../requirements.txt` + `api/requirements.txt` via `uv pip install -r`. Never put venvs in `/tmp`, never commit them.
+  - Use the **absolute interpreter path** in commands; run backend tests with `CI_MODE=1 <python> -m pytest ...`. `start.sh` auto-activates `stock-screener-ui/.venv`, so when using the task venv invoke its python directly.
 - **Package manager**: `uv` (faster than pip) — install deps with `uv pip install -r <requirements.txt>`
 - **Dependencies**: `../requirements.txt` (root) + `api/requirements.txt` (API-specific)
 - **Note**: `nautilus-trader` is **no longer a dependency** (removed 2026-11-22). Backtests run on the pure-Python engine in `backtest/sim/`; `BACKTEST_ENGINE=nautilus` is opt-in A/B and requires reinstalling the package.
@@ -288,7 +293,7 @@ src/
 - **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug in hosted runs — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works in some local runs because the runtime config differs. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the affected environment.
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 - **Trading costs**: `backtest/costs.py:calculate_trading_costs()` is the single source of truth. Both `runner_signals.py` and `paper_portfolio.py` use it — never use flat `trade_value * 0.0006`.
-- **Background screener tasks** (prewarm + 52W range batch) are started in the lifespan and gated to market hours. The 52W batch now does a prompt initial run shortly after `start.sh` (during market hours) rather than waiting the full interval — see the dedicated 52W section for agent behavior around this.
+- **Background screener tasks**: the prewarm task is started in the lifespan and gated to market hours. The scheduled 52W range batch was removed — data arrives via the release-sync watcher or an admin-triggered hard refresh — see the dedicated 52W section.
 
 ## Backtest Engine (`backtest/sim`)
 
@@ -388,6 +393,8 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - `upstox_auth.py`'s `UpstoxAuthHandler.load_token()` checks DB → file. `save_token()` still writes to file for backward compat.
 - `UPSTOX_CONFIG` dict in root `config.py` only has `api_key`/`api_secret` (removed `access_token`)
 - Stale file-only patterns fixed: `sector_data.py` uses `UpstoxAuthHandler`, `upstox_auth_refresh.py` checks DB first
+- **EOD GitHub Actions jobs** (`refresh-52w.yml`) use the 1-year, read-only **Analytics Token**: secret `UPSTOX_ANALYTICS_TOKEN` → env `UPSTOX_ACCESS_TOKEN`, which `UpstoxAuthHandler.load_token()` picks up. OAuth access tokens expire daily at 03:30 IST and Upstox issues **no refresh token**, so they cannot power unattended batch runs; the Analytics Token covers historical candles, quotes and option-chain reads (no static IP needed) but **cannot place or modify orders**. OAuth access tokens still power trading/paper/broker endpoints that need order placement.
+- For compute-only scripts (e.g. `scripts/compute_52w_ranges_upstox.py`), either the key+secret pair **or** `UPSTOX_ACCESS_TOKEN` is sufficient; a token-only run passes empty key/secret to `UpstoxAPI` and relies on the auth handler loading the env token.
 
 ## Upstox Data Debugging
 - `scripts/test_upstox_data.py` — quick V3 API health check: tests LTP + intraday for 5 symbols, detects Cloudflare 1015 blocks and token expiry
@@ -548,14 +555,18 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Force refresh**: `POST /api/chart-patterns/scan` with `refresh: true` clears the candle cache for the scope + timeframe and forces the scan. UI: "Force refresh" button in the patterns results toolbar → store `forceRefresh()` → `triggerScan(true, { refresh: true })` → `startScan` (`src/api/chartPatterns.ts` `ScanRequest.refresh`).
 
 ## 52W Range Screener Background Job
-- The 52W range batch job (`compute_52w_ranges_task`) and screener prewarm task are started from the FastAPI lifespan.
-- Both are gated to market hours via `_is_market_hours()` (delegates to the canonical `trading.utils.is_market_open()` for precise 9:15-15:30 IST trading days + holidays; always use `config.IST`; has a simple hour fallback).
-- **Key `start.sh` behavior**: The range batch now performs a *prompt initial run* shortly after startup (during market hours) instead of sleeping the full interval first. This ensures that running `start.sh` when ranges are stale triggers an observable batch quickly (previous behavior waited up to 1 hour). After the initial run, it follows the normal `SCREENER_52W_INTERVAL_SEC` (default 3600, overrideable).
-- Scheduled runs use daily staleness refresh (`--skip-updated-today`): symbols whose `updated_at` is already today are skipped. The first run each day refreshes the full NSE_EQ universe (~5-15 min at 3 workers × 0.35s delay). Subsequent hourly runs find everything fresh and no-op in ~1s. Mid-day restarts only refresh symbols not yet updated today.
-- The admin 52W panel shows the last job result from Redis (status usually stays "completed"). The live progress bar is only shown while the job status is actively "running" — because normal runs are so fast, it is rarely visible on the panel's 5s poll. Use "Clear cache + DB" followed by a manual "Run batch" (or full refresh) if you need to observe the progress UI.
-- "Latest DB update" (max row `updated_at`) only moves forward when the script actually inserts or changes range data for a symbol (not on every job execution).
+- The screener prewarm task is started from the FastAPI lifespan and gated to market hours via `_is_market_hours()` (delegates to the canonical `trading.utils.is_market_open()` for precise 9:15-15:30 IST trading days + holidays; always use `config.IST`; has a simple hour fallback).
+- **Scheduled local compute was removed**: `compute_52w_ranges_task` has been **removed** in the single-source refactor — there is no scheduler task and no duplicate orchestrator. Published release assets arrive through the automatic watcher below; a full local NSE recompute is admin-triggered (hard refresh below).
+- **Automatic release-sync watcher** (`release_sync_task`, mirroring `db_backup_task`): spawned in the lifespan, never blocks startup, skipped in `CI_MODE`. It lists GitHub releases with `GITHUB_TOKEN` / `GH_TOKEN` when set (anonymous public access otherwise) and dedupes by asset fingerprint against `reports/refresh_runs.json`, not by date alone: a same-date 21:00 re-upload is applied when its content changes, and both agri and 52W pointers are checked, so an agri-only update triggers `run_sync(mode="latest", allow_empty=True)`. `run_sync` takes a file lock (`SyncBusy`): a concurrent watcher or CLI sync returns `busy` and the watcher retries next poll; an agri failure after 52W applied is recorded `partial` in the ledger. Only published assets are imported; ranges are never computed locally.
+- Watcher env (alongside the SCREENER_52W / DB backup settings): `RELEASE_SYNC_ENABLED` (default `1`; `0` disables), `RELEASE_SYNC_POLL_SEC` (default `900`), `RELEASE_SYNC_STARTUP_DELAY_SEC` (default `30`, delay before the first poll); invalid `RELEASE_SYNC_*_SEC` values fall back to the defaults instead of busy-looping.
+- **On-demand hard refresh**: admin "Clear cache + DB" (`DELETE /api/admin/52w-range/cache?clear_db=true`) then "Run batch" with Full refresh (`POST /api/admin/52w-range/run`, `api/admin_routes.py:255-277`) launches the local subprocess script (~5-15 min at 3 workers × 0.35s delay). This is the only local-compute path now and is separate from the `run_sync` asset-apply lock; `scripts/sync_refresh_assets.py --latest` remains available for manual release-asset apply.
+- The 52W release workflow refuses to upload or prune an older date when the monthly release already holds newer 52W data; smoke runs publish/prune nothing.
+- The admin 52W panel shows the last job result from Redis. The live progress bar appears while an on-demand job is actively "running" (full refreshes take ~5-15 min, so it is visible on the panel's 5s poll). "Latest DB update" (max row `updated_at`) only moves forward when the script actually inserts or changes range data for a symbol (not on every job execution).
 - Prewarm keeps the 52w_high screener (and others) responsive during market hours.
 - Logs for the jobs appear in `logs/alphashri.log`.
+- **Single source (canonical package: `trading/week52/`)**: `config.py` is the only env reader + constants; `math.py` holds pure 52W math/classifiers; `ranges.py` owns the bulk `52w_range:all` Redis key with DB fallback and `updated_at`; `job.py` owns job status/staleness; `keys.py` owns keys/TTLs/paper cache dir; `upsert.py` is the one change-only `stock_52w_range` upsert used by both `scripts/compute_52w_ranges_upstox.py` and `scripts/sync_refresh_assets.py`; `defaults.py` holds canonical Chaser/Target defaults.
+- The flat `trading/week52_range_lookup.py` and `trading/week52_job_status.py` are pure re-export shims, and `api/screener_api/screener_models.py` re-exports 52W math/config for existing callers. No new logic belongs in those surfaces. The admin route is the only batch orchestrator; no second cache key/TTL, env reader or defaults table.
+- Canonical map, rules and test map: [`docs/WEEK52_SINGLE_SOURCE.md`](./docs/WEEK52_SINGLE_SOURCE.md).
 
 ## Trade Entry Reason Pipeline
 - Signal generators set `signal.notes` with detailed calculations (ORB: range%, SL%, ATR, ADX, RSI; SR Breakout: pivot type, buffer%; EMA Cross: gap, SL%; 52W Chaser: ADX, RSI; 52W Target: SL%, trail%)
@@ -652,13 +663,13 @@ npx vitest run src/components/common/SymbolAutocomplete.test.tsx  # use vitest f
 
 Container/sandbox rebuilds erase `/tmp`. In Codespaces, **never** put worktrees, virtualenvs, fixtures, screenshots, benchmark output or reusable scripts in `/tmp`:
 
-- Codespaces worktrees: `/workspaces/react/.agent-worktrees/<task>/`.
-- Everything else (venvs, fixtures, captures, logs, benchmark JSON): `/workspaces/react/.agent-artifacts/<task>/`.
+- Codespaces worktrees: `/workspaces/test-rag/.agent-worktrees/<task>/`.
+- Everything else (venvs, fixtures, captures, logs, benchmark JSON): `/workspaces/test-rag/.agent-artifacts/<task>/`.
 - Both sit outside the repo, so they never dirty `Alphashri/`.
 - `/tmp/opencode` is allowed only outside Codespaces, or for single-use files regenerated by a committed script in one command.
 - Anything that must survive belongs in the repo (committed code/docs/evidence) or under `.agent-artifacts`; use `.agent-worktrees` only in Codespaces. Clean up only the task's own artifact dir after the PR is merged and evidence is committed.
 - **Remove worktrees when they are no longer needed.** A worktree is for an active task only. After merge, abandonment, or when you stop working the task, stop its servers, preserve any uncommitted diff/untracked artifact under `.agent-artifacts/worktree-preserved/<name>/`, and `git worktree remove <path>` + `git worktree prune`. Keep the branch ref if it is unmerged; delete it with `-d` only after containment is confirmed. Run `git worktree list` at the start of a task and clean stale entries first.
-- Perf scripts default to the workspace artifact dir when `CODESPACES=true` (`/workspaces/react/.agent-artifacts/chart-perf`), fall back to `/tmp/opencode/chart-perf`, and honour `CHART_PERF_ARTIFACT_DIR`.
+- Perf scripts default to the workspace artifact dir when `CODESPACES=true` (`/workspaces/test-rag/.agent-artifacts/chart-perf`), fall back to `/tmp/opencode/chart-perf`, and honour `CHART_PERF_ARTIFACT_DIR`.
 
 ### Codespaces git authentication
 
@@ -673,8 +684,8 @@ If a push shows no progress for >30s and an `askpass.sh` child exists, kill it; 
 
 ## Performance budgets and checks
 
-- **Last checked: 2026-11-25**
-- **Next check: 2026-12-02**
+- **Last checked: 2026-11-28**
+- **Next check: 2026-12-05**
 - Short index + measurement methodology: [docs/PERFORMANCE.md](./docs/PERFORMANCE.md). Machine-readable budgets: [`perf/budgets.json`](./perf/budgets.json) (test/wall budgets), [`perf/api_budgets.json`](./perf/api_budgets.json) (API latency budgets) and [`perf/chart_ui_budgets.json`](./perf/chart_ui_budgets.json) (interactive chart/UI, initial targets). Detail docs: [docs/TESTING_SPEED.md](./docs/TESTING_SPEED.md), [docs/API_LATENCY.md](./docs/API_LATENCY.md), [docs/CHART_PERFORMANCE.md](./docs/CHART_PERFORMANCE.md), [`scripts/test/run_changed.py`](./scripts/test/run_changed.py).
 
   **Denominators (do not mix):** **~9,237** node ids collected with no marker filter → **8,987** after the full exclusion marker (`-m "not (slow or … or postgres)"`, push/nightly sweep) → **662** in the PR fast tier (`-m "unit and not slow"`). The 662-test tier is the PR gate; the 8,987 sweep is a push/nightly debt alarm.
@@ -688,7 +699,7 @@ If a push shows no progress for >30s and an `askpass.sh` child exists, kill it; 
 | Frontend changed-only (`vitest run --changed`) | **< 2 min** |
 | Frontend full suite | **≤ 10 min on a 16 GB runner; ≤ 25 min on an 8 GB host with `--maxWorkers=1`** |
 | API warm reads | per-endpoint **warm p95** budgets in [`perf/api_budgets.json`](./perf/api_budgets.json) (e.g. health 100 ms, login 500 ms, agri filters 500 ms), measured in [docs/API_LATENCY.md](./docs/API_LATENCY.md) |
-| API cold agri filter path | **API_COLD** exception = the `cold` budget for `agri_filters` in [`perf/api_budgets.json`](./perf/api_budgets.json): **10,000 ms**. Other routes have `cold: null` (INFO, not enforced). See the known current breach in [docs/API_LATENCY.md](./docs/API_LATENCY.md) |
+| API cold agri filter path | **API_COLD** exception = the `cold` budget for `agri_filters` in [`perf/api_budgets.json`](./perf/api_budgets.json): **10,000 ms**. Other routes have `cold: null` (INFO, not enforced). Re-measured **PASS** on 2026-11-28 — the former breach is resolved (only the agri cold path was re-measured in that pass); see [docs/API_LATENCY.md](./docs/API_LATENCY.md) and [`scripts/perf/bench_agri.py`](./scripts/perf/bench_agri.py) |
 
 ### Interactive UI & chart performance (mandatory for chart work)
 
@@ -972,7 +983,10 @@ Vitest spawns a worker per file and a worker pool can saturate the box; a strand
 - Reuse these; do not fork (several competing copies exist).
 - Backend: `config.IST` (only constant); `frame_last_date()` (IST session date of a frame's last bar), `fmt_date()` (IST display date).
 - Frontend: `TZ_IST`, `sessionDateKey()`, `istChartTime` (Intl, explicit `timeZone`), `istClock`.
-- Two open/closed implementations: `isMarketOpenIst()` (holiday-unaware) vs `isMarketOpenNow()` (holiday + session window). Use the holiday-aware one for user-facing gates; `isMarketClosedToday()` answers only "is today a holiday".
+- **One user-facing gate:** `isMarketOpenNow()` (`src/state/holidays.ts`) — IST 09:15–15:30 session *plus* the exchange holiday calendar. Every user-facing open/closed badge, poll and gate uses it; `isMarketClosedToday()` answers only "is today a holiday".
+- `isMarketOpenIst()` (`src/utils/marketClock.ts`) is a **session-clock primitive**, not a trading gate: weekday + IST window only, no holiday calendar. Keep it for pure session/derivatives window maths (`isDerivativesOpenIst`, `isUsMarketOpen`); never wire it into a user-facing gate.
+- Backend canonical gate: `trading.utils.is_market_open()` (weekends + exchange holidays + 09:15–15:30 IST). `api_server_fastapi._is_market_hours()` and app-adjacent scripts such as `scripts/daily/daily_runner.py` delegate to it instead of restating the window.
+- `india_board/**` is a **separate product** with its own market-open helpers — leave it out of this single-source rule.
 
 ## Backend ↔ frontend vocabulary parity (MANDATORY)
 
@@ -1003,11 +1017,19 @@ Use this when fixing CI on an open PR or merging a release:
 - **Definition of green is the head SHA.** Confirm every required check passes on the current PR head after the last commit; then merge. After merging #266/#267/#269 etc., sync local `develop`, verify the merge commits, and confirm no open PRs remain.
 - **Report the final order and merge commits** (`#266` → `#267` → `#268`, then any CI-recovery PR), plus the exact checks. Do not call a release green from a local run.
 
+## Market levels (LevelBook)
+
+- Additive single-source contract for trading levels lives in `market_levels/`; see [docs/LEVELS_ARCHITECTURE.md](./docs/LEVELS_ARCHITECTURE.md) before touching it.
+- Detectors are one file per source with a `DetectorSpec` + pure `detect(ctx)` that only wraps upstream math (`compute_sr_zones`, `calculate_pivot_points`, `api.options_levels.build_levels`). No I/O, no clock, no network, no DB, no second formula.
+- There is one `market_levels/registry.py` and one `market_levels/service.py`: detectors only register and return levels; they never fetch data or fuse. Registration and orchestration/fusion have no second implementation.
+- Fusion (`fuse_levels`) is backend-only: no cross-source merge, provenance/evidence preserved, sides filled from spot, deterministic source → strength → distance → id rank. Do not re-fuse in the UI.
+- Phase 1 is read-only: existing chart/report/API outputs are unchanged. Parity + integration tests pin every raw field; `scripts/perf/bench_levels.py` is the deterministic perf check.
+
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
 - **Portfolio summary compact redesign** — mentioned but not started
 - **52W daily data caching** — fetches 400 days per chart request with no caching
-- **52W range batch progress in admin UI**: The first daily run refreshes all stale symbols (~5-15 min at 3 workers × 0.35s delay), so the progress bar is visible during that window. Subsequent hourly runs are fast (everything already fresh → no-op in ~1s). Use the admin panel's "Clear cache + DB" or adjust `SCREENER_52W_INTERVAL_SEC` to control freshness.
+- **52W range batch progress in admin UI**: Scheduled compute was removed — the admin route is the only local orchestrator; an on-demand Full refresh refreshes the full NSE_EQ universe (~5-15 min at 3 workers × 0.35s delay), so the progress bar is visible during that window. Use the admin panel's "Clear cache + DB" then "Run batch" with Full refresh to trigger it; release freshness otherwise comes from the automatic watcher.
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.

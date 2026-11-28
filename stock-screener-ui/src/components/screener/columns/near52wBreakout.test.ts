@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getNear52wBreakoutColumns } from "./near52wBreakout";
+import { gapCol as sharedGapCol } from "./columnHelpers";
 import { cellOf, cellText, fmtOf, expectSymbolFirstSectorLast } from "./columnTestFixtures";
 
 const fmt = (key: string) => fmtOf(getNear52wBreakoutColumns, key);
@@ -10,6 +11,23 @@ describe("near52wBreakout columns", () => {
   });
 
   describe("to_52w_high gap %", () => {
+    it("uses the shared column id, label and metadata", () => {
+      const shared = sharedGapCol();
+      const col = getNear52wBreakoutColumns().find((c) => c.key === "to_52w_high")!;
+      expect(col).toMatchObject({
+        key: shared.key,
+        label: shared.label,
+        type: shared.type,
+        sortable: shared.sortable,
+      });
+    });
+
+    it("shares the 52W gap tone thresholds", () => {
+      expect(cellOf(() => fmt("to_52w_high")(-2)).tone).toBe("success");
+      expect(cellOf(() => fmt("to_52w_high")(2)).tone).toBe("");
+      expect(cellOf(() => fmt("to_52w_high")(2.01)).tone).toBe("error");
+    });
+
     it.each([
       [-2, "-2.00%"],
       [0, "0.00%"],

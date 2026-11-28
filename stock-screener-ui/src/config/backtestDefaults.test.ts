@@ -105,16 +105,18 @@ describe("getStrategyDefaults", () => {
     });
   });
 
+  // Canonical values live in trading/week52/defaults.py; parity is guarded by
+  // tests/test_week52_defaults_parity.py.
   describe("52w_chaser", () => {
     it("returns correct default values", () => {
       const defaults = getStrategyDefaults("52w_chaser");
       expect(defaults).toEqual({
         entry_threshold_pct: 3.0,
-        stop_loss_pct: 3.0,
-        take_profit_pct: 5.0,
+        stop_loss_pct: 2.0,
+        take_profit_pct: 3.0,
         enable_trailing_stop: false,
-        trailing_stop_pct: 3.0,
-        trailing_activation_pct: 2.0,
+        trailing_stop_pct: 2.0,
+        trailing_activation_pct: 3.0,
         max_holding_days: 30,
         cooldown_days: 30,
         trade_size: 100,
@@ -129,7 +131,7 @@ describe("getStrategyDefaults", () => {
       expect(defaults).toEqual({
         entry_threshold_pct: 2.0,
         stop_loss_pct: 2.0,
-        trailing_stop_pct: 0.5,
+        trailing_stop_pct: 2.0,
         max_holding_days: 15,
         cooldown_days: 7,
         trade_size: 100,

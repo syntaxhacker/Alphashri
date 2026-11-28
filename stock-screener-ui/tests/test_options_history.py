@@ -8,8 +8,10 @@ explicitly (FastAPI's ``Query`` defaults are ``Param`` objects outside HTTP).
 
 from __future__ import annotations
 
+import builtins
 import json
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -38,8 +40,10 @@ def data_root(tmp_path, monkeypatch):
     root = tmp_path / "experiments" / "data"
     monkeypatch.setattr(oh, "DATA_ROOT", root)
     oh._SLIM_CACHE.clear()
+    oh._JSONL_CACHE.clear()
     yield root
     oh._SLIM_CACHE.clear()
+    oh._JSONL_CACHE.clear()
 
 
 def _write(root: Path, kind: str, date: str, rows, symbol: str = SYM, suffix: str = ".jsonl") -> Path:
@@ -348,6 +352,122 @@ class TestBlasts:
         assert out == {"date": DATE, "count": 0, "lookback_min": 5, "blasts": []}
 
 
+# ------------------------------------------------------ 4b. newest-240 snapshot tail
+
+def _dense_row(ts: str, strikes: int = 160) -> dict:
+    """A chain frame whose nested rows make 240 lines exceed 1.5 MB."""
+    return {
+        "t": ts,
+        "spot": 2900.0,
+        "expiry": "2026-10-29",
+        "rows": [[2900.0 + 0.05 * j, 40.0, 1000.0, 10.0, 35.0, 1200.0, 12.0]
+                 for j in range(strikes)],
+    }
+
+
+def _dense_chain_file(root: Path, n: int = 260) -> tuple[Path, list[dict]]:
+    base = datetime.fromisoformat(_t("13:30:00"))
+    rows = [_dense_row((base + timedelta(seconds=10 * i)).isoformat()) for i in range(n)]
+    path = root / oh.CHAIN10S_DIR / SYM / f"{DATE}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as fh:
+        fh.write("not-json-at-start\n")
+        for i, row in enumerate(rows):
+            fh.write(json.dumps(row) + "\n")
+            if i == n // 2:
+                fh.write("{broken json\n")
+        fh.write('{"t": "partial", "rows": [1, 2')  # truncated final line
+    return path, rows
+
+
+class TestNewestSnapshots:
+    def _get_snaps(self, monkeypatch):
+        """Capture the reader the blast detector is handed."""
+        captured: dict = {}
+
+        def fake_blasts(**kwargs):
+            captured["get_snaps"] = kwargs["get_snaps"]
+            return []
+
+        monkeypatch.setattr(oh, "_shared_chain_blasts", fake_blasts)
+        oh._chain_blasts(SYM, DATE, 5)
+        return captured["get_snaps"]
+
+    def test_dense_file_yields_newest_240_in_file_order(self, data_root, monkeypatch):
+        path, rows = _dense_chain_file(data_root)
+        assert path.stat().st_size > 1_500_000
+        snaps = self._get_snaps(monkeypatch)(DATE)
+        assert len(snaps) == 240
+        assert [s["t"] for s in snaps] == [r["t"] for r in rows[-240:]]
+        assert snaps[0]["t"] == rows[-240]["t"]
+        assert snaps[-1]["t"] == rows[-1]["t"]
+        # The byte-window contract stays intact for the other callers.
+        assert len(oh._read_jsonl_tail(path)) < 240
+
+    def test_small_and_missing_files_are_unchanged(self, data_root, monkeypatch):
+        rows = [_chain10s_row(f"13:3{i}:00") for i in range(4)]
+        path = _write(data_root, oh.CHAIN10S_DIR, DATE, rows)
+        get_snaps = self._get_snaps(monkeypatch)
+        assert get_snaps(DATE) == oh._read_jsonl_tail(path)[-240:] == rows
+        empty = oh._path(oh.CHAIN10S_DIR, SYM, "2026-10-12")
+        empty.parent.mkdir(parents=True, exist_ok=True)
+        empty.write_text("")
+        assert get_snaps("2026-10-12") == []
+
+    def test_poll_reads_once_and_warm_poll_reads_nothing(self, data_root, monkeypatch):
+        path, _ = _dense_chain_file(data_root)
+        get_snaps = self._get_snaps(monkeypatch)
+        real_open = open
+        stats = {"opens": 0, "bytes": 0}
+
+        class CountingReader:
+            def __init__(self, fh):
+                self.fh = fh
+
+            def seek(self, *a):
+                return self.fh.seek(*a)
+
+            def tell(self):
+                return self.fh.tell()
+
+            def read(self, *a):
+                data = self.fh.read(*a)
+                stats["bytes"] += len(data)
+                return data
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return self.fh.__exit__(*a)
+
+        def counted_open(file, *a, **k):
+            if str(file) == str(path):
+                stats["opens"] += 1
+                return CountingReader(real_open(file, *a, **k))
+            return real_open(file, *a, **k)
+
+        oh._JSONL_CACHE.clear()
+        with monkeypatch.context() as m:
+            m.setattr(builtins, "open", counted_open)
+            cold = get_snaps(DATE)
+            cold_stats = dict(stats)
+            warm = get_snaps(DATE)
+            warm_stats = dict(stats)
+            assert any(k[1] == oh._NEWEST_SNAPS_WINDOW for k in oh._JSONL_CACHE)
+            oh._JSONL_CACHE.clear()
+            stats.update(opens=0, bytes=0)
+            old = oh._read_jsonl_tail(path)   # byte-window reader, for comparison
+            old_stats = dict(stats)
+
+        assert len(cold) == len(warm) == 240
+        assert cold_stats["opens"] == 1
+        assert warm_stats == cold_stats       # no re-open / re-read while unchanged
+        assert len(old) < 240
+        assert old_stats["bytes"] >= 1_000_000
+        assert cold_stats["bytes"] > old_stats["bytes"]
+
+
 # -------------------------------------------------------- 5/6. replay dates+frames
 
 class TestReplayDates:
@@ -479,6 +599,112 @@ class TestStatus:
         out = oh.get_options_tape_status("SENSEX")
         assert out["last_tick"] is None
         assert out["rows"] == 0
+
+
+# ------------------------------------------------------ parsed JSONL cache
+
+class TestJsonlParseCache:
+    def test_full_reader_parses_once_until_file_changes(self, data_root, monkeypatch):
+        path = _write(data_root, oh.TAPE_DIR, DATE, _flat_tape())
+        calls = {"n": 0}
+        real = oh.read_jsonl
+
+        def counted(p, *a, **k):
+            calls["n"] += 1
+            return real(p, *a, **k)
+
+        monkeypatch.setattr(oh, "read_jsonl", counted)
+        first = oh._read_jsonl(path)
+        assert oh._read_jsonl(path) == first
+        assert calls["n"] == 1
+
+        with open(path, "a") as fh:
+            fh.write(json.dumps(_flat_tape()[0]) + "\n")
+        grown = oh._read_jsonl(path)
+        assert calls["n"] == 2                       # append moves (mtime, size)
+        assert len(grown) == len(first) + 1
+
+        staging = path.with_suffix(".tmp")
+        staging.write_text(path.read_text())
+        os.replace(staging, path)
+        st = path.stat()
+        os.utime(path, ns=(st.st_mtime_ns + 1_000_000, st.st_mtime_ns + 1_000_000))
+        assert oh._read_jsonl(path) == grown
+        assert calls["n"] == 3                       # atomic replace moves mtime
+
+    def test_caller_cannot_mutate_cached_rows(self, data_root):
+        path = _write(data_root, oh.TAPE_DIR, DATE, _flat_tape())
+        expected = oh._read_jsonl(path)
+        out = oh._read_jsonl(path)                   # cache hit
+        out[0]["spot"] = -1.0
+        out[0]["injected"] = True
+        out.pop()
+        assert oh._read_jsonl(path) == expected
+
+    def test_tail_cache_is_window_scoped_and_reparses_on_change(self, data_root, monkeypatch):
+        path = _write(data_root, oh.CHAIN10S_DIR, DATE,
+                      [_chain10s_row(f"13:3{i}:00") for i in range(4)])
+        calls = {"n": 0}
+        real = oh.read_jsonl_tail
+
+        def counted(p, *a, **k):
+            calls["n"] += 1
+            return real(p, *a, **k)
+
+        monkeypatch.setattr(oh, "read_jsonl_tail", counted)
+        default = oh._read_jsonl_tail(path)
+        assert oh._read_jsonl_tail(path) == default
+        assert calls["n"] == 1
+
+        small = oh._read_jsonl_tail(path, max_bytes=200)
+        assert small and calls["n"] == 2            # a different window is a different key
+        assert oh._read_jsonl_tail(path, max_bytes=200) == small
+        assert calls["n"] == 2
+
+        with open(path, "a") as fh:
+            fh.write(json.dumps(_chain10s_row("13:34:00")) + "\n")
+        grown = oh._read_jsonl_tail(path)
+        assert calls["n"] == 3
+        assert grown[-1]["t"] == _t("13:34:00")
+
+    def test_polled_endpoints_match_cold_and_warm(self, data_root, monkeypatch):
+        monkeypatch.setattr(oh, "_resolve_lot_size", lambda *a: (65, False))
+        _write(data_root, oh.TAPE_DIR, DATE, _spike_tape())
+        _write(data_root, oh.SNAPSHOTS_DIR, DATE, _report(), suffix=".json")
+        _write(data_root, oh.CHAIN10S_DIR, DATE,
+               [_chain10s_row(f"13:3{i}:00") for i in range(4)])
+
+        def poll():
+            return {
+                "tape": oh.get_options_tape(SYM, date=DATE),
+                "bursts": oh.get_options_bursts(SYM, date=DATE, window=3, min_abs=1000),
+                "blasts": oh.get_options_blasts(SYM, date=DATE, lookback_min=5, limit=40),
+            }
+
+        oh._JSONL_CACHE.clear()
+        cold = poll()
+        warm = poll()
+        assert warm == cold
+
+    def test_missing_file_is_empty_and_not_cached(self, data_root):
+        path = oh._path(oh.TAPE_DIR, SYM, DATE)
+        assert oh._read_jsonl(path) == []
+        assert str(path.resolve()) not in {k[0] for k in oh._JSONL_CACHE}
+        _write(data_root, oh.TAPE_DIR, DATE, _flat_tape())
+        assert len(oh._read_jsonl(path)) == 4
+
+    def test_malformed_lines_are_skipped_on_cache_miss_and_hit(self, data_root):
+        path = oh._path(oh.TAPE_DIR, SYM, DATE)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        row = _flat_tape()[0]
+        path.write_text("\n{bad json\n[1, 2, 3]\n" + json.dumps(row) + "\n")
+        assert oh._read_jsonl(path) == [row]
+        assert oh._read_jsonl(path) == [row]
+
+    def test_cache_is_bounded(self, data_root):
+        for symbol in ("AAA", "BBB", "CCC", "DDD", "EEE", "FFF"):
+            oh._read_jsonl(_write(data_root, oh.TAPE_DIR, DATE, _flat_tape(), symbol=symbol))
+        assert len(oh._JSONL_CACHE) <= oh._JSONL_CACHE_MAX
 
 
 # ------------------------------------------------ NIFTY isolation guarantees

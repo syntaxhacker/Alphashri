@@ -40,6 +40,16 @@ from db.models import Stock52WeekTouch
 
 
 @pytest.fixture
+def test_sessionlocal(db):
+    """Saved-screeners route opens api_server_fastapi.SessionLocal outside get_db."""
+    from sqlalchemy.orm import sessionmaker
+
+    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+    with patch("api_server_fastapi.SessionLocal", TestSessionLocal):
+        yield
+
+
+@pytest.fixture
 def mock_trending_stocks():
     """Mock trending_upside.fetch_trending_stocks to return sample data."""
     import pandas as pd
@@ -159,7 +169,7 @@ def _isolate_upstox_client():
 class TestScreenersList:
     """Test GET /api/screeners endpoint."""
 
-    def test_get_screeners_list(self, auth_client):
+    def test_get_screeners_list(self, auth_client, test_sessionlocal):
         """Test GET /api/screeners includes 52w_high as current and near_52w_breakout as legacy."""
         response = auth_client.get("/api/screeners")
         assert response.status_code == 200
@@ -1237,7 +1247,7 @@ class TestUpstox52wGap:
         api.fetch_historical_data_v3.return_value = df
         return api
 
-    @patch('trading.week52_range_lookup.get_52w_range')
+    @patch('trading.week52.ranges.get_52w_range')
     def test_gap_uses_upstox_high_not_tv(self, mock_range):
         """Upstox high wins: gap ≈6.5% (approaching), not the TV ≈0.1% (touched)."""
         mock_range.return_value = {
@@ -1256,7 +1266,7 @@ class TestUpstox52wGap:
         assert stock['touched_52w'] is False
         assert bucket == 'approaching'
 
-    @patch('trading.week52_range_lookup.get_52w_range')
+    @patch('trading.week52.ranges.get_52w_range')
     def test_tv_fallback_only_when_upstox_missing(self, mock_range):
         """Without an Upstox range the TV high is used and marked source='tv'."""
         mock_range.return_value = None
@@ -1275,7 +1285,7 @@ class TestUpstox52wGap:
         assert stock['touched_52w'] is False
         assert bucket == 'approaching'
 
-    @patch('trading.week52_range_lookup.get_52w_range')
+    @patch('trading.week52.ranges.get_52w_range')
     def test_stale_upstox_high_skips_row(self, mock_range):
         """Price 25% above the stored high is a stale range: skip, don't emit −25%."""
         mock_range.return_value = {
@@ -1314,7 +1324,7 @@ class Test52wHighColdStartFallback:
         from db.models import Stock52WeekRange
 
         TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
-        monkeypatch.setattr("trading.week52_range_lookup.SessionLocal", TestSessionLocal)
+        monkeypatch.setattr("trading.week52.ranges.SessionLocal", TestSessionLocal)
         # An empty screener cache without requiring a live Redis.
         monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: None)
 
@@ -1584,7 +1594,7 @@ class Test52wSkeletonTruthfulness:
         from db.models import Stock52WeekRange
 
         TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
-        monkeypatch.setattr("trading.week52_range_lookup.SessionLocal", TestSessionLocal)
+        monkeypatch.setattr("trading.week52.ranges.SessionLocal", TestSessionLocal)
         monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: None)
 
         db.add(Stock52WeekRange(

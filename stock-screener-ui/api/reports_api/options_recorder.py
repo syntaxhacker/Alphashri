@@ -57,21 +57,32 @@ Design rules (mirrors the NIFTY recorder, which is the reference):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from api.options_conventions import NEAR_BAND_PCT
 from api.reports_api import _journal, _jsonl
+from api.reports_api._rate_limit import get_rate_limiter, reset_rate_limiter
 from api.reports_api._tape_row import build_tape_row
 from api.reports_api._time import today_str as _today_str
 from fastapi import APIRouter
 
 import config
+
+# Tape dedupe uses an OS advisory lock; Linux is the deployment target. The
+# import stays optional so the module still loads on non-POSIX hosts, where
+# only the in-process lock protects the cache.
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX hosts
+    fcntl = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -171,9 +182,13 @@ _expiry_cache: dict[str, dict] = {}
 _intraday_cache: dict[str, dict] = {}
 _lot_maps: Optional[dict] = None
 _gap_minutes: dict[str, set[str]] = {}
-#: Minutes already present in a day's tape file (loaded once per file), so a
-#: restart mid-minute — or any second writer — cannot duplicate the row.
+#: Minutes already present in a day's tape file. Cached per path, but the
+#: ``(mtime_ns, size)`` stamp is re-checked so a second writer is never missed.
 _tape_minutes: dict[str, set[str]] = {}
+_tape_minute_stamps: dict[str, Optional[tuple[int, int]]] = {}
+#: Per-file in-process lock; ``flock`` below is the cross-process part.
+_tape_locks: dict[str, Any] = {}
+_tape_locks_guard = threading.Lock()
 #: Last successful chain10s write per symbol: ``{"mono": float, "iso": str}``.
 _last_chain10s: dict[str, dict] = {}
 #: ``(minute, reason)`` already journalled per chain10s gap file.
@@ -190,9 +205,6 @@ _per_symbol: dict[str, dict] = {}
 _task: Optional[asyncio.Task] = None
 _loop: Optional[asyncio.AbstractEventLoop] = None
 _failure_streak = 0
-
-_RATE_LIMITER: Any = None
-_RATE_LIMITER_READY = False
 
 
 def symbols() -> list[str]:
@@ -217,19 +229,19 @@ def _sym_state(symbol: str) -> dict:
 
 def _reset_state() -> None:
     """Drop every in-process cache/counter (tests, manual restart)."""
-    global _lot_maps, _RATE_LIMITER, _RATE_LIMITER_READY, _failure_streak
+    global _lot_maps, _failure_streak
     LAST.clear()
     _expiry_cache.clear()
     _intraday_cache.clear()
     _gap_minutes.clear()
     _tape_minutes.clear()
+    _tape_minute_stamps.clear()
     _last_chain10s.clear()
     _chain_gap_seen.clear()
     _per_symbol.clear()
     _LAST_MINUTE.clear()
     _lot_maps = None
-    _RATE_LIMITER = None
-    _RATE_LIMITER_READY = False
+    reset_rate_limiter(RATE_CONSUMER)
     _failure_streak = 0
     _status.update({"last_tick": None, "last_error": None, "iterations": 0,
                     "interval_sec": INTERVAL_SEC, "records": 0})
@@ -386,21 +398,65 @@ def _append_chain_gap(symbol: str, date_str: str, t_iso: str, reason: str,
                         dedupe=_journal.MINUTE_REASON)
 
 
-def _tape_minutes_for(path: Path) -> set[str]:
-    """``{YYYY-MM-DDTHH:MM}`` already in this day's tape file (loaded once).
+def _tape_stamp(path: Path) -> tuple[int, int]:
+    """``(mtime_ns, size)`` fingerprint used to invalidate the minute cache."""
+    st = path.stat()
+    return st.st_mtime_ns, st.st_size
 
-    The old guard only compared the LAST line's minute, which cannot see a
-    duplicate written earlier (a restart, a second process, a retry after a
-    torn append). This reads the file once per session and then answers in
-    O(1); the file is ~5 MB by the close.
+
+@contextlib.contextmanager
+def _tape_lock(path: Path) -> Iterator[None]:
+    """Serialize the minute check + append for one tape file.
+
+    An exclusive flock on a sibling lock file queues writers in *other
+    processes* without blocking readers of the tape itself. The in-process
+    lock keeps the minute cache coherent and is the fallback when flock is
+    unavailable.
     """
     key = str(path)
+    with _tape_locks_guard:
+        thread_lock = _tape_locks.get(key)
+        if thread_lock is None:
+            thread_lock = threading.RLock()
+            _tape_locks[key] = thread_lock
+    with thread_lock:
+        if fcntl is None:
+            yield
+            return
+        lock_path = path.with_name(path.name + ".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "a+") as fh:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+
+def _refresh_tape_minutes(path: Path) -> set[str]:
+    """Minute index, re-read when another writer changed the file."""
+    key = str(path)
+    try:
+        stamp: Optional[tuple[int, int]] = _tape_stamp(path)
+    except OSError:
+        stamp = None
     seen = _tape_minutes.get(key)
-    if seen is not None:
+    if seen is not None and _tape_minute_stamps.get(key) == stamp:
         return seen
     seen = _journal.read_minute_keys(path)
     _tape_minutes[key] = seen
+    _tape_minute_stamps[key] = stamp
     return seen
+
+
+def _tape_minutes_for(path: Path) -> set[str]:
+    """``{YYYY-MM-DDTHH:MM}`` already in this day's tape file.
+
+    Cached per path for O(1) answers, but a writer in another process changes
+    ``(mtime_ns, size)``; the index is then re-read instead of trusting the
+    stale in-process set.
+    """
+    return _refresh_tape_minutes(path)
 
 
 def _append_tape_row(path: Path, row: dict) -> None:
@@ -416,18 +472,33 @@ def _append_tape_row(path: Path, row: dict) -> None:
         _append_jsonl(path, row)
 
 
-def _rate_limiter() -> Any:
-    """Lazy singleton ``UpstoxRateLimiter(consumer="options")`` (None if absent)."""
-    global _RATE_LIMITER, _RATE_LIMITER_READY
-    if not _RATE_LIMITER_READY:
-        _RATE_LIMITER_READY = True
-        try:
-            from upstox_trader.rate_limiter import UpstoxRateLimiter
+def _append_tape_row_if_new(path: Path, row: dict, minute: str) -> bool:
+    """Append ``row`` only when ``minute`` is not on disk; return appended.
 
-            _RATE_LIMITER = UpstoxRateLimiter(consumer=RATE_CONSUMER)
-        except Exception:
-            _RATE_LIMITER = None
-    return _RATE_LIMITER
+    The lock covers the whole read → decide → append window, so two processes
+    racing on one minute produce exactly one line. The full minute index is
+    re-read rather than just the tail: a same-minute row can be followed by a
+    later minute, which a tail-only check would miss.
+    """
+    with _tape_lock(path):
+        seen = _refresh_tape_minutes(path)
+        if minute in seen:
+            return False
+        _append_tape_row(path, row)
+        seen.add(minute)
+        try:
+            _tape_minute_stamps[str(path)] = _tape_stamp(path)
+        except OSError:  # pragma: no cover - the append just succeeded
+            _tape_minute_stamps[str(path)] = None
+        return True
+
+
+def _rate_limiter() -> Any:
+    """Lazy ``UpstoxRateLimiter(consumer="options")`` (None if absent).
+
+    Kept as a module-level hook so tests can patch the recorder's limiter.
+    """
+    return get_rate_limiter(RATE_CONSUMER)
 
 
 async def _acquire_upstream() -> bool:
@@ -938,8 +1009,9 @@ async def _write_minute(symbol: str, report: dict, date_str: str,
     minute = str(t_iso)[:16]
     last_spot, same_minute = await asyncio.to_thread(_peek_last_tape, path, minute)
     # The tail check catches the common case (two ticks in one minute); the
-    # day-file index also catches a duplicate written earlier in the minute
-    # (restart, second writer, retried append).
+    # stamp-aware index catches a duplicate written earlier in the minute or
+    # by another process. Both are only a fast path: the authoritative check
+    # happens under the file lock when the row is appended.
     if same_minute or minute in await asyncio.to_thread(_tape_minutes_for, path):
         _sym_state(symbol)["last_skip"] = "same-minute"
         return None
@@ -979,8 +1051,10 @@ async def _write_minute(symbol: str, report: dict, date_str: str,
                       "spot_source": "tape_reconciled"}
 
     row = _build_tape_row(symbol, report, spot, t_iso, spot_chain=spot_chain)
-    await asyncio.to_thread(_append_tape_row, path, row)
-    _tape_minutes.setdefault(str(path), set()).add(minute)
+    if not await asyncio.to_thread(
+            _append_tape_row_if_new, path, row, minute):
+        _sym_state(symbol)["last_skip"] = "same-minute"
+        return None
 
     # Same line shape as the NIFTY replay log: the stamps are on the LINE as
     # well as inside the report so a consumer can classify a frame without

@@ -148,6 +148,20 @@ class TestComputeOnlyJson:
         source = Path(batch.__file__).read_text(encoding="utf-8")
         assert "api_server_fastapi" not in source
 
+    def test_job_status_comes_from_canonical_package_module(self):
+        from trading.week52 import job as canonical_job
+
+        source = Path(batch.__file__).read_text(encoding="utf-8")
+        assert "trading.week52_job_status" not in source
+        for name in (
+            "get_job_status",
+            "start_job",
+            "update_job_progress",
+            "finish_job",
+            "fail_job",
+        ):
+            assert getattr(batch, name) is getattr(canonical_job, name)
+
     def test_run_summary_reports_fetch_outcomes(self, monkeypatch, compute_only_env):
         def fetch(api, symbol, to_date):
             if symbol == "BAD":
@@ -233,7 +247,7 @@ class TestWeek52CacheModule:
         import cache.week52 as week52
 
         calls = {}
-        monkeypatch.delenv(week52.TTL_ENV, raising=False)
+        monkeypatch.delenv("SCREENER_52W_CACHE_TTL", raising=False)
         monkeypatch.setattr(
             "cache.redis_client.cache_set",
             lambda key, value, ttl=None: calls.update(key=key, value=value, ttl=ttl),
@@ -252,6 +266,9 @@ class TestWeek52CacheModule:
     def test_ttl_is_configurable_by_env(self, monkeypatch):
         import cache.week52 as week52
 
-        monkeypatch.setenv(week52.TTL_ENV, "600")
+        from trading.week52.config import cache_ttl_sec
+
+        monkeypatch.setenv("SCREENER_52W_CACHE_TTL", "600")
+        assert cache_ttl_sec() == 600
         assert week52.resolve_ttl() == 600
         assert week52.resolve_ttl(30) == 30

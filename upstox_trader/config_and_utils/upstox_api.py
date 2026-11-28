@@ -4,6 +4,7 @@ Enhanced Upstox API client with real-time streaming capabilities.
 
 import gzip
 import json
+import threading
 import time
 import urllib.parse
 from datetime import datetime, timedelta
@@ -55,6 +56,9 @@ class UpstoxAPI(BaseAPIClient):
     - Seamless integration with old_tv_screen.py and other trading applications
     - Supports quiet mode to suppress console output when quiet=True
     """
+
+    # Class-level so instances built via __new__ in tests still have a lock.
+    _INDEX_LOCK = threading.Lock()
 
     def __init__(self, api_key: str, api_secret: str, quiet: bool = False):
         """
@@ -179,6 +183,43 @@ class UpstoxAPI(BaseAPIClient):
         except (gzip.BadGzipFile, json.JSONDecodeError) as e:
             self._log(f"❌ Failed to process instrument list: {e}")
 
+    def _instrument_index(self) -> tuple[list, dict, dict | None]:
+        """Index the cached master by trading symbol, keeping row order per key.
+
+        Keyed on the list object itself: callers can replace ``self.instruments``
+        with a new list (including on ``force_refresh``), and the cached index
+        must not outlive that list.
+        """
+        instruments = self.instruments
+        cached = getattr(self, "_instrument_index_cache", None)
+        if cached is None or cached[0] is not instruments:
+            with self._INDEX_LOCK:
+                cached = getattr(self, "_instrument_index_cache", None)
+                if cached is None or cached[0] is not instruments:
+                    by_symbol: dict = {}
+                    for inst in instruments:
+                        try:
+                            by_symbol.setdefault(inst.get('trading_symbol'), []).append(inst)
+                        except TypeError:
+                            # An unhashable symbol can never equal the string lookup key.
+                            pass
+                    cached = (instruments, by_symbol, None)
+                    self._instrument_index_cache = cached
+        return cached
+
+    def _name_index(self, cached: tuple) -> dict:
+        """Options lookup by ``name`` is rare, so build it only when asked for."""
+        if cached[2] is None:
+            by_name: dict = {}
+            for inst in cached[0]:
+                try:
+                    by_name.setdefault(inst.get('name'), []).append(inst)
+                except TypeError:
+                    pass
+            cached = (cached[0], cached[1], by_name)
+            self._instrument_index_cache = cached
+        return cached[2]
+
     def get_instrument_key(self, symbol: str, exchange: str = "NSE_EQ",
                           instrument_type: str = 'EQ', expiry_date: Optional[str] = None,
                           strike_price: Optional[float] = None,
@@ -214,17 +255,20 @@ class UpstoxAPI(BaseAPIClient):
             self._log("❌ Instrument list is empty. Cannot find key.")
             return None
 
-        for instrument in self.instruments:
-            if instrument_type in ['EQ', 'INDEX']:
-                segment = 'NSE_INDEX' if instrument_type == 'INDEX' else exchange
-                if (instrument.get('trading_symbol') == clean_symbol and
-                        instrument.get('segment') == segment and
+        cached = self._instrument_index()
+        by_symbol = cached[1]
+        candidates = by_symbol.get(clean_symbol, ())
+
+        if instrument_type in ['EQ', 'INDEX']:
+            segment = 'NSE_INDEX' if instrument_type == 'INDEX' else exchange
+            for instrument in candidates:
+                if (instrument.get('segment') == segment and
                         instrument.get('instrument_type') == instrument_type):
                     return instrument.get('instrument_key')
-            elif instrument_type in ['CE', 'PE']:
+        elif instrument_type in ['CE', 'PE']:
+            for instrument in self._name_index(cached).get(symbol, ()):
                 expiry_ts = instrument.get('expiry')
-                if (instrument.get('name') == symbol and
-                        instrument.get('instrument_type') == option_type and
+                if (instrument.get('instrument_type') == option_type and
                         instrument.get('strike_price') == strike_price and
                         expiry_ts and
                         datetime.fromtimestamp(expiry_ts / 1000).strftime('%Y-%m-%d') == expiry_date):
@@ -236,9 +280,8 @@ class UpstoxAPI(BaseAPIClient):
         # resolving to EQ. Without this pass their charts returned `no_data`
         # (e.g. PRIZOR as SM, QUINTEGRA as BE) even though they are live symbols.
         if instrument_type == 'EQ':
-            for instrument in self.instruments:
-                if (instrument.get('trading_symbol') == clean_symbol and
-                        instrument.get('segment') == exchange and
+            for instrument in candidates:
+                if (instrument.get('segment') == exchange and
                         instrument.get('instrument_type') in EQUITY_FALLBACK_TYPES):
                     return instrument.get('instrument_key')
 

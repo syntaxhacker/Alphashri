@@ -33,6 +33,11 @@ def _reset_redis_state():
     rc._global_misses = 0
     rc._domain_hits.clear()
     rc._domain_misses.clear()
+    rc._last_flush_time = 0.0
+    rc._flushed_hits = 0
+    rc._flushed_misses = 0
+    rc._flushed_domain_hits.clear()
+    rc._flushed_domain_misses.clear()
     yield
     rc._redis_client = None
     rc._redis_available = False
@@ -40,6 +45,11 @@ def _reset_redis_state():
     rc._global_misses = 0
     rc._domain_hits.clear()
     rc._domain_misses.clear()
+    rc._last_flush_time = 0.0
+    rc._flushed_hits = 0
+    rc._flushed_misses = 0
+    rc._flushed_domain_hits.clear()
+    rc._flushed_domain_misses.clear()
 
 
 @pytest.fixture
@@ -57,6 +67,81 @@ def _patched_redis(fake_redis):
         import cache.redis_client as rc
         rc._redis_available = True
         yield rc
+
+
+class _InfoRecordingRedis:
+    """fakeredis has no INFO, so serve the sections and log every command."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.commands = []
+
+    def hset(self, key, mapping=None, **kwargs):
+        self.commands.append("hset")
+        return self.inner.hset(key, mapping=mapping or kwargs)
+
+    def dbsize(self):
+        self.commands.append("dbsize")
+        return self.inner.dbsize()
+
+    def info(self, section=None):
+        self.commands.append(f"info:{section}")
+        memory = {
+            "used_memory": 1234567,
+            "used_memory_human": "1.18M",
+            "used_memory_peak": 2345678,
+            "used_memory_peak_human": "2.24M",
+            "maxmemory_policy": "allkeys-lru",
+            "mem_fragmentation_ratio": 1.37,
+        }
+        stats = {
+            "evicted_keys": 11,
+            "expired_keys": 22,
+            "keyspace_hits": 3300,
+            "keyspace_misses": 700,
+        }
+        if section == "memory":
+            return memory
+        if section == "stats":
+            return stats
+        return {**memory, **stats}
+
+    def scan_iter(self, match=None, count=100):
+        self.commands.append(f"scan:{match}")
+        return self.inner.scan_iter(match=match, count=count)
+
+
+class _InfoAndHashRedis(_InfoRecordingRedis):
+    """Same double, but able to read the shared stats hash."""
+
+    def hgetall(self, key):
+        self.commands.append("hgetall")
+        return self.inner.hgetall(key)
+
+
+class _HincrbyRecorder:
+    """Records pipeline HINCRBY deltas while forwarding them to fakeredis."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.calls = []
+
+    def hset(self, key, mapping=None, **kwargs):
+        return self.inner.hset(key, mapping=mapping or kwargs)
+
+    def pipeline(self, transaction=True):
+        recorder = self
+        inner = self.inner
+
+        class _Pipe:
+            def hincrby(self, key, field, delta):
+                recorder.calls.append((field, delta))
+                return inner.hincrby(key, field, delta)
+
+            def execute(self):
+                return None
+
+        return _Pipe()
 
 
 class TestMakeCacheKey:
@@ -312,6 +397,185 @@ class TestCacheStats:
             assert stats["misses"] == 3
             assert stats["total_requests"] == 10
             assert stats["hit_rate"] == 70.0
+
+    def test_stats_uses_one_keyspace_scan(self, fake_redis):
+        import cache.redis_client as rc
+
+        client = _InfoRecordingRedis(fake_redis)
+        for key in ("screener:a", "screener:b", "news:a", "backtest:a", "nocolon"):
+            fake_redis.set(key, "v")
+        rc._global_hits = 7
+        rc._global_misses = 3
+        rc._domain_hits.update({"screener": 7, "other": 1})
+        rc._domain_misses.update({"news": 3})
+
+        previous_flush = rc._last_flush_time
+        rc._last_flush_time = time.time()
+        try:
+            with patch("cache.redis_client.get_redis_client", return_value=client):
+                rc._redis_available = True
+                stats = rc.get_cache_stats()
+        finally:
+            rc._last_flush_time = previous_flush
+
+        assert stats["by_prefix_keys"] == {"screener": 2, "other": 0, "news": 1}
+        assert stats["by_domain"]["news"] == {
+            "hits": 0, "misses": 3, "total": 3, "hit_rate": 0.0,
+        }
+        assert stats["used_memory_bytes"] == 1234567
+        assert stats["keyspace_hits"] == 3300
+        assert client.commands == ["dbsize", "info:memory", "info:stats", "scan:*"]
+
+
+class TestMultiWorkerStats:
+    """A shared hash must sum workers instead of keeping the last writer's snapshot."""
+
+    @pytest.fixture
+    def two_clients(self):
+        try:
+            import fakeredis
+        except ImportError:
+            pytest.skip("fakeredis not installed")
+        server = fakeredis.FakeServer()
+        return (
+            fakeredis.FakeRedis(server=server, decode_responses=True),
+            fakeredis.FakeRedis(server=server, decode_responses=True),
+        )
+
+    @staticmethod
+    def _record(client, prefix, hits, misses):
+        with _patched_redis(client) as rc:
+            rc.cache_set(f"{prefix}:hot", {"v": 1})
+            for _ in range(hits):
+                assert rc.cache_get(f"{prefix}:hot") == {"v": 1}
+            for i in range(misses):
+                assert rc.cache_get(f"{prefix}:miss{i}") is None
+
+    @staticmethod
+    def _flush(client):
+        import cache.redis_client as rc
+        rc._last_flush_time = 0.0
+        with _patched_redis(client):
+            rc._flush_stats_to_redis()
+
+    @staticmethod
+    def _fresh_process():
+        import cache.redis_client as rc
+        rc._global_hits = 0
+        rc._global_misses = 0
+        rc._domain_hits.clear()
+        rc._domain_misses.clear()
+        rc._flushed_hits = 0
+        rc._flushed_misses = 0
+        rc._flushed_domain_hits.clear()
+        rc._flushed_domain_misses.clear()
+
+    @staticmethod
+    def _read(client):
+        with _patched_redis(_InfoAndHashRedis(client)) as rc:
+            return rc.get_cache_stats()
+
+    def test_two_workers_flush_deltas_and_read_sum(self, two_clients):
+        client_a, client_b = two_clients
+        self._record(client_a, "screener", 3, 2)
+        self._flush(client_a)
+        self._fresh_process()
+        self._record(client_b, "news", 5, 7)
+        self._flush(client_b)
+
+        raw = client_a.hgetall("cache:stats")
+        assert raw["global_hits"] == "8"
+        assert raw["global_misses"] == "9"
+        assert raw["domain_hits:screener"] == "3"
+        assert raw["domain_misses:screener"] == "2"
+        assert raw["domain_hits:news"] == "5"
+        assert raw["domain_misses:news"] == "7"
+        assert "domain_hits" not in raw
+
+        self._fresh_process()
+        stats = self._read(client_a)
+        assert stats["hits"] == 8
+        assert stats["misses"] == 9
+        assert stats["total_requests"] == 17
+        assert stats["hit_rate"] == 47.1
+        assert stats["by_domain"]["screener"] == {
+            "hits": 3, "misses": 2, "total": 5, "hit_rate": 60.0,
+        }
+        assert stats["by_domain"]["news"] == {
+            "hits": 5, "misses": 7, "total": 12, "hit_rate": 41.7,
+        }
+
+    def test_restart_does_not_double_count(self, two_clients):
+        client_a, client_b = two_clients
+        self._record(client_a, "screener", 3, 2)
+        self._flush(client_a)
+        self._fresh_process()
+        self._record(client_b, "news", 5, 7)
+        self._flush(client_b)
+
+        self._fresh_process()
+        self._record(client_a, "screener", 1, 1)
+        self._flush(client_a)
+
+        stats = self._read(client_a)
+        assert stats["hits"] == 9
+        assert stats["misses"] == 10
+
+    def test_read_combines_unflushed_local_with_shared(self, two_clients):
+        client_a, client_b = two_clients
+        self._record(client_b, "news", 5, 7)
+        self._flush(client_b)
+
+        self._fresh_process()
+        self._record(client_a, "screener", 3, 2)
+        import cache.redis_client as rc
+        rc._last_flush_time = time.time()
+
+        stats = self._read(client_a)
+        assert stats["hits"] == 8
+        assert stats["misses"] == 9
+        assert stats["by_domain"]["screener"]["hits"] == 3
+        assert stats["by_domain"]["news"]["misses"] == 7
+
+    def test_flush_sends_only_deltas_via_hincrby(self, fake_redis):
+        recorder = _HincrbyRecorder(fake_redis)
+        with _patched_redis(recorder) as rc:
+            rc._global_hits = 7
+            rc._global_misses = 3
+            rc._domain_hits.update({"screener": 5})
+            rc._domain_misses.update({"news": 3})
+            rc._flush_stats_to_redis()
+            assert recorder.calls == [
+                ("global_hits", 7),
+                ("global_misses", 3),
+                ("domain_hits:screener", 5),
+                ("domain_misses:news", 3),
+            ]
+
+            rc._global_hits = 10
+            rc._domain_hits["screener"] = 6
+            rc._last_flush_time = 0.0
+            rc._flush_stats_to_redis()
+            assert recorder.calls[-2:] == [
+                ("global_hits", 3),
+                ("domain_hits:screener", 1),
+            ]
+            assert fake_redis.hget("cache:stats", "global_hits") == "10"
+
+    def test_legacy_json_domain_blobs_are_merged_on_read(self, fake_redis):
+        fake_redis.hset("cache:stats", mapping={
+            "global_hits": "4",
+            "global_misses": "1",
+            "domain_hits": json.dumps({"screener": 4}),
+            "domain_misses": json.dumps({"screener": 1}),
+        })
+        import cache.redis_client as rc
+        rc._last_flush_time = time.time()
+        stats = self._read(fake_redis)
+        assert stats["hits"] == 4
+        assert stats["by_domain"]["screener"] == {
+            "hits": 4, "misses": 1, "total": 5, "hit_rate": 80.0,
+        }
 
 
 class TestCacheInvalidation:

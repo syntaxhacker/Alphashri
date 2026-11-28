@@ -17,7 +17,7 @@ import { join } from "node:path";
 const BASE_URL = arg("base-url", process.env.CHART_PERF_BASE_URL ?? "http://127.0.0.1:4174").replace(/\/$/, "");
 const ARTIFACT_ROOT =
   process.env.CHART_PERF_ARTIFACT_DIR ||
-  (process.env.CODESPACES ? "/workspaces/react/.agent-artifacts/chart-perf" : "/tmp/opencode/chart-perf");
+  (process.env.CODESPACES ? "/workspaces/test-rag/.agent-artifacts/chart-perf" : "/tmp/opencode/chart-perf");
 const FIXTURES_DIR = arg("fixtures", join(ARTIFACT_ROOT, "fixtures"));
 const OUT_DIR = arg("out", join(ARTIFACT_ROOT, "matrix"));
 const HEADED = process.argv.includes("--headed");

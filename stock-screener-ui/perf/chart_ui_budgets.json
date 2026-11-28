@@ -50,7 +50,7 @@
       "fullscreen_cycles": 5
     },
     "artifact_dir": {
-      "codespaces": "/workspaces/react/.agent-artifacts/chart-perf",
+      "codespaces": "/workspaces/test-rag/.agent-artifacts/chart-perf",
       "fallback": "/tmp/opencode/chart-perf",
       "override_env": "CHART_PERF_ARTIFACT_DIR"
     },

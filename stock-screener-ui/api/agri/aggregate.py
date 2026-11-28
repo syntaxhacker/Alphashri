@@ -6,13 +6,13 @@ to quintals; the original unit is surfaced through :func:`collect_warnings`.
 
 from __future__ import annotations
 
-import math
 import statistics
 from datetime import date, datetime, timedelta
 from itertools import chain
 from typing import Any, Iterable, Mapping, Optional
 
 import config
+from common.numbers import optional_float
 
 from . import canonical, registry
 
@@ -36,11 +36,7 @@ STALE_AFTER_DAYS: int = 7
 
 def to_float(value: Any) -> Optional[float]:
     """Parse a price/count without letting NaN or inf poison an aggregate."""
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return None
-    return out if math.isfinite(out) else None
+    return optional_float(value)
 
 
 def _round(value: Optional[float], digits: int = 2) -> Optional[float]:

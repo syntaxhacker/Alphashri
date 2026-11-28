@@ -24,13 +24,16 @@ used to consume a directory of assets instead of the GitHub API (tests/offline).
 Examples:
     .venv/bin/python scripts/sync_refresh_assets.py --latest
     .venv/bin/python scripts/sync_refresh_assets.py --latest --dry-run
-    .venv/bin/python scripts/sync_refresh_assets.py --from 2026-11-01 --to 2026-11-21
     .venv/bin/python scripts/sync_refresh_assets.py --release-tag data-2026-11
+
+Range mode (``--from``/``--to``) remains available, chiefly for agri backfill.
+A single rolling 52W asset cannot replay an in-month historical date.
 """
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import gzip
 import hashlib
 import hmac
@@ -43,6 +46,7 @@ import sys
 import urllib.error
 import urllib.request
 from collections import defaultdict
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -52,6 +56,9 @@ from zoneinfo import ZoneInfo
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from common.numbers import optional_float as _to_float
+from trading.week52.upsert import upsert_52w_ranges
 
 DEFAULT_REPO = "syntaxhacker/Alphashri"
 DEFAULT_API_URL = "https://api.github.com"
@@ -75,6 +82,10 @@ class SyncError(RuntimeError):
     """Base class for expected sync failures (reported without a traceback)."""
 
 
+class SyncBusy(SyncError):
+    """Another process already holds the state-file sync lock."""
+
+
 class MissingAsset(SyncError):
     """An asset or its manifest is absent from the selected release(s)."""
 
@@ -96,6 +107,7 @@ class ReleaseAsset:
     url: Optional[str] = None
     size: Optional[int] = None
     local_path: Optional[Path] = None
+    updated_at: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +131,26 @@ class ValidatedAsset:
     path: Path
     manifest: dict[str, Any]
     payload: Any
+    fingerprint: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class RefreshPointer:
+    """Latest published date and revision identity for one asset kind."""
+
+    kind: str
+    as_of: str
+    fingerprint: str
+
+
+@dataclass
+class AppliedPointers:
+    """Last applied date/fingerprint per kind, read from the run ledger."""
+
+    week52_as_of: Optional[str] = None
+    week52_fingerprint: Optional[str] = None
+    agri_as_of: Optional[str] = None
+    agri_fingerprint: Optional[str] = None
 
 
 @dataclass
@@ -139,6 +171,9 @@ class SyncSummary:
     gap_warnings: list[str] = field(default_factory=list)
     redis_updated: bool = False
     screener_cache_keys_deleted: int = 0
+    week52_fingerprint: Optional[str] = None
+    agri_fingerprint: Optional[str] = None
+    agri_error: Optional[str] = None
     dry_run: bool = False
 
     def as_dict(self) -> dict[str, Any]:
@@ -159,6 +194,9 @@ class SyncSummary:
             "gap_warnings": self.gap_warnings,
             "redis_updated": self.redis_updated,
             "screener_cache_keys_deleted": self.screener_cache_keys_deleted,
+            "week52_fingerprint": self.week52_fingerprint,
+            "agri_fingerprint": self.agri_fingerprint,
+            "agri_error": self.agri_error,
             "dry_run": self.dry_run,
         }
 
@@ -196,6 +234,38 @@ def asset_date(name: str) -> Optional[str]:
     if match:
         return match.group(2)
     return None
+
+
+def asset_kind(name: str) -> Optional[str]:
+    """Kind encoded in an asset/manifest name, or ``None`` for other files."""
+    for kind, pattern in ASSET_PATTERNS.items():
+        if pattern.match(name):
+            return kind
+    match = MANIFEST_RE.match(name)
+    return match.group(1) if match else None
+
+
+def refresh_fingerprint(asset: ReleaseAsset) -> str:
+    """Stable identity for one asset revision; a date alone is not enough.
+
+    Releases are re-uploaded with ``--clobber``, so the same session date can
+    carry a different payload. GitHub exposes ``updated_at`` and ``size``;
+    local fixtures use the file size and inode timestamp instead.
+    """
+    as_of = asset_date(asset.name) or ""
+    if asset.local_path is not None:
+        try:
+            stat = asset.local_path.stat()
+        except OSError:
+            size, mtime_ns = asset.size, 0
+        else:
+            size = asset.size if asset.size is not None else stat.st_size
+            mtime_ns = stat.st_mtime_ns
+        raw = f"{as_of}|local|{size}|{mtime_ns}"
+    else:
+        size = asset.size if asset.size is not None else ""
+        raw = f"{as_of}|{asset.updated_at or ''}|{size}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _github_request(url: str, token: Optional[str]) -> Any:
@@ -246,6 +316,7 @@ def list_github_assets(
                         name=name,
                         url=item.get("browser_download_url"),
                         size=item.get("size"),
+                        updated_at=item.get("updated_at"),
                     )
                 )
         if len(releases) < 100:
@@ -666,6 +737,7 @@ def validate_asset(pair: AssetPair, path: Path) -> ValidatedAsset:
         path=path,
         manifest=manifest,
         payload=payload,
+        fingerprint=refresh_fingerprint(pair.asset),
     )
 
 
@@ -680,16 +752,6 @@ def _manifest_path(pair: AssetPair) -> Path:
 # ---------------------------------------------------------------------------
 # Apply
 # ---------------------------------------------------------------------------
-
-
-def _to_float(value: Any) -> Optional[float]:
-    if value is None or value == "":
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
 
 
 def normalize_agri_row(row: dict[str, Any]) -> Optional[dict[str, Any]]:
@@ -833,61 +895,10 @@ def apply_52w_data(
     data: dict[str, Any],
 ) -> tuple[int, int]:
     """Change-only upsert of a validated 52W payload into stock_52w_range."""
-    from db.models.stock_52w_touch import Stock52WeekRange
-
     symbols = data.get("symbols") or {}
     if not isinstance(symbols, dict) or not symbols:
         return 0, 0
-
-    now = datetime.now(IST).replace(tzinfo=None)
-    added = 0
-    updated = 0
-    symbol_list = list(symbols)
-
-    session = session_factory()
-    try:
-        for offset in range(0, len(symbol_list), 400):
-            chunk = symbol_list[offset : offset + 400]
-            existing = {
-                row.symbol: row
-                for row in session.query(Stock52WeekRange)
-                .filter(Stock52WeekRange.symbol.in_(chunk))
-                .all()
-            }
-            for symbol in chunk:
-                entry = symbols[symbol]
-                current = existing.get(symbol)
-                if current is None:
-                    session.add(
-                        Stock52WeekRange(
-                            symbol=symbol,
-                            high_52w=entry["high"],
-                            low_52w=entry["low"],
-                            close=entry["close"],
-                            days_ago=entry.get("days_ago"),
-                            updated_at=now,
-                        )
-                    )
-                    added += 1
-                elif (
-                    current.high_52w != entry["high"]
-                    or current.low_52w != entry["low"]
-                    or current.close != entry["close"]
-                    or current.days_ago != entry.get("days_ago")
-                ):
-                    current.high_52w = entry["high"]
-                    current.low_52w = entry["low"]
-                    current.close = entry["close"]
-                    current.days_ago = entry.get("days_ago")
-                    current.updated_at = now
-                    updated += 1
-            session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-    return added, updated
+    return upsert_52w_ranges(session_factory, symbols)
 
 
 def count_52w(session_factory: Callable[[], Any]) -> int:
@@ -986,6 +997,129 @@ def append_state(path: Path, record: dict[str, Any], keep: int = 50) -> None:
     os.replace(temporary, path)
 
 
+def latest_52w_as_of(
+    repo: str = DEFAULT_REPO,
+    token: Optional[str] = None,
+    api_url: str = DEFAULT_API_URL,
+) -> str | None:
+    """Newest 52W asset date published across all ``data-YYYY-MM`` releases."""
+    pattern = ASSET_PATTERNS["52w"]
+    dates: list[str] = []
+    for asset in list_github_assets(repo=repo, token=token, api_url=api_url):
+        match = pattern.match(asset.name)
+        if match:
+            dates.append(match.group(1))
+    return max(dates) if dates else None
+
+
+def _latest_fingerprint(pairs: Iterable[AssetPair], kind: str) -> Optional[str]:
+    """Fingerprint of the newest selected pair of one kind (mirrors ``select_pairs``)."""
+    candidates = [pair for pair in pairs if pair.kind == kind]
+    if not candidates:
+        return None
+    return refresh_fingerprint(max(candidates, key=lambda pair: pair.as_of).asset)
+
+
+def latest_refresh_pointers(
+    repo: str = DEFAULT_REPO,
+    token: Optional[str] = None,
+    api_url: str = DEFAULT_API_URL,
+) -> dict[str, RefreshPointer]:
+    """Latest date + fingerprint per kind from ONE GitHub listing pass.
+
+    Selecting through the same pair machinery as ``run_sync(mode='latest')``
+    keeps the watcher's pointer in step with what a successful sync records.
+    """
+    assets = list_github_assets(repo=repo, token=token, api_url=api_url)
+    if not assets:
+        return {}
+    grouped = group_by_release(assets)
+    tags = choose_release_tags(grouped, "latest")
+    pairs: list[AssetPair] = []
+    for tag in tags:
+        # Mirror run_sync's per-kind pairing so the pointer matches what an
+        # apply would actually select; a half-uploaded kind cannot block the
+        # other one.
+        for kind in ("52w", "agri"):
+            subset = [a for a in grouped[tag] if asset_kind(a.name) == kind]
+            try:
+                pairs.extend(build_pairs(subset))
+            except MissingAsset:
+                continue
+    selected = select_pairs(pairs, "latest", allow_empty=True)
+    return {
+        pair.kind: RefreshPointer(
+            kind=pair.kind,
+            as_of=pair.as_of,
+            fingerprint=refresh_fingerprint(pair.asset),
+        )
+        for pair in selected
+    }
+
+
+def last_applied_pointers(state_file: Path = DEFAULT_STATE_FILE) -> AppliedPointers:
+    """Last applied date and fingerprint for each kind from the run ledger.
+
+    ``partial`` records count: a failed agri apply still advances 52W. Older
+    ledgers without fingerprints yield an unknown fingerprint (and therefore
+    one catch-up apply) while keeping their date for rollback protection.
+    """
+    result = AppliedPointers()
+    try:
+        records = json.loads(Path(state_file).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return result
+    if not isinstance(records, list):
+        return result
+    for record in reversed(records):
+        if not isinstance(record, dict) or record.get("status") not in ("ok", "partial"):
+            continue
+        if result.week52_as_of is None or result.week52_fingerprint is None:
+            dates = [
+                value
+                for value in (record.get("week52_dates") or [])
+                if isinstance(value, str) and value
+            ]
+            if result.week52_as_of is None and dates:
+                result.week52_as_of = max(dates)
+            fingerprint = record.get("week52_fingerprint")
+            if result.week52_fingerprint is None and isinstance(fingerprint, str) and fingerprint:
+                result.week52_fingerprint = fingerprint
+        if result.agri_as_of is None or result.agri_fingerprint is None:
+            dates = [
+                value
+                for value in (record.get("agri_dates") or [])
+                if isinstance(value, str) and value
+            ]
+            if result.agri_as_of is None and dates:
+                result.agri_as_of = max(dates)
+            fingerprint = record.get("agri_fingerprint")
+            if result.agri_fingerprint is None and isinstance(fingerprint, str) and fingerprint:
+                result.agri_fingerprint = fingerprint
+        if all(
+            value is not None
+            for value in (
+                result.week52_as_of,
+                result.week52_fingerprint,
+                result.agri_as_of,
+                result.agri_fingerprint,
+            )
+        ):
+            break
+    return result
+
+
+def last_applied_fingerprints(state_file: Path = DEFAULT_STATE_FILE) -> dict[str, Optional[str]]:
+    """Last applied fingerprint per kind (``agri`` / ``52w``)."""
+    applied = last_applied_pointers(state_file)
+    return {"agri": applied.agri_fingerprint, "52w": applied.week52_fingerprint}
+
+
+def last_applied_52w_as_of(state_file: Path = DEFAULT_STATE_FILE) -> str | None:
+    """Newest 52W date in the last successful sync ledger record, if any."""
+    return last_applied_pointers(state_file).week52_as_of
+
+
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
@@ -1040,6 +1174,28 @@ def _default_session_factory() -> Callable[[], Any]:
     return SessionLocal
 
 
+@contextmanager
+def _state_lock(state_file: Optional[Path], lock: bool):
+    """Non-blocking cross-process guard derived from the ledger path."""
+    if state_file is None or not lock:
+        yield
+        return
+    path = Path(f"{state_file}.lock")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+") as handle:
+        acquired = False
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquired = True
+        except OSError as exc:
+            raise SyncBusy(f"Sync already running (lock: {path})") from exc
+        try:
+            yield
+        finally:
+            if acquired:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def run_sync(
     *,
     mode: str,
@@ -1057,8 +1213,47 @@ def run_sync(
     use_redis: bool = True,
     state_file: Optional[Path] = DEFAULT_STATE_FILE,
     allow_empty: bool = False,
+    lock: bool = True,
 ) -> SyncSummary:
     """Download, validate and apply one selection of refresh assets."""
+    with _state_lock(state_file, lock):
+        return _run_sync_unlocked(
+            mode=mode,
+            from_date=from_date,
+            to_date=to_date,
+            release_tag=release_tag,
+            repo=repo,
+            token=token,
+            api_url=api_url,
+            assets_dir=assets_dir,
+            cache_dir=cache_dir,
+            agri_db_path=agri_db_path,
+            session_factory=session_factory,
+            dry_run=dry_run,
+            use_redis=use_redis,
+            state_file=state_file,
+            allow_empty=allow_empty,
+        )
+
+
+def _run_sync_unlocked(
+    *,
+    mode: str,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    release_tag: Optional[str] = None,
+    repo: str = DEFAULT_REPO,
+    token: Optional[str] = None,
+    api_url: str = DEFAULT_API_URL,
+    assets_dir: Optional[Path] = None,
+    cache_dir: Path = DEFAULT_CACHE_DIR,
+    agri_db_path: Optional[Path] = None,
+    session_factory: Optional[Callable[[], Any]] = None,
+    dry_run: bool = False,
+    use_redis: bool = True,
+    state_file: Optional[Path] = DEFAULT_STATE_FILE,
+    allow_empty: bool = False,
+) -> SyncSummary:
     if mode not in {"latest", "range", "tag"}:
         raise SyncError(f"Unknown sync mode: {mode}")
 
@@ -1085,6 +1280,7 @@ def run_sync(
     tags = choose_release_tags(grouped, mode, release_tag=release_tag)
 
     pairs: list[AssetPair] = []
+    agri_error: Optional[str] = None
     for tag in tags:
         release_assets = grouped[tag]
         if mode == "range":
@@ -1095,7 +1291,12 @@ def run_sync(
                 if (as_of := asset_date(asset.name)) is not None
                 and from_date <= as_of <= to_date
             ]
-        pairs.extend(build_pairs(release_assets))
+        pairs.extend(build_pairs([a for a in release_assets if asset_kind(a.name) == "52w"]))
+        try:
+            pairs.extend(build_pairs([a for a in release_assets if asset_kind(a.name) == "agri"]))
+        except MissingAsset as exc:
+            # An incomplete agri upload must not stop the 52W apply.
+            agri_error = str(exc)
 
     selected = select_pairs(
         pairs,
@@ -1108,22 +1309,34 @@ def run_sync(
     summary = SyncSummary(
         mode=mode,
         release_tags=sorted({pair.release for pair in selected}),
+        week52_fingerprint=_latest_fingerprint(selected, "52w"),
+        agri_fingerprint=_latest_fingerprint(selected, "agri"),
         dry_run=dry_run,
     )
 
-    validated: list[ValidatedAsset] = []
-    for pair in selected:
-        validated.append(_download_and_validate(pair, Path(cache_dir), token))
+    # 52W first: a bad agri asset must never block the range update.
+    week52_assets = [
+        _download_and_validate(pair, Path(cache_dir), token)
+        for pair in selected
+        if pair.kind == "52w"
+    ]
+    agri_assets: list[ValidatedAsset] = []
+    if not agri_error:
+        for pair in selected:
+            if pair.kind != "agri":
+                continue
+            try:
+                agri_assets.append(_download_and_validate(pair, Path(cache_dir), token))
+            except Exception as exc:
+                agri_error = str(exc)
+                break
+    if agri_error:
+        summary.agri_error = agri_error
+        summary.agri_fingerprint = None
 
-    agri_assets = sorted(
-        (item for item in validated if item.kind == "agri"),
-        key=lambda item: item.as_of,
-    )
-    week52_assets = sorted(
-        (item for item in validated if item.kind == "52w"),
-        key=lambda item: item.as_of,
-    )
-    summary.agri_dates = [item.as_of for item in agri_assets]
+    agri_assets.sort(key=lambda item: item.as_of)
+    week52_assets.sort(key=lambda item: item.as_of)
+    summary.agri_dates = [] if agri_error else [item.as_of for item in agri_assets]
     summary.week52_dates = [item.as_of for item in week52_assets]
     summary.agri_rows_verified = sum(len(item.payload) for item in agri_assets)
     summary.week52_symbols_verified = sum(
@@ -1146,23 +1359,6 @@ def run_sync(
         )
         return summary
 
-    applied_rows = 0
-    quarantined_rows = 0
-    if agri_assets:
-        conn = open_agri_db(agri_db_path)
-        try:
-            for item in agri_assets:
-                rows, quarantined = prepare_agri_rows(item.payload)
-                applied_rows += apply_agri_rows(conn, rows)
-                quarantined_rows += quarantined
-            summary.agri_max_date = agri_max_date(conn)
-            summary.agri_max_by_key = agri_max_dates_by_key(conn)
-            summary.gap_warnings = agri_gap_warnings(conn)
-        finally:
-            conn.close()
-    summary.agri_rows_applied = applied_rows
-    summary.agri_rows_quarantined = quarantined_rows
-
     combined_52w: dict[str, Any] = {}
     factory: Optional[Callable[[], Any]] = None
     for item in week52_assets:
@@ -1173,6 +1369,30 @@ def run_sync(
         summary.week52_added = added
         summary.week52_updated = updated
         summary.week52_total = count_52w(factory)
+
+    applied_rows = 0
+    quarantined_rows = 0
+    if agri_assets and not agri_error:
+        try:
+            conn = open_agri_db(agri_db_path)
+            try:
+                for item in agri_assets:
+                    rows, quarantined = prepare_agri_rows(item.payload)
+                    applied_rows += apply_agri_rows(conn, rows)
+                    quarantined_rows += quarantined
+                summary.agri_max_date = agri_max_date(conn)
+                summary.agri_max_by_key = agri_max_dates_by_key(conn)
+                summary.gap_warnings = agri_gap_warnings(conn)
+            finally:
+                conn.close()
+        except Exception as exc:
+            agri_error = str(exc)
+            summary.agri_error = agri_error
+            # Keep the failed revision "unapplied" so the next poll retries it.
+            summary.agri_fingerprint = None
+            summary.agri_dates = []
+    summary.agri_rows_applied = applied_rows
+    summary.agri_rows_quarantined = quarantined_rows
 
     if use_redis and (agri_assets or combined_52w):
         redis_payload: dict[str, Any] = {}
@@ -1186,7 +1406,7 @@ def run_sync(
     if state_file is not None:
         record = {
             "timestamp": datetime.now(IST).isoformat(timespec="seconds"),
-            "status": "ok",
+            "status": "partial" if agri_error else "ok",
             **summary.as_dict(),
         }
         append_state(Path(state_file), record)
@@ -1221,6 +1441,8 @@ def _print_summary(summary: SyncSummary) -> None:
         )
     for warning in summary.gap_warnings:
         print(f"WARNING: {warning}")
+    if summary.agri_error:
+        print(f"Agri error: {summary.agri_error}")
     if summary.redis_updated:
         print(
             "Redis: 52w_range:all refreshed, "
@@ -1346,6 +1568,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 2
 
     _print_summary(summary)
+    if summary.agri_error:
+        print(f"ERROR: agri sync failed: {summary.agri_error}", file=sys.stderr)
+        return 1
     return 0
 
 

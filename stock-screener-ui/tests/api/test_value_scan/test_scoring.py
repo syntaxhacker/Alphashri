@@ -1,6 +1,17 @@
 """Tests for api.value_scan.scoring — pure engine, no network, deterministic."""
 
-from api.value_scan.scoring import ScoreConfig, peer_medians, score_row, sector_bucket
+from bisect import bisect_right
+
+import api.value_scan.filters as filters
+import api.value_scan.scoring as scoring
+from api.value_scan.scoring import (
+    ScoreConfig,
+    _DIST_METRICS,
+    _percentiles,
+    peer_medians,
+    score_row,
+    sector_bucket,
+)
 
 
 def make_row(**overrides):
@@ -137,6 +148,31 @@ def test_peer_medians_prefilter_frame():
     assert med3["Technology"]["pe"] == 14.0
 
 
+def test_off_52w_high_availability_tracks_bucket_coverage():
+    # 1 of 8 peers carries close/high -> 12.5% < MIN_METRIC_COVERAGE.
+    low_rows = [make_row(close=None, price_52_week_high=None) for _ in range(7)]
+    low_rows.append(make_row())
+    low_peers = peer_medians(low_rows)
+    assert low_peers["__cov__"]["Technology"]["off_52w_high"] < scoring.MIN_METRIC_COVERAGE
+
+    scored = score_row(make_row(), low_peers)
+    assert scored["_avail"]["off_52w_high"] is False
+    gate = {"off_52w_high_pct_min": 0.25}
+    # a percentile that would fail the gate is ignored when the bucket lacks the metric
+    failing = dict(scored, _pct={**scored["_pct"], "off_52w_high": 0.01})
+    assert filters._passes(failing, gate) is True
+    # the same percentile does exclude the row once the metric is available
+    available = dict(failing, _avail={**failing["_avail"], "off_52w_high": True})
+    assert filters._passes(available, gate) is False
+
+    # ~100% coverage keeps the flag on and the gate active.
+    normal_peers = peer_medians([make_row() for _ in range(4)])
+    normal = score_row(make_row(), normal_peers)
+    assert normal_peers["__cov__"]["Technology"]["off_52w_high"] == 1.0
+    assert normal["_avail"]["off_52w_high"] is True
+    assert filters._passes(dict(normal, _pct={**normal["_pct"], "off_52w_high": 0.01}), gate) is False
+
+
 def test_empty_frame_and_absolute_fallback():
     empty = peer_medians([])
     # the reserved __dist__ / __cov__ keys are always present
@@ -188,3 +224,60 @@ def test_flags_vocabulary():
     assert "paying-dividend" in out["flags"]
     above = score_row(make_row(), {})
     assert "above-200dma" in above["flags"]
+
+
+def test_percentiles_bisect_matches_old_linear_count():
+    # Sorted distribution with a triplicated boundary and both end points.
+    series = [1.0, 2.0, 2.0, 2.0, 5.0, 9.0]
+    peers = {"__dist__": {"Technology": {key: list(series) for key in _DIST_METRICS}}}
+    values = {
+        "pe": 2.0,            # duplicated boundary -> 4/6
+        "ps": 1.0,            # exact minimum -> 1/6
+        "pb": 9.0,            # exact maximum -> 6/6
+        "roe": 0.5,           # below the minimum -> 0/6
+        "fcf_yield": 6.0,     # between two elements -> 5/6
+        "rev_yoy": 5.0,
+        "eps_yoy": 2.0000001, # just above the duplicated boundary
+        "de": 0.0,
+        "off_52w_high": None, # unknown -> skipped, never treated as 0
+    }
+    got = _percentiles(values, peers, "Technology")
+    expected = {
+        "pe": 4 / 6, "ps": 1 / 6, "pb": 1.0, "roe": 0.0,
+        "fcf_yield": 5 / 6, "rev_yoy": 5 / 6, "eps_yoy": 4 / 6, "de": 0.0,
+    }
+    assert got == expected
+    for key, value in values.items():
+        if value is None:
+            continue
+        # The pre-optimisation implementation, kept as the reference here.
+        assert got[key] == sum(1 for v in series if v <= value) / len(series)
+        assert got[key] == bisect_right(series, value) / len(series)
+    assert "off_52w_high" not in got
+
+
+class _CountingRow(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.gets: dict[str, int] = {}
+
+    def get(self, key, default=None):
+        self.gets[key] = self.gets.get(key, 0) + 1
+        return super().get(key, default)
+
+
+def test_each_row_field_is_parsed_once():
+    # Both passes must avoid re-parsing fields through the derived helpers,
+    # the unknown-fundamentals flag and the percentile step.
+    peer_rows = [_CountingRow(make_row()) for _ in range(3)]
+    peers = peer_medians(peer_rows)
+    for row in peer_rows:
+        assert row.gets == {key: 1 for key in (*scoring._PEER_KEYS, "sector")}
+
+    row = _CountingRow(make_row())
+    out = score_row(row, peers)
+    assert row.gets == {key: 1 for key in (*scoring._SCORE_KEYS, "sector")}
+    assert len(set(scoring._SCORE_KEYS)) == len(scoring._SCORE_KEYS)
+    assert out["_pct"]["pe"] == bisect_right(peers["__dist__"]["Technology"]["pe"], 10.0) / len(
+        peers["__dist__"]["Technology"]["pe"]
+    )

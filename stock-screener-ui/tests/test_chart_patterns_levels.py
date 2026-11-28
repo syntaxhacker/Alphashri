@@ -339,3 +339,65 @@ def test_wire_fast_path_matches_sanitized_frame_exactly():
     assert from_wire.loc["2026-01-04"].isna().all()
     assert (from_wire.loc[["2026-01-08", "2026-01-09"]] == 0.0).sum().sum() == 0
     assert from_wire.loc["2026-01-08"].isna().all()
+
+
+def test_optimised_cluster_mean_matches_np_mean_bitwise():
+    # The hot path uses add.reduce over a reused buffer instead of np.mean on a
+    # growing list; both must agree to the last bit (including >8 touches).
+    prices = [100.0 + i * 0.137 for i in range(20)]
+    clusters = levels._cluster_touches(list(enumerate(prices)), 1e9)
+    assert len(clusters) == 1
+    assert clusters[0]["mean"] == float(np.mean(prices))
+
+
+def test_seeded_golden_zones_are_unchanged_by_hotpath_optimisations():
+    # Golden output from scripts/perf/bench_sr.py (seed 20261127, 400 bars).
+    n = 400
+    rng = np.random.default_rng(20261127 + n)
+    close = 100.0 + np.cumsum(rng.normal(0.0, 0.35, n)) + 3.0 * np.sin(
+        np.arange(n) / 11.0
+    )
+    open_ = np.r_[close[0], close[:-1]]
+    high = np.maximum(open_, close) + rng.uniform(0.05, 0.55, n)
+    low = np.minimum(open_, close) - rng.uniform(0.05, 0.55, n)
+    stamps = pd.date_range("2025-01-01", periods=n, freq="15min")
+    wire = [
+        {
+            "t": stamp.isoformat(),
+            "o": float(o),
+            "h": float(h),
+            "l": float(low_),
+            "c": float(c),
+            "v": float(v),
+        }
+        for stamp, o, h, low_, c, v in zip(
+            stamps, open_, high, low, close, rng.integers(100, 2000, n)
+        )
+    ]
+    expected = [
+        {
+            "bars_since_touch": 40,
+            "bottom": 96.202302,
+            "end_date": "2025-01-04",
+            "end_time": "2025-01-04T17:45:00",
+            "kind": "resistance",
+            "score": 8099.91,
+            "start_date": "2025-01-02",
+            "start_time": "2025-01-02T05:15:00",
+            "top": 96.978003,
+            "touches": 8,
+        },
+        {
+            "bars_since_touch": 34,
+            "bottom": 95.228332,
+            "end_date": "2025-01-04",
+            "end_time": "2025-01-04T19:15:00",
+            "kind": "resistance",
+            "score": 5101.41,
+            "start_date": "2025-01-02",
+            "start_time": "2025-01-02T06:30:00",
+            "top": 95.952492,
+            "touches": 5,
+        },
+    ]
+    assert levels.compute_sr_zones(wire, timeframe="15m") == expected

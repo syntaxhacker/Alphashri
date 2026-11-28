@@ -207,6 +207,98 @@ class TestTouchRecorderUniverse:
         assert 'trending' in TOUCH_SCREENER_UNIVERSE
 
 
+class TestScreenerReadCounts:
+    """One 90d frame and one bulk range payload per cold screen."""
+
+    def _row(self, symbol, price):
+        return {
+            'name': symbol, 'close': price, 'change': 1.0,
+            'price_52_week_high': 1000.0, 'ADX': 25.0, 'ATR': 10.0,
+            'Perf.W': 1.0, 'RSI': 60.0, 'Stoch.K': 60.0, 'gap': 0.0,
+            'premarket_change': 0.0, 'impact_score': 5.0,
+            'market_cap_basic': 1_000_000_000_000, 'volume': 5_000_000,
+            'sector': 'Tech', 'reversal_signal': 'BULLISH',
+        }
+
+    def test_one_daily_frame_and_one_bulk_range_load(self):
+        import pandas as pd
+        from api.screener_api import screener_scan as scan
+        from upstox_trader.config_and_utils.free_indian_apis import TradingAPIFactory
+        import trading.week52.ranges as ranges
+        import trending_upside
+
+        base = datetime.now(config.IST).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        def daily(touch_day):
+            n = 90
+            highs = [970.0] * n
+            highs[-1 - touch_day] = 1000.0
+            idx = [base - timedelta(days=n - 1 - i) for i in range(n)]
+            return pd.DataFrame({'high': highs}, index=pd.DatetimeIndex(idx))
+
+        frames = {'TODAY': daily(0), 'SIX': daily(6)}
+        prices = {'TODAY': 999.5, 'SIX': 980.0}
+
+        class Api:
+            def get_instrument_key(self, symbol):
+                return f'NSE_EQ|{symbol}'
+
+            def _minutes(self, symbol):
+                closes = [prices[symbol]] * 20
+                return pd.DataFrame({
+                    'open': closes, 'high': [p + 1 for p in closes],
+                    'low': [p - 1 for p in closes], 'close': closes,
+                    'volume': [100000] * 20,
+                })
+
+            def fetch_historical_data_v3(self, symbol, unit='minutes', **kwargs):
+                return frames[symbol] if unit == 'days' else self._minutes(symbol)
+
+            def fetch_intraday_data_v3(self, symbol, **kwargs):
+                return self._minutes(symbol)
+
+        bulk = {sym: {'high': 1000.0, 'low': 900.0, 'close': p}
+                for sym, p in prices.items()}
+        daily_calls = []
+        bulk_calls = []
+        per_symbol_calls = []
+        real_fetch = scan._fetch_90d_daily
+
+        def counted_fetch(*args, **kwargs):
+            daily_calls.append(1)
+            return real_fetch(*args, **kwargs)
+
+        def counted_bulk():
+            bulk_calls.append(1)
+            return bulk
+
+        def counted_per_symbol(symbol):
+            per_symbol_calls.append(symbol)
+            return bulk.get(symbol)
+
+        tv_df = pd.DataFrame([self._row('TODAY', 999.5), self._row('SIX', 980.0)])
+        with patch.object(scan, '_fetch_90d_daily', counted_fetch), \
+             patch.object(ranges, 'load_all_52w_ranges', counted_bulk), \
+             patch.object(ranges, 'get_52w_range', counted_per_symbol), \
+             patch.object(trending_upside, 'fetch_trending_stocks', return_value=tv_df), \
+             patch.object(TradingAPIFactory, 'create_from_config', return_value=Api()):
+            data = scan.fetch_screener_data(
+                provider='upstox', mode='intraday', screener='touched_52w_high',
+            )
+
+        assert len(daily_calls) == 2
+        assert len(bulk_calls) == 1
+        assert per_symbol_calls == []
+        touched = {s['symbol']: s for s in data['touched']}
+        approaching = {s['symbol']: s for s in data['approaching']}
+        assert touched['TODAY']['days_ago'] == 0
+        assert touched['TODAY']['days_since_touch'] == 0
+        assert touched['TODAY']['touched_52w'] is True
+        assert approaching['SIX']['days_ago'] == 6
+        assert approaching['SIX']['days_since_touch'] == 6
+        assert approaching['SIX']['touched_52w'] is False
+
+
 class TestUnmappedSymbolsDropped:
     def test_unmapped_symbol_excluded_when_api_available(self):
         from api.screener_api.screener_52w import fetch_52w_high_data

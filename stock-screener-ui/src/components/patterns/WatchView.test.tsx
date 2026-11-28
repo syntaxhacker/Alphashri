@@ -3,7 +3,8 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import type { WatchPayload, WatchRow, WatchSetup } from "@/types/chartPatterns";
-import { WatchView, WATCH_POLL_MS, WATCH_DEFAULT_WITHIN_PCT, WATCH_DEFAULT_MIN_REL_VOLUME, WATCH_SNAPSHOT_TICK_MS, WATCH_AUTO_REFRESH, WATCH_SLOW_HINT_MS, formatSnapshotAge, universeLabel } from "./WatchView";
+import { WatchView, WATCH_POLL_MS, WATCH_DEFAULT_WITHIN_PCT, WATCH_DEFAULT_MIN_REL_VOLUME, WATCH_SNAPSHOT_TICK_MS, WATCH_AUTO_REFRESH, WATCH_SLOW_HINT_MS, formatSnapshotAge, universeLabel, isWatchLiveNow } from "./WatchView";
+import { loadHolidays, resetHolidays } from "@/state/holidays";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
@@ -14,6 +15,12 @@ vi.mock("@/ui", async () => {
 const mockFetchWatchSetups = vi.fn();
 const mockFetchWatch = vi.fn();
 const mockFetchMarketStatus = vi.fn();
+const mockFetchHolidays = vi.fn();
+vi.mock("@/api/holidays_api", () => ({
+  fetchHolidays: (...args: unknown[]) => mockFetchHolidays(...args),
+  fetchHolidayCheck: vi.fn(),
+  fetchTradingDates: vi.fn(),
+}));
 vi.mock("@/api/chartPatterns", () => ({
   fetchWatchSetups: (...args: unknown[]) => mockFetchWatchSetups(...args),
   fetchWatch: (...args: unknown[]) => mockFetchWatch(...args),
@@ -473,6 +480,29 @@ describe("WatchView", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("WatchView live gate", () => {
+  beforeEach(() => {
+    mockFetchHolidays.mockReset();
+    resetHolidays();
+  });
+
+  afterEach(() => {
+    resetHolidays();
+  });
+
+  test("is holiday-aware, not a bare IST session clock", async () => {
+    mockFetchHolidays.mockResolvedValue([
+      { date: "2026-01-26", description: "Republic Day", type: "trading" },
+    ]);
+    await loadHolidays();
+
+    // 06:00Z = 11:30 IST on a Monday: open on an ordinary Monday, closed on
+    // Republic Day. A session-only clock would report `true` for both.
+    expect(isWatchLiveNow(new Date("2026-01-19T06:00:00Z"))).toBe(true);
+    expect(isWatchLiveNow(new Date("2026-01-26T06:00:00Z"))).toBe(false);
   });
 });
 
