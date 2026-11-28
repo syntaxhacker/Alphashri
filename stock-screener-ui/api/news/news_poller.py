@@ -1,5 +1,4 @@
 import asyncio
-import concurrent.futures
 import logging
 import os
 import threading
@@ -237,8 +236,6 @@ async def news_poller_task():
     poller_logger.info("News poller started")
 
     await asyncio.sleep(5)
-
-    _poller_executor = concurrent.futures.ThreadPoolExecutor(max_workers=3, thread_name_prefix="news_poller")
 
     while True:
         try:
