@@ -23,6 +23,7 @@ from upstox_trader import rate_limiter as rlmod
 from upstox_trader.rate_limiter import (
     ACQUIRE_LUA,
     GLOBAL_PER_MINUTE,
+    GLOBAL_PER_SECOND,
     UpstoxRateLimiter,
     resolve_consumer,
     resolve_consumer_cap,
@@ -51,9 +52,9 @@ class FakeScript:
         def _count(key, lo):
             return sum(1 for s in store[key].values() if lo <= s <= now)
 
-        if _count(global_key, now - 60) + 1 > 500:
+        if _count(global_key, now - 60) + 1 > GLOBAL_PER_MINUTE:
             return (0, 5)
-        if _count(global_key, now - 1) + 1 > 50:
+        if _count(global_key, now - 1) + 1 > GLOBAL_PER_SECOND:
             return (0, 1)
         if _count(consumer_key, now - 60) + 1 > consumer_cap:
             return (0, 5)

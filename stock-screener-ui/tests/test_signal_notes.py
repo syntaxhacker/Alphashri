@@ -10,10 +10,10 @@ Tests for enriched signal notes across all strategy signal generators:
 """
 
 import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from unittest.mock import patch
 
-IST = timezone(timedelta(hours=5, minutes=30))
+from config import IST
 
 
 @pytest.fixture
